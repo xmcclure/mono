@@ -25,9 +25,9 @@
 using System;
 using System.Security.Cryptography;
 
-namespace Mono.Security.Protocol.Tls
+namespace Mono.Security.Cryptography
 {
-	internal class RSASslSignatureDeformatter : AsymmetricSignatureDeformatter
+	internal class RSASslSignatureFormatter : AsymmetricSignatureFormatter
 	{
 		#region Fields
 
@@ -38,11 +38,11 @@ namespace Mono.Security.Protocol.Tls
 
 		#region Constructors
 
-		public RSASslSignatureDeformatter()
+		public RSASslSignatureFormatter()
 		{
 		}
 
-		public RSASslSignatureDeformatter(AsymmetricAlgorithm key)
+		public RSASslSignatureFormatter(AsymmetricAlgorithm key)
 		{
 			this.SetKey(key);
 		}
@@ -51,9 +51,7 @@ namespace Mono.Security.Protocol.Tls
 
 		#region Methods
 
-		public override bool VerifySignature(
-			byte[] rgbHash,
-			byte[] rgbSignature)
+		public override byte[] CreateSignature(byte[] rgbHash)
 		{
 			if (this.key == null)
 			{
@@ -68,11 +66,10 @@ namespace Mono.Security.Protocol.Tls
 				throw new ArgumentNullException("The rgbHash parameter is a null reference.");
 			}
 
-			return Mono.Security.Cryptography.PKCS1.Verify_v15(
+			return Mono.Security.Cryptography.PKCS1.Sign_v15(
 				this.key,
 				this.hash,
-				rgbHash,
-				rgbSignature);
+				rgbHash);
 		}
 
 		public override void SetHashAlgorithm(string strName)

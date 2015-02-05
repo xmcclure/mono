@@ -24,6 +24,7 @@
 
 using System;
 using System.Security.Cryptography;
+using Mono.Security.Cryptography;
 
 namespace Mono.Security.Protocol.Tls
 {

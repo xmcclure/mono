@@ -33,6 +33,8 @@
 ./Mono.Security.Cryptography/PKCS8.cs
 ./Mono.Security.Cryptography/RC4.cs
 ./Mono.Security.Cryptography/RSAManaged.cs
+./Mono.Security.Cryptography/RSASslSignatureDeformatter.cs
+./Mono.Security.Cryptography/RSASslSignatureFormatter.cs
 ./Mono.Security.Cryptography/SHA224.cs
 ./Mono.Security.Cryptography/SHA224Managed.cs
 ./Mono.Security.Cryptography/SymmetricTransform.cs
@@ -90,8 +92,6 @@
 ./Mono.Security.Protocol.Tls/HashAlgorithmType.cs
 ./Mono.Security.Protocol.Tls/HttpsClientStream.cs
 ./Mono.Security.Protocol.Tls/RecordProtocol.cs
-./Mono.Security.Protocol.Tls/RSASslSignatureDeformatter.cs
-./Mono.Security.Protocol.Tls/RSASslSignatureFormatter.cs
 ./Mono.Security.Protocol.Tls/SecurityCompressionType.cs
 ./Mono.Security.Protocol.Tls/SecurityParameters.cs
 ./Mono.Security.Protocol.Tls/SecurityProtocolType.cs

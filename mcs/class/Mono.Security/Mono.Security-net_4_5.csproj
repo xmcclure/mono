@@ -130,8 +130,8 @@
     <Compile Include=".\Mono.Security.Protocol.Tls\HashAlgorithmType.cs" />
     <Compile Include=".\Mono.Security.Protocol.Tls\HttpsClientStream.cs" />
     <Compile Include=".\Mono.Security.Protocol.Tls\RecordProtocol.cs" />
-    <Compile Include=".\Mono.Security.Protocol.Tls\RSASslSignatureDeformatter.cs" />
-    <Compile Include=".\Mono.Security.Protocol.Tls\RSASslSignatureFormatter.cs" />
+    <Compile Include=".\Mono.Security.Cryptography\RSASslSignatureDeformatter.cs" />
+    <Compile Include=".\Mono.Security.Cryptography\RSASslSignatureFormatter.cs" />
     <Compile Include=".\Mono.Security.Protocol.Tls\SecurityCompressionType.cs" />
     <Compile Include=".\Mono.Security.Protocol.Tls\SecurityParameters.cs" />
     <Compile Include=".\Mono.Security.Protocol.Tls\SecurityProtocolType.cs" />
