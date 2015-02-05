@@ -817,7 +817,7 @@
     <Compile Include="System.Net.Sockets\IPv6MulticastOption.cs" />
     <Compile Include="System.Net.Sockets\LingerOption.cs" />
     <Compile Include="System.Net.Sockets\MulticastOption.cs" />
-    <Compile Include="System.Net.Sockets\NetworkStream.cs" />
+    <Compile Include="..\..\..\external\referencesource\System\net\System\Net\Sockets\NetworkStream.cs" />
     <Compile Include="System.Net.Sockets\ProtocolFamily.cs" />
     <Compile Include="System.Net.Sockets\ProtocolType.cs" />
     <Compile Include="System.Net.Sockets\SelectMode.cs" />

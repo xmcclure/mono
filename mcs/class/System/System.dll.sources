@@ -550,7 +550,6 @@ System.Net.Sockets/IPv6MulticastOption.cs
 System.Net.Sockets/IPPacketInformation.cs
 System.Net.Sockets/LingerOption.cs
 System.Net.Sockets/MulticastOption.cs
-System.Net.Sockets/NetworkStream.cs
 System.Net.Sockets/ProtocolFamily.cs
 System.Net.Sockets/ProtocolType.cs
 System.Net.Sockets/SelectMode.cs
@@ -1086,6 +1085,8 @@ ReferenceSources/Win32Exception.cs
 ../../../external/referencesource/System/net/System/Net/webclient.cs
 ../../../external/referencesource/System/net/System/Net/WebPermission.cs
 ../../../external/referencesource/System/net/System/Net/WriteStreamClosedEventArgs.cs
+
+../../../external/referencesource/System/net/System/Net/Sockets/NetworkStream.cs
 
 ../../../external/referencesource/System/sys/system/threading/Barrier.cs
 
