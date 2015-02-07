@@ -109,6 +109,10 @@ namespace Mono.Net.Security.Private
 			get { return false; }
 		}
 
+		public override bool SupportsTlsContext {
+			get { return false; }
+		}
+
 		public override bool IsHttpsStream (Stream stream)
 		{
 			return stream.GetType () == sslStream;
@@ -148,6 +152,18 @@ namespace Mono.Net.Security.Private
 				innerStream, leaveInnerStreamOpen,
 				userCertificateValidationCallback,
 				userCertificateSelectionCallback);
+		}
+
+		protected override IMonoTlsContext CreateTlsContextImpl (
+			string hostname, bool serverMode, SchProtocols protocolFlags,
+			X509Certificate serverCertificate, X509CertificateCollection clientCertificates,
+			bool remoteCertRequired, bool checkCertName, bool checkCertRevocationStatus,
+			EncryptionPolicy encryptionPolicy,
+			RemoteCertValidationCallback remoteValidationCallback,
+			LocalCertSelectionCallback certSelectionDelegate,
+			MonoTlsSettings settings)
+		{
+			throw new NotSupportedException ();
 		}
 	}
 }

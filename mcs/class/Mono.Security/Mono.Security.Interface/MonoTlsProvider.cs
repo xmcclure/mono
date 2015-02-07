@@ -130,5 +130,26 @@ namespace Mono.Security.Interface
 			MonoTlsSettings settings = null);
 
 #endregion
+
+#region Manged SSPI
+
+		/*
+		 * The managed SSPI implementation from the new TLS code.
+		 */
+
+		public abstract bool SupportsTlsContext {
+			get;
+		}
+
+		public abstract IMonoTlsContext CreateTlsContext (
+			string hostname, bool serverMode, TlsProtocols protocolFlags,
+			X509Certificate serverCertificate, X509CertificateCollection clientCertificates,
+			bool remoteCertRequired, bool checkCertName, bool checkCertRevocationStatus,
+			MonoEncryptionPolicy encryptionPolicy,
+			MonoRemoteCertificateValidationCallback userCertificateValidationCallback,
+			MonoLocalCertificateSelectionCallback userCertificateSelectionCallback,
+			MonoTlsSettings settings);
+
+#endregion
 	}
 }

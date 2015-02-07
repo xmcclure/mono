@@ -101,6 +101,25 @@ namespace Mono.Net.Security.Private
 				CallbackHelpers.PublicToMono (userCertificateSelectionCallback));
 			return sslStream.Impl;
 		}
+
+		public MSI.IMonoTlsContext CreateTlsContext (
+			string hostname, bool serverMode, SchProtocols protocolFlags,
+			X509Certificate serverCertificate, XX509CertificateCollection clientCertificates,
+			bool remoteCertRequired, bool checkCertName, bool checkCertRevocationStatus,
+			EncryptionPolicy encryptionPolicy,
+			RemoteCertValidationCallback remoteValidationCallback,
+			LocalCertSelectionCallback certSelectionDelegate,
+			MSI.MonoTlsSettings settings)
+		{
+			return provider.CreateTlsContext (
+				hostname, serverMode, (MSI.TlsProtocols)protocolFlags,
+				serverCertificate, (XX509CertificateCollection)(object)clientCertificates,
+				remoteCertRequired, checkCertName, checkCertRevocationStatus,
+				(MSI.MonoEncryptionPolicy)encryptionPolicy,
+				CallbackHelpers.InternalToMono (remoteValidationCallback),
+				CallbackHelpers.InternalToMono (certSelectionDelegate),
+				settings);
+		}
 	}
 }
 

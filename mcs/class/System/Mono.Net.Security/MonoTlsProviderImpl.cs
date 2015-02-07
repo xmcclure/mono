@@ -108,6 +108,51 @@ namespace Mono.Net.Security.Private
 				CallbackHelpers.MonoToPublic (userCertificateSelectionCallback));
 			return new MonoSslStreamImpl (sslStream);
 		}
+
+		MSI.IMonoTlsContext IMonoTlsProvider.CreateTlsContext (
+			string hostname, bool serverMode, SchProtocols protocolFlags,
+			X509Certificate serverCertificate, XX509CertificateCollection clientCertificates,
+			bool remoteCertRequired, bool checkCertName, bool checkCertRevocationStatus,
+			EncryptionPolicy encryptionPolicy,
+			RemoteCertValidationCallback remoteValidationCallback,
+			LocalCertSelectionCallback certSelectionDelegate,
+			MSI.MonoTlsSettings settings)
+		{
+			return CreateTlsContextImpl (
+				hostname, serverMode, protocolFlags,
+				serverCertificate, (X509CertificateCollection)(object)clientCertificates,
+				remoteCertRequired, checkCertName, checkCertRevocationStatus, encryptionPolicy,
+				remoteValidationCallback, certSelectionDelegate,
+				settings);
+		}
+
+		protected abstract MSI.IMonoTlsContext CreateTlsContextImpl (
+			string hostname, bool serverMode, SchProtocols protocolFlags,
+			X509Certificate serverCertificate, X509CertificateCollection clientCertificates,
+			bool remoteCertRequired, bool checkCertName, bool checkCertRevocationStatus,
+			EncryptionPolicy encryptionPolicy,
+			RemoteCertValidationCallback remoteValidationCallback,
+			LocalCertSelectionCallback certSelectionDelegate,
+			MSI.MonoTlsSettings settings);
+
+		public override MSI.IMonoTlsContext CreateTlsContext (
+			string hostname, bool serverMode, MSI.TlsProtocols protocolFlags,
+			X509Certificate serverCertificate, XX509CertificateCollection clientCertificates,
+			bool remoteCertRequired, bool checkCertName, bool checkCertRevocationStatus,
+			MSI.MonoEncryptionPolicy encryptionPolicy,
+			MSI.MonoRemoteCertificateValidationCallback userCertificateValidationCallback,
+			MSI.MonoLocalCertificateSelectionCallback userCertificateSelectionCallback,
+			MSI.MonoTlsSettings settings)
+		{
+			return CreateTlsContextImpl (
+				hostname, serverMode, (SchProtocols)protocolFlags,
+				serverCertificate, (X509CertificateCollection)(object)clientCertificates,
+				remoteCertRequired, checkCertName, checkCertRevocationStatus,
+				(EncryptionPolicy)encryptionPolicy,
+				CallbackHelpers.MonoToInternal (userCertificateValidationCallback),
+				CallbackHelpers.MonoToInternal (userCertificateSelectionCallback),
+				settings);
+		}
 	}
 }
 

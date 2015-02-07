@@ -28,11 +28,19 @@
 #if MONO_SECURITY_ALIAS
 extern alias MonoSecurity;
 #endif
+#if MONO_X509_ALIAS
+extern alias PrebuiltSystem;
+#endif
 
 #if MONO_SECURITY_ALIAS
 using MonoSecurity::Mono.Security.Interface;
 #else
 using Mono.Security.Interface;
+#endif
+#if MONO_X509_ALIAS
+using XX509CertificateCollection = PrebuiltSystem::System.Security.Cryptography.X509Certificates.X509CertificateCollection;
+#else
+using XX509CertificateCollection = System.Security.Cryptography.X509Certificates.X509CertificateCollection;
 #endif
 #endif
 
@@ -77,6 +85,15 @@ namespace Mono.Net.Security
 			Stream innerStream, bool leaveInnerStreamOpen,
 			RemoteCertificateValidationCallback userCertificateValidationCallback,
 			LocalCertificateSelectionCallback userCertificateSelectionCallback);
+
+		IMonoTlsContext CreateTlsContext (
+			string hostname, bool serverMode, SchProtocols protocolFlags,
+			X509Certificate serverCertificate, XX509CertificateCollection clientCertificates,
+			bool remoteCertRequired, bool checkCertName, bool checkCertRevocationStatus,
+			EncryptionPolicy encryptionPolicy,
+			RemoteCertValidationCallback remoteValidationCallback,
+			LocalCertSelectionCallback certSelectionDelegate,
+			MonoTlsSettings settings);
 #endif
 	}
 }
