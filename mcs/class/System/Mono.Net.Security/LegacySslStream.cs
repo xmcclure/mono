@@ -32,7 +32,7 @@
 // WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 //
 
-#if SECURITY_DEP && !MONO_FEATURE_NEW_TLS
+#if SECURITY_DEP
 
 #if MONO_X509_ALIAS
 extern alias PrebuiltSystem;
@@ -65,6 +65,7 @@ using ExchangeAlgorithmType = System.Security.Authentication.ExchangeAlgorithmTy
 using System;
 using System.IO;
 using System.Net;
+using System.Net.Security;
 using System.Security.Authentication;
 using System.Security.Cryptography.X509Certificates;
 using System.Security.Principal;
@@ -72,61 +73,10 @@ using System.Security.Cryptography;
 
 using System.Threading.Tasks;
 
-namespace System.Net.Security 
+namespace Mono.Net.Security 
 {
-	[Flags]
-	public enum SslPolicyErrors
-	{
-		None = 0,
-		RemoteCertificateNotAvailable = 1,
-		RemoteCertificateNameMismatch = 2,
-		RemoteCertificateChainErrors = 4,
-	}
-
-	public enum EncryptionPolicy
-	{
-		// Prohibit null ciphers (current system defaults)
-		RequireEncryption = 0,
-
-		// Add null ciphers to current system defaults
-		AllowNoEncryption,
-
-		// Request null ciphers only
-		NoEncryption
-	}
-
-	public delegate bool RemoteCertificateValidationCallback (
-		object sender,
-		X509Certificate certificate,
-		X509Chain chain,
-		SslPolicyErrors sslPolicyErrors);
-
-	public delegate X509Certificate LocalCertificateSelectionCallback (
-		object sender,
-		string targetHost,
-		X509CertificateCollection localCertificates,
-		X509Certificate remoteCertificate,
-		string [] acceptableIssuers);
-
-	/*
-	 * These two are defined by the referencesource; add them heere to make
-	 * it easy to switch between the two implementations.
-	 */
-
-	internal delegate bool RemoteCertValidationCallback (
-		string host,
-		X509Certificate certificate,
-		X509Chain chain,
-		SslPolicyErrors sslPolicyErrors);
-
-	internal delegate X509Certificate LocalCertSelectionCallback (
-		string targetHost,
-		X509CertificateCollection localCertificates,
-		X509Certificate remoteCertificate,
-		string[] acceptableIssuers);
-
 	[MonoTODO ("Non-X509Certificate2 certificate is not supported")]
-	public class SslStream : AuthenticatedStream
+	internal class LegacySslStream : AuthenticatedStream, IMonoSslStream
 	{
 		#region Fields
 
@@ -138,24 +88,24 @@ namespace System.Net.Security
 
 		#region Constructors
 
-		public SslStream (Stream innerStream)
+		public LegacySslStream (Stream innerStream)
 			: this (innerStream, false)
 		{
 		}
 
-		public SslStream (Stream innerStream, bool leaveInnerStreamOpen)
+		public LegacySslStream (Stream innerStream, bool leaveInnerStreamOpen)
 			: base (innerStream, leaveInnerStreamOpen)
 		{
 		}
 
 		[MonoTODO ("userCertificateValidationCallback is not passed X509Chain and SslPolicyErrors correctly")]
-		public SslStream (Stream innerStream, bool leaveInnerStreamOpen, RemoteCertificateValidationCallback userCertificateValidationCallback)
+		public LegacySslStream (Stream innerStream, bool leaveInnerStreamOpen, RemoteCertificateValidationCallback userCertificateValidationCallback)
 			: this (innerStream, leaveInnerStreamOpen, userCertificateValidationCallback, null)
 		{
 		}
 
 		[MonoTODO ("userCertificateValidationCallback is not passed X509Chain and SslPolicyErrors correctly")]
-		public SslStream (Stream innerStream, bool leaveInnerStreamOpen, RemoteCertificateValidationCallback userCertificateValidationCallback, LocalCertificateSelectionCallback userCertificateSelectionCallback)
+		public LegacySslStream (Stream innerStream, bool leaveInnerStreamOpen, RemoteCertificateValidationCallback userCertificateValidationCallback, LocalCertificateSelectionCallback userCertificateSelectionCallback)
 			: base (innerStream, leaveInnerStreamOpen)
 		{
 			// they are nullable.
@@ -655,7 +605,7 @@ namespace System.Net.Security
 			var t = Tuple.Create (targetHost, clientCertificates, enabledSslProtocols, checkCertificateRevocation, this);
 
 			return Task.Factory.FromAsync ((callback, state) => {
-				var d = (Tuple<string, X509CertificateCollection, SslProtocols, bool, SslStream>) state;
+				var d = (Tuple<string, X509CertificateCollection, SslProtocols, bool, LegacySslStream>) state;
 				return d.Item5.BeginAuthenticateAsClient (d.Item1, d.Item2, d.Item3, d.Item4, callback, null);
 			}, EndAuthenticateAsClient, t);
 		}
@@ -670,12 +620,24 @@ namespace System.Net.Security
 			var t = Tuple.Create (serverCertificate, clientCertificateRequired, enabledSslProtocols, checkCertificateRevocation, this);
 
 			return Task.Factory.FromAsync ((callback, state) => {
-				var d = (Tuple<X509Certificate, bool, SslProtocols, bool, SslStream>) state;
+				var d = (Tuple<X509Certificate, bool, SslProtocols, bool, LegacySslStream>) state;
 				return d.Item5.BeginAuthenticateAsServer (d.Item1, d.Item2, d.Item3, d.Item4, callback, null);
 			}, EndAuthenticateAsServer, t);
 		}
 
 		#endregion // Methods
+
+		#region IMonoSslStream
+
+		AuthenticatedStream IMonoSslStream.AuthenticatedStream {
+			get { return this; }
+		}
+
+		TransportContext IMonoSslStream.TransportContext {
+			get { throw new NotSupportedException (); }
+		}
+
+		#endregion
 	}
 }
 

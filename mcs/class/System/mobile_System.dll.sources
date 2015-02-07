@@ -357,6 +357,9 @@ System.Runtime.InteropServices/DefaultParameterValueAttribute.cs
 System.Runtime.InteropServices/HandleCollector.cs
 System.Windows.Input/ICommand.cs
 
+Mono.Net.Security/IMonoSslStream.cs
+Mono.Net.Security/LegacySslStream.cs
+
 ReferenceSources/BootstrapHelper.cs
 ReferenceSources/Logging.cs
 ReferenceSources/NativeMethods.cs
