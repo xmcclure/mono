@@ -138,4 +138,5 @@
 ./Mono.Security.Interface/IMonoHttpsStream.cs
 ./Mono.Security.Interface/MonoSslStream.cs
 ./Mono.Security.Interface/MonoTlsProvider.cs
+./Mono.Security.Interface/MonoTlsProviderFactory.cs
 ./Mono.Security.Interface/MonoTlsSettings.cs
