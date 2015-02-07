@@ -530,13 +530,10 @@ System.Net/RequestStream.cs
 System.Net/ResponseStream.cs
 System.Net.Security/AuthenticatedStream.cs
 System.Net.Security/AuthenticationLevel.cs
-System.Net.Security/LocalCertificateSelectionCallback.cs
 System.Net.Security/NegotiateStream.cs
 System.Net.Security/ProtectionLevel.cs
 System.Net/SecurityProtocolType.cs
-System.Net.Security/RemoteCertificateValidationCallback.cs
 System.Net.Security/SslStream.cs
-System.Net.Security/SslPolicyErrors.cs
 System.Net/ServicePoint.cs
 System.Net/ServicePointManager.cs
 System.Net/ServicePointManager.extra.cs
@@ -734,6 +731,7 @@ System.Net/DnsAsyncResult.cs
 System.Windows.Input/ICommand.cs
 
 ReferenceSources/BinaryCompatibility.cs
+ReferenceSources/BootstrapHelper.cs
 ReferenceSources/Logging.cs
 ReferenceSources/NativeMethods.cs
 ReferenceSources/SettingsSectionInternal.cs

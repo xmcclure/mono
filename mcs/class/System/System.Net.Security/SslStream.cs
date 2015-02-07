@@ -75,6 +75,57 @@ using System.Threading.Tasks;
 
 namespace System.Net.Security 
 {
+	[Flags]
+	public enum SslPolicyErrors
+	{
+		None = 0,
+		RemoteCertificateNotAvailable = 1,
+		RemoteCertificateNameMismatch = 2,
+		RemoteCertificateChainErrors = 4,
+	}
+
+	public enum EncryptionPolicy
+	{
+		// Prohibit null ciphers (current system defaults)
+		RequireEncryption = 0,
+
+		// Add null ciphers to current system defaults
+		AllowNoEncryption,
+
+		// Request null ciphers only
+		NoEncryption
+	}
+
+	public delegate bool RemoteCertificateValidationCallback (
+		object sender,
+		X509Certificate certificate,
+		X509Chain chain,
+		SslPolicyErrors sslPolicyErrors);
+
+	public delegate X509Certificate LocalCertificateSelectionCallback (
+		object sender,
+		string targetHost,
+		X509CertificateCollection localCertificates,
+		X509Certificate remoteCertificate,
+		string [] acceptableIssuers);
+
+	/*
+	 * These two are defined by the referencesource; add them heere to make
+	 * it easy to switch between the two implementations.
+	 */
+
+	internal delegate bool RemoteCertValidationCallback (
+		string host,
+		X509Certificate certificate,
+		X509Chain chain,
+		SslPolicyErrors sslPolicyErrors);
+
+	internal delegate X509Certificate LocalCertSelectionCallback (
+		string targetHost,
+		X509CertificateCollection localCertificates,
+		X509Certificate remoteCertificate,
+		string[] acceptableIssuers);
+
 	[MonoTODO ("Non-X509Certificate2 certificate is not supported")]
 	public class SslStream : AuthenticatedStream
 	{

@@ -819,11 +819,8 @@
     <Compile Include="System.Net.NetworkInformation\Win32NetworkInterfaceMarshal.cs" />
     <Compile Include="System.Net.Security\AuthenticatedStream.cs" />
     <Compile Include="System.Net.Security\AuthenticationLevel.cs" />
-    <Compile Include="System.Net.Security\LocalCertificateSelectionCallback.cs" />
     <Compile Include="System.Net.Security\NegotiateStream.cs" />
     <Compile Include="System.Net.Security\ProtectionLevel.cs" />
-    <Compile Include="System.Net.Security\RemoteCertificateValidationCallback.cs" />
-    <Compile Include="System.Net.Security\SslPolicyErrors.cs" />
     <Compile Include="System.Net.Security\SslStream.cs" />
     <Compile Include="System.Net.Sockets\AddressFamily.cs" />
     <Compile Include="System.Net.Sockets\IOControlCode.cs" />
