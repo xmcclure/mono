@@ -748,10 +748,18 @@ ReferenceSources/NativeMethods.cs
 ReferenceSources/SettingsSectionInternal.cs
 ReferenceSources/Socket.cs
 ReferenceSources/SR.cs
+ReferenceSources/SR2.cs
 ReferenceSources/SRCategoryAttribute.cs
 ReferenceSources/SystemNetworkCredential.cs
 ReferenceSources/WebHeaderCollectionType.cs
 ReferenceSources/Win32Exception.cs
+
+ReferenceSources/SSPIConfiguration.cs
+ReferenceSources/SSPISafeHandles.cs
+ReferenceSources/SSPIWrapper.cs
+ReferenceSources/SslStream.cs
+ReferenceSources/_SecureChannel.cs
+ReferenceSources/_SslState.cs
 
 ../../../external/referencesource/System/regex/system/text/regularexpressions/Regex.cs
 ../../../external/referencesource/System/regex/system/text/regularexpressions/RegexBoyerMoore.cs
