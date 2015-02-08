@@ -74,11 +74,25 @@ namespace Mono.Net.Security
 
 		static IMonoTlsProvider CreateDefaultProvider ()
 		{
-			#if SECURITY_DEP
+#if SECURITY_DEP
+#if MONO_FEATURE_NEW_SYSTEM_SOURCE
+			/*
+			 * This is a hack, which is used in the Mono.Security.Providers.NewSystemSource
+			 * assembly, which will provide a "fake" System.dll.  Use the public Mono.Security
+			 * API to get the "real" System.dll's provider via reflection, then wrap it with
+			 * the "fake" version's perceived view.
+			 *
+			 * NewSystemSource needs to compile MonoTlsProviderFactory.cs, IMonoTlsProvider.cs,
+			 * MonoTlsProviderWrapper.cs and CallbackHelpers.cs from this directory and only these.
+			 */
+			var userProvider = MSI.MonoTlsProviderFactory.GetProvider ();
+			return new Private.MonoTlsProviderWrapper (userProvider);
+#else
 			return new Private.MonoDefaultTlsProvider ();
-			#else
+#endif
+#else
 			return null;
-			#endif
+#endif
 		}
 
 		static object locker = new object ();
@@ -86,7 +100,7 @@ namespace Mono.Net.Security
 
 		#endregion
 
-#if SECURITY_DEP
+#if SECURITY_DEP && !MONO_FEATURE_NEW_SYSTEM_SOURCE
 
 		#region Mono.Security visible API
 
