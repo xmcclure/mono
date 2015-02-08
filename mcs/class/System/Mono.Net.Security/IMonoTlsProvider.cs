@@ -87,10 +87,10 @@ namespace Mono.Net.Security
 			LocalCertificateSelectionCallback userCertificateSelectionCallback);
 
 		IMonoTlsContext CreateTlsContext (
-			string hostname, bool serverMode, SchProtocols protocolFlags,
+			string hostname, bool serverMode, TlsProtocols protocolFlags,
 			X509Certificate serverCertificate, XX509CertificateCollection clientCertificates,
 			bool remoteCertRequired, bool checkCertName, bool checkCertRevocationStatus,
-			EncryptionPolicy encryptionPolicy,
+			MonoEncryptionPolicy encryptionPolicy,
 			RemoteCertValidationCallback remoteValidationCallback,
 			LocalCertSelectionCallback certSelectionDelegate,
 			MonoTlsSettings settings);

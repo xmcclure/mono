@@ -39,13 +39,9 @@ using MSI = MonoSecurity::Mono.Security.Interface;
 using MSI = Mono.Security.Interface;
 #endif
 #if MONO_X509_ALIAS
-using XSslPolicyErrors = PrebuiltSystem::System.Net.Security.SslPolicyErrors;
-
 using XX509CertificateCollection = PrebuiltSystem::System.Security.Cryptography.X509Certificates.X509CertificateCollection;
 using XX509Chain = PrebuiltSystem::System.Security.Cryptography.X509Certificates.X509Chain;
 #else
-using XSslPolicyErrors = System.Net.Security.SslPolicyErrors;
-
 using XX509CertificateCollection = System.Security.Cryptography.X509Certificates.X509CertificateCollection;
 using XX509Chain = System.Security.Cryptography.X509Certificates.X509Chain;
 #endif
@@ -100,7 +96,7 @@ namespace Mono.Net.Security.Private
 			if (callback == null)
 				return null;
 
-			return (t, c, ch, e) => callback (null, c, (XX509Chain)(object)ch, (XSslPolicyErrors)e);
+			return (t, c, ch, e) => callback (null, c, (XX509Chain)(object)ch, (MSI.MonoSslPolicyErrors)e);
 		}
 
 		internal static LocalCertificateSelectionCallback MonoToPublic (MSI.MonoLocalCertificateSelectionCallback callback)
@@ -116,7 +112,7 @@ namespace Mono.Net.Security.Private
 			if (callback == null)
 				return null;
 
-			return (h, c, ch, e) => callback (h, c, (XX509Chain)(object)ch, (XSslPolicyErrors)e);
+			return (h, c, ch, e) => callback (h, c, (XX509Chain)(object)ch, (MSI.MonoSslPolicyErrors)e);
 		}
 
 		internal static LocalCertSelectionCallback MonoToInternal (MSI.MonoLocalCertificateSelectionCallback callback)

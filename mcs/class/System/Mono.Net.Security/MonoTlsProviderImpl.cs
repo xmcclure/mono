@@ -110,10 +110,10 @@ namespace Mono.Net.Security.Private
 		}
 
 		MSI.IMonoTlsContext IMonoTlsProvider.CreateTlsContext (
-			string hostname, bool serverMode, SchProtocols protocolFlags,
+			string hostname, bool serverMode, MSI.TlsProtocols protocolFlags,
 			X509Certificate serverCertificate, XX509CertificateCollection clientCertificates,
 			bool remoteCertRequired, bool checkCertName, bool checkCertRevocationStatus,
-			EncryptionPolicy encryptionPolicy,
+			MSI.MonoEncryptionPolicy encryptionPolicy,
 			RemoteCertValidationCallback remoteValidationCallback,
 			LocalCertSelectionCallback certSelectionDelegate,
 			MSI.MonoTlsSettings settings)
@@ -127,10 +127,10 @@ namespace Mono.Net.Security.Private
 		}
 
 		protected abstract MSI.IMonoTlsContext CreateTlsContextImpl (
-			string hostname, bool serverMode, SchProtocols protocolFlags,
+			string hostname, bool serverMode, MSI.TlsProtocols protocolFlags,
 			X509Certificate serverCertificate, X509CertificateCollection clientCertificates,
 			bool remoteCertRequired, bool checkCertName, bool checkCertRevocationStatus,
-			EncryptionPolicy encryptionPolicy,
+			MSI.MonoEncryptionPolicy encryptionPolicy,
 			RemoteCertValidationCallback remoteValidationCallback,
 			LocalCertSelectionCallback certSelectionDelegate,
 			MSI.MonoTlsSettings settings);
@@ -145,10 +145,10 @@ namespace Mono.Net.Security.Private
 			MSI.MonoTlsSettings settings)
 		{
 			return CreateTlsContextImpl (
-				hostname, serverMode, (SchProtocols)protocolFlags,
+				hostname, serverMode, (MSI.TlsProtocols)protocolFlags,
 				serverCertificate, (X509CertificateCollection)(object)clientCertificates,
 				remoteCertRequired, checkCertName, checkCertRevocationStatus,
-				(EncryptionPolicy)encryptionPolicy,
+				(MSI.MonoEncryptionPolicy)encryptionPolicy,
 				CallbackHelpers.MonoToInternal (userCertificateValidationCallback),
 				CallbackHelpers.MonoToInternal (userCertificateSelectionCallback),
 				settings);

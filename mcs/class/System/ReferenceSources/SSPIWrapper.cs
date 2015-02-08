@@ -74,9 +74,9 @@ namespace System.Net.Security
 			var provider = MNS.MonoTlsProviderFactory.GetInternalProvider ();
 			var settings = userConfig != null ? userConfig.Settings : null;
 			var context = provider.CreateTlsContext (
-				hostname, serverMode, protocolFlags, serverCertificate, clientCertificates,
+				hostname, serverMode, (TlsProtocols)protocolFlags, serverCertificate, clientCertificates,
 				remoteCertRequired, checkCertName, checkCertRevocationStatus,
-				encryptionPolicy, remoteValidationCallback, certSelectionDelegate, settings);
+				(MonoEncryptionPolicy)encryptionPolicy, remoteValidationCallback, certSelectionDelegate, settings);
 			return new SSPIInterface (context);
 		}
 	}

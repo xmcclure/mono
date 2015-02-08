@@ -40,6 +40,19 @@ namespace Mono.Security.Interface
 	 * The @MonoRemoteCertificateValidationCallback also has an additional 'targetHost' argument.
 	 *
 	 */
+
+	[Flags]
+#if !INSIDE_SYSTEM
+	public
+#endif
+	enum MonoSslPolicyErrors
+	{
+		None = 0,
+		RemoteCertificateNotAvailable = 1,
+		RemoteCertificateNameMismatch = 2,
+		RemoteCertificateChainErrors = 4,
+	}
+
 #if !INSIDE_SYSTEM
 	public
 #endif
@@ -59,7 +72,7 @@ namespace Mono.Security.Interface
 	public
 #endif
 	delegate bool MonoRemoteCertificateValidationCallback (
-		string targetHost, X509Certificate certificate, X509Chain chain, SslPolicyErrors sslPolicyErrors);
+		string targetHost, X509Certificate certificate, X509Chain chain, MonoSslPolicyErrors sslPolicyErrors);
 
 #if !INSIDE_SYSTEM
 	public

@@ -103,16 +103,16 @@ namespace Mono.Net.Security.Private
 		}
 
 		public MSI.IMonoTlsContext CreateTlsContext (
-			string hostname, bool serverMode, SchProtocols protocolFlags,
+			string hostname, bool serverMode, MSI.TlsProtocols protocolFlags,
 			X509Certificate serverCertificate, XX509CertificateCollection clientCertificates,
 			bool remoteCertRequired, bool checkCertName, bool checkCertRevocationStatus,
-			EncryptionPolicy encryptionPolicy,
+			MSI.MonoEncryptionPolicy encryptionPolicy,
 			RemoteCertValidationCallback remoteValidationCallback,
 			LocalCertSelectionCallback certSelectionDelegate,
 			MSI.MonoTlsSettings settings)
 		{
 			return provider.CreateTlsContext (
-				hostname, serverMode, (MSI.TlsProtocols)protocolFlags,
+				hostname, serverMode, protocolFlags,
 				serverCertificate, (XX509CertificateCollection)(object)clientCertificates,
 				remoteCertRequired, checkCertName, checkCertRevocationStatus,
 				(MSI.MonoEncryptionPolicy)encryptionPolicy,
