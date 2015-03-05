@@ -82,5 +82,6 @@ System/AndroidPlatform.cs
 ../Mono.Security/Mono.Security.Interface/IMonoTlsContext.cs
 ../Mono.Security/Mono.Security.Interface/MonoSslStream.cs
 ../Mono.Security/Mono.Security.Interface/MonoTlsProvider.cs
+../Mono.Security/Mono.Security.Interface/MonoTlsProviderFactory.cs
 ../Mono.Security/Mono.Security.Interface/MonoTlsSettings.cs
 ../Mono.Security/Mono.Security.Interface/TlsProtocols.cs

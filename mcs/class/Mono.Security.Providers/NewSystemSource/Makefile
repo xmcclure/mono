@@ -2,10 +2,18 @@ thisdir = class/Mono.Security.Providers/NewSystemSource
 SUBDIRS = 
 include ../../../build/rules.make
 
+PROFILE_ANY_MOBILE := $(filter monotouch monotouch_runtime monodroid xammac mobile mobile_static, $(PROFILE))
+
+ifdef PROFILE_ANY_MOBILE
+EXTERN_ALIAS_FLAGS = -r:Mono.Security
+else
+EXTERN_ALIAS_FLAGS = -d:MONO_SECURITY_ALIAS -r:MonoSecurity=Mono.Security
+endif
+
 LIBRARY = Mono.Security.Providers.NewSystemSource.dll
-LIB_MCS_FLAGS = -r:System.dll -d:SECURITY_DEP -d:MONO_SECURITY_ALIAS -r:MonoSecurity=Mono.Security \
-	-unsafe -nowarn:1030 -keyfile:../../mono.pub -delaysign \
-	-d:MONO -d:FEATURE_PAL -d:MONO_FEATURE_NEW_TLS -d:MONO_FEATURE_NEW_SYSTEM_SOURCE -d:DISABLE_CAS_USE
+LIB_MCS_FLAGS = -r:System.dll -d:SECURITY_DEP $(EXTERN_ALIAS_FLAGS) \
+	-unsafe -nowarn:1030 -keyfile:../../mono.pub -delaysign -d:MONO -d:FEATURE_PAL -d:MONO_FEATURE_NEW_TLS \
+	-d:MONO_FEATURE_NEW_SYSTEM_SOURCE -d:DISABLE_CAS_USE
 TEST_MCS_FLAGS = $(LIB_MCS_FLAGS) -nowarn:169,219,618,672
 
 include ../../../build/library.make
