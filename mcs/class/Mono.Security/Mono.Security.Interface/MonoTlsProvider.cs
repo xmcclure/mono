@@ -139,7 +139,7 @@ namespace Mono.Security.Interface
 			get;
 		}
 
-		internal abstract IMonoTlsContext CreateTlsContext (
+		public abstract IMonoTlsContext CreateTlsContext (
 			string hostname, bool serverMode, TlsProtocols protocolFlags,
 			X509Certificate serverCertificate, X509CertificateCollection clientCertificates,
 			bool remoteCertRequired, bool checkCertName, bool checkCertRevocationStatus,

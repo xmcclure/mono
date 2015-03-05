@@ -26,11 +26,10 @@
 using System;
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
-using MX = Mono.Security.X509;
 
 namespace Mono.Security.Interface
 {
-	interface IMonoTlsContext : IDisposable
+	public interface IMonoTlsContext : IDisposable
 	{
 		bool IsValid {
 			get;
@@ -42,7 +41,7 @@ namespace Mono.Security.Interface
 			get;
 		}
 
-		void SetCertificate (MX.X509Certificate certificate, AsymmetricAlgorithm privateKey);
+		void SetCertificate (X509Certificate certificate, AsymmetricAlgorithm privateKey);
 
 		Exception LastError {
 			get;
@@ -60,7 +59,7 @@ namespace Mono.Security.Interface
 
 		byte[] CreateCloseNotify ();
 
-		MX.X509Certificate GetRemoteCertificate (out MX.X509CertificateCollection remoteCertificateStore);
+		X509Certificate GetRemoteCertificate (out X509CertificateCollection remoteCertificateStore);
 
 		bool VerifyRemoteCertificate ();
 	}
