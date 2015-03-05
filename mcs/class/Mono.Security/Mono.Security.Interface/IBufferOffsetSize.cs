@@ -25,10 +25,7 @@
 // THE SOFTWARE.
 namespace Mono.Security.Interface
 {
-#if !INSIDE_SYSTEM
-	public
-#endif
-	interface IBufferOffsetSize
+	public interface IBufferOffsetSize
 	{
 		byte[] Buffer {
 			get;

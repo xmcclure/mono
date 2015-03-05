@@ -30,10 +30,7 @@ using System.Security.Cryptography.X509Certificates;
 namespace Mono.Security.Interface
 {
 	[Obsolete ("This is based on an old API which will be removed once the transition is complete.")]
-#if !INSIDE_SYSTEM
-	public
-#endif
-	interface IMonoHttpsStream
+	public interface IMonoHttpsStream
 	{
 		Stream Stream {
 			get;

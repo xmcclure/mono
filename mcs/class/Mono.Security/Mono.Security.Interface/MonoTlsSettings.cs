@@ -27,10 +27,7 @@ using System;
 
 namespace Mono.Security.Interface
 {
-#if !INSIDE_SYSTEM
-	public
-#endif
-	abstract class MonoTlsSettings
+	public abstract class MonoTlsSettings
 	{
 	}
 }
