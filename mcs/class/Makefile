@@ -198,7 +198,8 @@ net_4_5_dirs := \
 	System.IO.Compression.FileSystem \
 	System.Windows \
 	System.Xml.Serialization \
-	$(pcl_facade_dirs)
+	$(pcl_facade_dirs) \
+	Mono.Security.Providers
 
 xbuild_2_0_dirs := \
 	Microsoft.Build.Framework	\
