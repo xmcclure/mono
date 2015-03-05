@@ -108,7 +108,7 @@ namespace Mono.Security.Providers.DotNet
 			if (callback == null)
 				return null;
 
-			return (s, c, ch, e) => callback (null, c, ch, e);
+			return (s, c, ch, e) => callback (null, c, ch, (MonoSslPolicyErrors)e);
 		}
 
 		internal static LocalCertificateSelectionCallback ConvertCallback (MonoLocalCertificateSelectionCallback callback)

@@ -106,7 +106,7 @@ namespace System.Net.Security
 		{
 			if (credentials != null && !credentials.IsInvalid) {
 				if (!secModule.Context.HasCredentials && credentials.Certificate != null) {
-					var cert = new MX.X509Certificate (credentials.Certificate.RawData);
+					var cert = new X509Certificate2 (credentials.Certificate.RawData);
 					secModule.Context.SetCertificate (cert, credentials.Certificate.PrivateKey);
 				}
 				bool success = true;
@@ -220,7 +220,7 @@ namespace System.Net.Security
 
 		internal static X509Certificate2 GetRemoteCertificate (SafeDeleteContext safeContext, out X509Certificate2Collection remoteCertificateStore)
 		{
-			MX.X509CertificateCollection monoCollection;
+			X509CertificateCollection monoCollection;
 			if (safeContext == null || safeContext.IsInvalid) {
 				remoteCertificateStore = null;
 				return null;
@@ -233,9 +233,9 @@ namespace System.Net.Security
 
 			remoteCertificateStore = new X509Certificate2Collection ();
 			foreach (var cert in monoCollection) {
-				remoteCertificateStore.Add (new X509Certificate2 (cert.RawData));
+				remoteCertificateStore.Add (cert);
 			}
-			return new X509Certificate2 (monoCert.RawData);
+			return (X509Certificate2)monoCert;
 		}
 
 		internal static bool CheckRemoteCertificate (SafeDeleteContext safeContext)
