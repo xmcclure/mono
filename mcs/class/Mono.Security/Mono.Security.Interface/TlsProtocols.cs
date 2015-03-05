@@ -5,10 +5,7 @@ namespace Mono.Security.Interface
 	[Flags]
 	// Keep in sync with SchProtocols / native SChannel.h
 	// Unfortunately, the definition in System.dll is not public, so we need to duplicate it here.
-#if !INSIDE_SYSTEM
-	public
-#endif
-	enum TlsProtocols {
+	public enum TlsProtocols {
 		Zero                = 0,
 		Tls10Client         = 0x00000080,
 		Tls10Server         = 0x00000040,

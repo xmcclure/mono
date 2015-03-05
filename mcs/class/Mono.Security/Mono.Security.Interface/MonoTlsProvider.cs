@@ -42,10 +42,7 @@ namespace Mono.Security.Interface
 	 */
 
 	[Flags]
-#if !INSIDE_SYSTEM
-	public
-#endif
-	enum MonoSslPolicyErrors
+	public enum MonoSslPolicyErrors
 	{
 		None = 0,
 		RemoteCertificateNotAvailable = 1,
@@ -53,10 +50,7 @@ namespace Mono.Security.Interface
 		RemoteCertificateChainErrors = 4,
 	}
 
-#if !INSIDE_SYSTEM
-	public
-#endif
-	enum MonoEncryptionPolicy
+	public enum MonoEncryptionPolicy
 	{
 		// Prohibit null ciphers (current system defaults)
 		RequireEncryption = 0,
@@ -68,23 +62,14 @@ namespace Mono.Security.Interface
 		NoEncryption
 	}
 
-#if !INSIDE_SYSTEM
-	public
-#endif
-	delegate bool MonoRemoteCertificateValidationCallback (
+	public delegate bool MonoRemoteCertificateValidationCallback (
 		string targetHost, X509Certificate certificate, X509Chain chain, MonoSslPolicyErrors sslPolicyErrors);
 
-#if !INSIDE_SYSTEM
-	public
-#endif
-	delegate X509Certificate MonoLocalCertificateSelectionCallback (
+	public delegate X509Certificate MonoLocalCertificateSelectionCallback (
 		string targetHost, X509CertificateCollection localCertificates, X509Certificate remoteCertificate,
 		string[] acceptableIssuers);
 
-#if !INSIDE_SYSTEM
-	public
-#endif
-	abstract class MonoTlsProvider
+	public abstract class MonoTlsProvider
 	{
 #region HttpsClientStream
 
@@ -154,7 +139,7 @@ namespace Mono.Security.Interface
 			get;
 		}
 
-		public abstract IMonoTlsContext CreateTlsContext (
+		internal abstract IMonoTlsContext CreateTlsContext (
 			string hostname, bool serverMode, TlsProtocols protocolFlags,
 			X509Certificate serverCertificate, X509CertificateCollection clientCertificates,
 			bool remoteCertRequired, bool checkCertName, bool checkCertRevocationStatus,

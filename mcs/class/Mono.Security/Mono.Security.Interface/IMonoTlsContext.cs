@@ -30,9 +30,6 @@ using MX = Mono.Security.X509;
 
 namespace Mono.Security.Interface
 {
-#if !INSIDE_SYSTEM
-	public
-#endif
 	interface IMonoTlsContext : IDisposable
 	{
 		bool IsValid {

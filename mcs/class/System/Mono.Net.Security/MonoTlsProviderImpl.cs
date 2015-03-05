@@ -135,7 +135,7 @@ namespace Mono.Net.Security.Private
 			LocalCertSelectionCallback certSelectionDelegate,
 			MSI.MonoTlsSettings settings);
 
-		public override MSI.IMonoTlsContext CreateTlsContext (
+		internal override MSI.IMonoTlsContext CreateTlsContext (
 			string hostname, bool serverMode, MSI.TlsProtocols protocolFlags,
 			X509Certificate serverCertificate, XX509CertificateCollection clientCertificates,
 			bool remoteCertRequired, bool checkCertName, bool checkCertRevocationStatus,
