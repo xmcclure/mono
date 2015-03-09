@@ -247,13 +247,7 @@ namespace System.Net
 			}
 		}
 
-#if NET_1_0
-		// we need it for SslClientStream
-		internal
-#else
-		public
-#endif
-		static SecurityProtocolType SecurityProtocol {
+		public static SecurityProtocolType SecurityProtocol {
 			get { return _securityProtocol; }
 			set { _securityProtocol = value; }
 		}
