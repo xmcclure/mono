@@ -56,6 +56,7 @@ using System.Configuration;
 using System.Net.Security;
 using System.Security.Authentication;
 using System.Threading.Tasks;
+using Mono.Net.Security;
 
 namespace System.Net.Mail {
 	public class SmtpClient
@@ -1161,11 +1162,12 @@ try {
 				throw new SmtpException (SmtpStatusCode.GeneralFailure, "Server does not support secure connections.");
 			}
 
-#if   SECURITY_DEP
-			SslStream sslStream = new SslStream (stream, false, callback, null);
+#if SECURITY_DEP
+			var tlsProvider = MonoTlsProviderFactory.GetInternalProvider ();
+			var sslStream = tlsProvider.CreateSslStream (stream, false, callback, null);
 			CheckCancellation ();
 			sslStream.AuthenticateAsClient (Host, this.ClientCertificates, SslProtocols.Default, false);
-			stream = sslStream;
+			stream = sslStream.AuthenticatedStream;
 
 #else
 			throw new SystemException ("You are using an incomplete System.dll build");
