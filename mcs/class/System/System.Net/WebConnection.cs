@@ -406,6 +406,7 @@ namespace System.Net
 				NetworkStream serverStream = new NetworkStream (socket, false);
 
 				if (request.Address.Scheme == Uri.UriSchemeHttps) {
+#if SECURITY_DEP
 					ssl = true;
 					EnsureSSLStreamAvailable ();
 					if (!reused || nstream == null || !tlsProvider.IsHttpsStream (nstream)) {
@@ -415,16 +416,17 @@ namespace System.Net
 							if (!ok)
 								return false;
 						}
-#if SECURITY_DEP
 						var httpsStream = tlsProvider.CreateHttpsClientStream (serverStream, request, buffer);
 						nstream = httpsStream.Stream;
-#endif
 						certsAvailable = false;
 					}
 					// we also need to set ServicePoint.Certificate 
 					// and ServicePoint.ClientCertificate but this can
 					// only be done later (after handshake - which is
 					// done only after a read operation).
+#else
+					throw new NotSupportedException ();
+#endif
 				} else {
 					ssl = false;
 					nstream = serverStream;
@@ -588,9 +590,11 @@ namespace System.Net
 			var httpsStream = tlsProvider.GetHttpsStream (stream);
 			X509Certificate client = httpsStream.SelectedClientCertificate;
 			X509Certificate server = httpsStream.ServerCertificate;
-#endif
 			sPoint.SetCertificates (client, server);
 			certsAvailable = (server != null);
+#else
+			throw new NotSupportedException ();
+#endif
 		}
 
 		internal static void InitRead (object state)
