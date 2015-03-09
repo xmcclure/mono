@@ -220,7 +220,7 @@ namespace System.Net.Security
 
 		internal static X509Certificate2 GetRemoteCertificate (SafeDeleteContext safeContext, out X509Certificate2Collection remoteCertificateStore)
 		{
-			X509CertificateCollection monoCollection;
+			XX509CertificateCollection monoCollection;
 			if (safeContext == null || safeContext.IsInvalid) {
 				remoteCertificateStore = null;
 				return null;
