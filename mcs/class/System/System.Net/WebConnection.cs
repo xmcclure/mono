@@ -28,17 +28,6 @@
 // WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 //
 
-#if SECURITY_DEP
-
-#if MONOTOUCH || MONODROID
-using Mono.Security.Protocol.Tls;
-#else
-extern alias MonoSecurity;
-using MonoSecurity::Mono.Security.Protocol.Tls;
-#endif
-
-#endif
-
 using System.IO;
 using System.Collections;
 using System.Net.Sockets;
@@ -98,12 +87,7 @@ namespace System.Net
 		bool certsAvailable;
 		Exception connect_exception;
 		static object classLock = new object ();
-		static Type sslStream;
-#if !MONOTOUCH && !MONODROID
-		static PropertyInfo piClient;
-		static PropertyInfo piServer;
-		static PropertyInfo piTrustFailure;
-#endif
+		static IMonoTlsProvider tlsProvider;
 
 #if MONOTOUCH
 		[System.Runtime.InteropServices.DllImport ("__Internal")]
@@ -241,28 +225,10 @@ namespace System.Net
 		static void EnsureSSLStreamAvailable ()
 		{
 			lock (classLock) {
-				if (sslStream != null)
+				if (tlsProvider != null)
 					return;
 
-#if NET_2_1 && SECURITY_DEP
-				sslStream = typeof (HttpsClientStream);
-#else
-				// HttpsClientStream is an internal glue class in Mono.Security.dll
-				sslStream = Type.GetType ("Mono.Security.Protocol.Tls.HttpsClientStream, " +
-							Consts.AssemblyMono_Security, false);
-
-				if (sslStream == null) {
-					string msg = "Missing Mono.Security.dll assembly. " +
-							"Support for SSL/TLS is unavailable.";
-
-					throw new NotSupportedException (msg);
-				}
-#endif
-#if !MONOTOUCH && !MONODROID
-				piClient = sslStream.GetProperty ("SelectedClientCertificate");
-				piServer = sslStream.GetProperty ("ServerCertificate");
-				piTrustFailure = sslStream.GetProperty ("TrustFailure");
-#endif
+				tlsProvider = MonoTlsProviderFactory.GetInternalProvider ();
 			}
 		}
 
@@ -442,7 +408,7 @@ namespace System.Net
 				if (request.Address.Scheme == Uri.UriSchemeHttps) {
 					ssl = true;
 					EnsureSSLStreamAvailable ();
-					if (!reused || nstream == null || nstream.GetType () != sslStream) {
+					if (!reused || nstream == null || !tlsProvider.IsHttpsStream (nstream)) {
 						byte [] buffer = null;
 						if (sPoint.UseConnect) {
 							bool ok = CreateTunnel (request, sPoint.Address, serverStream, out buffer);
@@ -450,17 +416,8 @@ namespace System.Net
 								return false;
 						}
 #if SECURITY_DEP
-#if MONOTOUCH || MONODROID
-						nstream = new HttpsClientStream (serverStream, request.ClientCertificates, request, buffer);
-#else
-						object[] args = new object [4] { serverStream,
-							request.ClientCertificates,
-							request, buffer};
-						nstream = (Stream) Activator.CreateInstance (sslStream, args);
-#endif
-						SslClientStream scs = (SslClientStream) nstream;
-						var helper = new ChainValidationHelper (request, request.Address.Host);
-						scs.ServerCertValidation2 += new CertificateValidationCallback2 (helper.ValidateChain);
+						var httpsStream = tlsProvider.CreateHttpsClientStream (serverStream, request, buffer);
+						nstream = httpsStream.Stream;
 #endif
 						certsAvailable = false;
 					}
@@ -627,13 +584,10 @@ namespace System.Net
 		internal void GetCertificates (Stream stream) 
 		{
 			// here the SSL negotiation have been done
-#if SECURITY_DEP && (MONOTOUCH || MONODROID)
-			HttpsClientStream s = (stream as HttpsClientStream);
-			X509Certificate client = s.SelectedClientCertificate;
-			X509Certificate server = s.ServerCertificate;
-#else
-			X509Certificate client = (X509Certificate) piClient.GetValue (stream, null);
-			X509Certificate server = (X509Certificate) piServer.GetValue (stream, null);
+#if SECURITY_DEP
+			var httpsStream = tlsProvider.GetHttpsStream (stream);
+			X509Certificate client = httpsStream.SelectedClientCertificate;
+			X509Certificate server = httpsStream.ServerCertificate;
 #endif
 			sPoint.SetCertificates (client, server);
 			certsAvailable = (server != null);
@@ -1155,15 +1109,13 @@ namespace System.Net
 
 				// if SSL is in use then check for TrustFailure
 				if (ssl) {
-#if SECURITY_DEP && (MONOTOUCH || MONODROID)
-					HttpsClientStream https = (s as HttpsClientStream);
-					if (https.TrustFailure) {
-#else
-					if ((bool) piTrustFailure.GetValue (s , null)) {
-#endif
+#if SECURITY_DEP
+					var httpsStream = tlsProvider.GetHttpsStream (s);
+					if (httpsStream.TrustFailure) {
 						wes = WebExceptionStatus.TrustFailure;
 						msg = "Trust failure";
 					}
+#endif
 				}
 
 				HandleError (wes, e, msg);
