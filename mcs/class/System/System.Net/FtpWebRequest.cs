@@ -17,6 +17,7 @@ using System.Security.Cryptography.X509Certificates;
 using System.Net;
 using System.Net.Security;
 using System.Security.Authentication;
+using Mono.Net.Security;
 
 namespace System.Net
 {
@@ -1171,12 +1172,13 @@ namespace System.Net
 #endif
 
 		internal bool ChangeToSSLSocket (ref Stream stream) {
-#if   SECURITY_DEP
-			SslStream sslStream = new SslStream (stream, true, callback, null);
+#if SECURITY_DEP
+			var provider = MonoTlsProviderFactory.GetInternalProvider ();
+			var sslStream = provider.CreateSslStream (stream, true, callback, null);
 			//sslStream.AuthenticateAsClient (Host, this.ClientCertificates, SslProtocols.Default, false);
 			//TODO: client certificates
 			sslStream.AuthenticateAsClient (requestUri.Host, null, SslProtocols.Default, false);
-			stream = sslStream;
+			stream = sslStream.AuthenticatedStream;
 			return true;
 #else
 			throw new NotImplementedException ();
