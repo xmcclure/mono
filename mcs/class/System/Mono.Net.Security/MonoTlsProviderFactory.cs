@@ -34,6 +34,7 @@ using MSI = Mono.Security.Interface;
 #endif
 
 using System;
+using System.Net;
 
 namespace Mono.Net.Security
 {
@@ -131,6 +132,13 @@ namespace Mono.Net.Security
 		{
 			lock (locker) {
 				defaultProvider = new Private.MonoTlsProviderWrapper (provider);
+			}
+		}
+
+		internal static void SetProvider (ServicePoint sPoint, MSI.MonoTlsProvider provider)
+		{
+			lock (locker) {
+				sPoint.TlsProvider = provider != null ? new Private.MonoTlsProviderWrapper (provider) : null;
 			}
 		}
 

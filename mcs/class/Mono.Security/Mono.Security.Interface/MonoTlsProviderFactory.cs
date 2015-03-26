@@ -24,6 +24,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 using System;
+using System.Net;
 using System.Reflection;
 
 namespace Mono.Security.Interface
@@ -43,7 +44,8 @@ namespace Mono.Security.Interface
 			getProviderMethod = factoryType.GetMethod ("GetProvider", BindingFlags.Static | BindingFlags.NonPublic);
 			installProviderMethod = factoryType.GetMethod ("InstallProvider", BindingFlags.Static | BindingFlags.NonPublic);
 			hasProviderProperty = factoryType.GetProperty ("HasProvider", BindingFlags.Static | BindingFlags.NonPublic);
-			if (getProviderMethod == null || installProviderMethod == null || hasProviderProperty == null)
+			setProviderMethod = factoryType.GetMethod ("SetProvider", BindingFlags.Static | BindingFlags.NonPublic);
+			if (getProviderMethod == null || installProviderMethod == null || hasProviderProperty == null || setProviderMethod == null)
 				throw new NotSupportedException ();
 		}
 
@@ -83,10 +85,16 @@ namespace Mono.Security.Interface
 			installProviderMethod.Invoke (null, new object[] { provider });
 		}
 
+		public static void SetProvider (ServicePoint sPoint, MonoTlsProvider provider)
+		{
+			setProviderMethod.Invoke (null, new object[] { sPoint, provider });
+		}
+
 		static Type factoryType;
 		static MethodInfo getProviderMethod;
 		static MethodInfo installProviderMethod;
 		static PropertyInfo hasProviderProperty;
+		static MethodInfo setProviderMethod;
 	}
 }
 

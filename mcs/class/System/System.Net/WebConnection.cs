@@ -87,7 +87,7 @@ namespace System.Net
 		bool certsAvailable;
 		Exception connect_exception;
 		static object classLock = new object ();
-		static IMonoTlsProvider tlsProvider;
+		IMonoTlsProvider tlsProvider;
 
 #if MONOTOUCH
 		[System.Runtime.InteropServices.DllImport ("__Internal")]
@@ -222,9 +222,13 @@ namespace System.Net
 			}
 		}
 
-		static void EnsureSSLStreamAvailable ()
+		void EnsureSSLStreamAvailable ()
 		{
 			lock (classLock) {
+				if (tlsProvider != null)
+					return;
+
+				tlsProvider = sPoint.TlsProvider;
 				if (tlsProvider != null)
 					return;
 

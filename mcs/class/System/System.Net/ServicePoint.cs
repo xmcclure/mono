@@ -37,6 +37,7 @@ using System.Collections;
 using System.Net.Sockets;
 using System.Security.Cryptography.X509Certificates;
 using System.Threading;
+using Mono.Net.Security;
 
 namespace System.Net 
 {
@@ -62,6 +63,7 @@ namespace System.Net
 		int tcp_keepalive_time;
 		int tcp_keepalive_interval;
 		Timer idleTimer;
+		IMonoTlsProvider tlsProvider;
 
 		// Constructors
 
@@ -185,6 +187,12 @@ namespace System.Net
 				     (protocolVersion == null || protocolVersion == HttpVersion.Version11); }
 			set { sendContinue = value; }
 		}
+
+		internal IMonoTlsProvider TlsProvider {
+			get { return tlsProvider; }
+			set { tlsProvider = value; }
+		}
+
 		// Methods
 
 		public void SetTcpKeepAlive (bool enabled, int keepAliveTime, int keepAliveInterval)
