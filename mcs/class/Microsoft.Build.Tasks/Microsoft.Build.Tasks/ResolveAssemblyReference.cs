@@ -336,9 +336,20 @@ namespace Microsoft.Build.Tasks {
 				if (alreadyScannedAssemblyNames.ContainsKey (asm.FullName))
 					continue;
 
-				// set the 1st search path to this ref's base path
+				// set the 1st search path to this ref's base path unless it's a target framework dir
 				// Will be used for resolving the dependencies
-				dependency_search_paths [0] = Path.GetDirectoryName (filename);
+				var directoryName = Path.GetDirectoryName (filename);
+
+				if (targetFrameworkDirectories != null) {
+					foreach (var tdir in targetFrameworkDirectories) {
+						if (tdir.Equals (directoryName)) {
+							directoryName = string.Empty;
+							break;
+						}
+					}
+				}
+
+				dependency_search_paths [0] = directoryName;
 
 				foreach (AssemblyName aname in asm.GetReferencedAssemblies ()) {
 					if (alreadyScannedAssemblyNames.ContainsKey (aname.FullName))
