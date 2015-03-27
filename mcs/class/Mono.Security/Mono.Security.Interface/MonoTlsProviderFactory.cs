@@ -45,9 +45,9 @@ namespace Mono.Security.Interface
 			getDefaultProviderMethod = factoryType.GetMethod ("GetDefaultProvider", BindingFlags.Static | BindingFlags.NonPublic);
 			installProviderMethod = factoryType.GetMethod ("InstallProvider", BindingFlags.Static | BindingFlags.NonPublic);
 			hasProviderProperty = factoryType.GetProperty ("HasProvider", BindingFlags.Static | BindingFlags.NonPublic);
-			setProviderMethod = factoryType.GetMethod ("SetProvider", BindingFlags.Static | BindingFlags.NonPublic);
+			createHttpsRequestMethod = factoryType.GetMethod ("CreateHttpsRequest", BindingFlags.Static | BindingFlags.NonPublic);
 			if (getProviderMethod == null || getDefaultProviderMethod == null || installProviderMethod == null ||
-				hasProviderProperty == null || setProviderMethod == null)
+			    hasProviderProperty == null || createHttpsRequestMethod == null)
 				throw new NotSupportedException ();
 		}
 
@@ -98,9 +98,9 @@ namespace Mono.Security.Interface
 			installProviderMethod.Invoke (null, new object[] { provider });
 		}
 
-		public static void SetProvider (ServicePoint sPoint, MonoTlsProvider provider)
+		public static HttpWebRequest CreateHttpsRequest (Uri requestUri, MonoTlsProvider provider)
 		{
-			setProviderMethod.Invoke (null, new object[] { sPoint, provider });
+			return (HttpWebRequest)createHttpsRequestMethod.Invoke (null, new object[] { requestUri, provider });
 		}
 
 		static Type factoryType;
@@ -108,7 +108,7 @@ namespace Mono.Security.Interface
 		static MethodInfo getDefaultProviderMethod;
 		static MethodInfo installProviderMethod;
 		static PropertyInfo hasProviderProperty;
-		static MethodInfo setProviderMethod;
+		static MethodInfo createHttpsRequestMethod;
 	}
 }
 
