@@ -54,7 +54,7 @@ namespace Mono.Net.Security
 		 * this conditional here.
 		 */
 
-		internal static IMonoTlsProvider GetInternalProvider ()
+		internal static IMonoTlsProvider GetProviderInternal ()
 		{
 			lock (locker) {
 				if (defaultProvider != null)
@@ -113,7 +113,7 @@ namespace Mono.Net.Security
 
 		internal static MSI.MonoTlsProvider GetProvider ()
 		{
-			var provider = GetInternalProvider ();
+			var provider = GetProviderInternal ();
 			if (provider == null)
 				throw new NotSupportedException ("No TLS Provider available.");
 

@@ -1163,7 +1163,7 @@ try {
 			}
 
 #if SECURITY_DEP
-			var tlsProvider = MonoTlsProviderFactory.GetInternalProvider ();
+			var tlsProvider = MonoTlsProviderFactory.GetProviderInternal ();
 			var sslStream = tlsProvider.CreateSslStream (stream, false, callback, null);
 			CheckCancellation ();
 			sslStream.AuthenticateAsClient (Host, this.ClientCertificates, SslProtocols.Default, false);

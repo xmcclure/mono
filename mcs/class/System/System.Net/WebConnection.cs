@@ -232,7 +232,7 @@ namespace System.Net
 				if (tlsProvider != null)
 					return;
 
-				tlsProvider = MonoTlsProviderFactory.GetInternalProvider ();
+				tlsProvider = MonoTlsProviderFactory.GetProviderInternal ();
 			}
 		}
 

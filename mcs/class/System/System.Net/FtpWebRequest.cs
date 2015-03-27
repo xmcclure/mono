@@ -1173,7 +1173,7 @@ namespace System.Net
 
 		internal bool ChangeToSSLSocket (ref Stream stream) {
 #if SECURITY_DEP
-			var provider = MonoTlsProviderFactory.GetInternalProvider ();
+			var provider = MonoTlsProviderFactory.GetProviderInternal ();
 			var sslStream = provider.CreateSslStream (stream, true, callback, null);
 			//sslStream.AuthenticateAsClient (Host, this.ClientCertificates, SslProtocols.Default, false);
 			//TODO: client certificates
