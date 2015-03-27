@@ -56,7 +56,6 @@ namespace Mono.Security.Interface
 		 *
 		 * This method throws @NotSupportedException if no TLS Provider can be found.
 		 */
-
 		public static MonoTlsProvider GetProvider ()
 		{
 			return (MonoTlsProvider)getProviderMethod.Invoke (null, null);
@@ -67,7 +66,6 @@ namespace Mono.Security.Interface
 		 *
 		 * This method throws @NotSupportedException if no TLS Provider can be found.
 		 */
-
 		public static MonoTlsProvider GetDefaultProvider ()
 		{
 			return (MonoTlsProvider)getDefaultProviderMethod.Invoke (null, null);
@@ -80,7 +78,6 @@ namespace Mono.Security.Interface
 		 * to either GetProvider() or InstallProvider().
 		 *
 		 */
-
 		public static bool HasProvider {
 			get {
 				return (bool)hasProviderProperty.GetValue (null);
@@ -98,7 +95,14 @@ namespace Mono.Security.Interface
 			installProviderMethod.Invoke (null, new object[] { provider });
 		}
 
-		public static HttpWebRequest CreateHttpsRequest (Uri requestUri, MonoTlsProvider provider)
+		/*
+		 * Create @HttpWebRequest with the specified @provider (may be null to use the default one).
+		 * 
+		 * NOTE: This needs to be written as "System.Uri" to avoid ambiguity with Mono.Security.Uri in the
+		 *        mobile build.
+		 * 
+		 */
+		public static HttpWebRequest CreateHttpsRequest (System.Uri requestUri, MonoTlsProvider provider)
 		{
 			return (HttpWebRequest)createHttpsRequestMethod.Invoke (null, new object[] { requestUri, provider });
 		}
