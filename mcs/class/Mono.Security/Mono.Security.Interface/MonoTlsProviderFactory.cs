@@ -42,10 +42,12 @@ namespace Mono.Security.Interface
 		{
 			factoryType = Type.GetType (FactoryTypeName + ", " + Consts.AssemblySystem, true);
 			getProviderMethod = factoryType.GetMethod ("GetProvider", BindingFlags.Static | BindingFlags.NonPublic);
+			getDefaultProviderMethod = factoryType.GetMethod ("GetDefaultProvider", BindingFlags.Static | BindingFlags.NonPublic);
 			installProviderMethod = factoryType.GetMethod ("InstallProvider", BindingFlags.Static | BindingFlags.NonPublic);
 			hasProviderProperty = factoryType.GetProperty ("HasProvider", BindingFlags.Static | BindingFlags.NonPublic);
 			setProviderMethod = factoryType.GetMethod ("SetProvider", BindingFlags.Static | BindingFlags.NonPublic);
-			if (getProviderMethod == null || installProviderMethod == null || hasProviderProperty == null || setProviderMethod == null)
+			if (getProviderMethod == null || getDefaultProviderMethod == null || installProviderMethod == null ||
+				hasProviderProperty == null || setProviderMethod == null)
 				throw new NotSupportedException ();
 		}
 
@@ -58,6 +60,17 @@ namespace Mono.Security.Interface
 		public static MonoTlsProvider GetProvider ()
 		{
 			return (MonoTlsProvider)getProviderMethod.Invoke (null, null);
+		}
+
+		/*
+		 * Returns the default @MonoTlsProvider.
+		 *
+		 * This method throws @NotSupportedException if no TLS Provider can be found.
+		 */
+
+		public static MonoTlsProvider GetDefaultProvider ()
+		{
+			return (MonoTlsProvider)getDefaultProviderMethod.Invoke (null, null);
 		}
 
 		/*
@@ -92,6 +105,7 @@ namespace Mono.Security.Interface
 
 		static Type factoryType;
 		static MethodInfo getProviderMethod;
+		static MethodInfo getDefaultProviderMethod;
 		static MethodInfo installProviderMethod;
 		static PropertyInfo hasProviderProperty;
 		static MethodInfo setProviderMethod;

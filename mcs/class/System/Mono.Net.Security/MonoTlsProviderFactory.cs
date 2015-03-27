@@ -57,6 +57,26 @@ namespace Mono.Net.Security
 		internal static IMonoTlsProvider GetProviderInternal ()
 		{
 			lock (locker) {
+				if (currentProvider != null)
+					return currentProvider;
+
+				try {
+					defaultProvider = CreateDefaultProvider ();
+				} catch (Exception ex) {
+					throw new NotSupportedException ("TLS Support not available.", ex);
+				}
+
+				if (defaultProvider == null)
+					throw new NotSupportedException ("TLS Support not available.");
+
+				currentProvider = defaultProvider;
+				return currentProvider;
+			}
+		}
+
+		internal static IMonoTlsProvider GetDefaultProviderInternal ()
+		{
+			lock (locker) {
 				if (defaultProvider != null)
 					return defaultProvider;
 
@@ -98,6 +118,7 @@ namespace Mono.Net.Security
 
 		static object locker = new object ();
 		static IMonoTlsProvider defaultProvider;
+		static IMonoTlsProvider currentProvider;
 
 		#endregion
 
@@ -120,10 +141,19 @@ namespace Mono.Net.Security
 			return provider.Provider;
 		}
 
+		internal static MSI.MonoTlsProvider GetDefaultProvider ()
+		{
+			var provider = GetDefaultProviderInternal ();
+			if (provider == null)
+				throw new NotSupportedException ("No TLS Provider available.");
+
+			return provider.Provider;
+		}
+
 		internal static bool HasProvider {
 			get {
 				lock (locker) {
-					return defaultProvider != null;
+					return currentProvider != null;
 				}
 			}
 		}
@@ -131,7 +161,7 @@ namespace Mono.Net.Security
 		internal static void InstallProvider (MSI.MonoTlsProvider provider)
 		{
 			lock (locker) {
-				defaultProvider = new Private.MonoTlsProviderWrapper (provider);
+				currentProvider = new Private.MonoTlsProviderWrapper (provider);
 			}
 		}
 
