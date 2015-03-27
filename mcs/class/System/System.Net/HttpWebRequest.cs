@@ -44,6 +44,7 @@ using System.Runtime.Serialization;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Threading;
+using Mono.Net.Security;
 
 namespace System.Net 
 {
@@ -101,6 +102,7 @@ namespace System.Net
 		int maxResponseHeadersLength;
 		static int defaultMaxResponseHeadersLength;
 		int readWriteTimeout = 300000; // ms
+		IMonoTlsProvider tlsProvider;
 
 		enum NtlmAuthState {
 			None,
@@ -139,6 +141,12 @@ namespace System.Net
 			this.webHeaders = new WebHeaderCollection (WebHeaderCollection.HeaderInfo.Request);
 			ThrowOnError = true;
 			ResetAuthorization ();
+		}
+
+		internal HttpWebRequest (Uri uri, IMonoTlsProvider tlsProvider)
+			: this (uri)
+		{
+			this.tlsProvider = tlsProvider;
 		}
 		
 		[Obsolete ("Serialization is obsoleted for this type", false)]
@@ -230,6 +238,10 @@ namespace System.Net
 							method != "MKCOL" && method != "CONNECT" &&
 							method != "TRACE"));
 			}
+		}
+
+		internal IMonoTlsProvider TlsProvider {
+			get { return tlsProvider; }
 		}
 		
 		public X509CertificateCollection ClientCertificates {

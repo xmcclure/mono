@@ -222,18 +222,13 @@ namespace System.Net
 			}
 		}
 
-		void EnsureSSLStreamAvailable ()
+		void EnsureSSLStreamAvailable (HttpWebRequest request)
 		{
-			lock (classLock) {
-				if (tlsProvider != null)
-					return;
+			tlsProvider = request.TlsProvider;
+			if (tlsProvider != null)
+				return;
 
-				tlsProvider = sPoint.TlsProvider;
-				if (tlsProvider != null)
-					return;
-
-				tlsProvider = MonoTlsProviderFactory.GetProviderInternal ();
-			}
+			tlsProvider = MonoTlsProviderFactory.GetProviderInternal ();
 		}
 
 		bool CreateTunnel (HttpWebRequest request, Uri connectUri,
@@ -412,7 +407,7 @@ namespace System.Net
 				if (request.Address.Scheme == Uri.UriSchemeHttps) {
 #if SECURITY_DEP
 					ssl = true;
-					EnsureSSLStreamAvailable ();
+					EnsureSSLStreamAvailable (request);
 					if (!reused || nstream == null || !tlsProvider.IsHttpsStream (nstream)) {
 						byte [] buffer = null;
 						if (sPoint.UseConnect) {

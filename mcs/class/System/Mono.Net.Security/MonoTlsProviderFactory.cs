@@ -168,10 +168,8 @@ namespace Mono.Net.Security
 		internal static HttpWebRequest CreateHttpsRequest (Uri requestUri, MSI.MonoTlsProvider provider)
 		{
 			lock (locker) {
-				// FIXME: Move into HttpWebRequest
-				var sPoint = ServicePointManager.FindServicePoint (requestUri);
-				sPoint.TlsProvider = provider != null ? new Private.MonoTlsProviderWrapper (provider) : null;
-				return new HttpWebRequest (requestUri);
+				var internalProvider = provider != null ? new Private.MonoTlsProviderWrapper (provider) : null;
+				return new HttpWebRequest (requestUri, internalProvider);
 			}
 		}
 
