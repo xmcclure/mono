@@ -494,7 +494,7 @@ namespace Microsoft.Build.Tasks {
 		void SetCopyLocal (ITaskItem item, string copy_local)
 		{
 			if (IsReferenceAssembly (item.ItemSpec)) {
-				Log.LogWarning ("Attempted to make reference assembly '{0}' CopyLocal.", item);
+				Log.LogMessage (MessageImportance.High, "Attempted to make reference assembly '{0}' CopyLocal.", item);
 				return;
 			}
 
