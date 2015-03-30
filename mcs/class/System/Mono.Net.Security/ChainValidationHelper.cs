@@ -82,10 +82,15 @@ namespace System.Net
 		}
 		#endif
 	
-		public ChainValidationHelper (object sender, string hostName)
+		public ChainValidationHelper (object sender, string hostName, RemoteCertificateValidationCallback callback = null)
 		{
 			this.sender = sender;
 			host = hostName;
+
+			if (callback == null)
+				callback = ServicePointManager.ServerCertificateValidationCallback;
+			if (callback != null)
+				certValidationCallback = new ServerCertValidationCallback (callback);
 		}
 
 		public ChainValidationHelper (HttpWebRequest request)
