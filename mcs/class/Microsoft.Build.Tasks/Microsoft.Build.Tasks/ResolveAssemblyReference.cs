@@ -29,6 +29,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Runtime.CompilerServices;
 using System.Globalization;
 using System.IO;
 using System.Linq;
@@ -479,8 +480,24 @@ namespace Microsoft.Build.Tasks {
 			return false;
 		}
 
+		bool IsReferenceAssembly (string filename)
+		{
+			try {
+				var assembly = Assembly.ReflectionOnlyLoadFrom (filename);
+				var cattr = assembly.GetCustomAttribute<ReferenceAssemblyAttribute> ();
+				return cattr != null;
+			} catch {
+				return false;
+			}
+		}
+
 		void SetCopyLocal (ITaskItem item, string copy_local)
 		{
+			if (IsReferenceAssembly (item.ItemSpec)) {
+				Log.LogWarning ("Attempted to make reference assembly '{0}' CopyLocal.", item);
+				return;
+			}
+
 			item.SetMetadata ("CopyLocal", copy_local);
 
 			// Assumed to be valid value
