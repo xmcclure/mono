@@ -63,7 +63,7 @@ namespace System.Net
 	{
 		object sender;
 		string host;
-		RemoteCertificateValidationCallback cb;
+		ServerCertValidationCallback certValidationCallback;
 
 		#if !MONOTOUCH
 		static bool is_macosx = System.IO.File.Exists (OSX509Certificates.SecurityLibrary);
@@ -88,13 +88,22 @@ namespace System.Net
 			host = hostName;
 		}
 
-		public RemoteCertificateValidationCallback ServerCertificateValidationCallback {
-			get {
-				if (cb == null)
-					cb = ServicePointManager.ServerCertificateValidationCallback;
-				return cb;
+		public ChainValidationHelper (HttpWebRequest request)
+		{
+			sender = request;
+			host = request.Address.Host;
+
+			certValidationCallback = request.ServerCertValidationCallback;
+			if (certValidationCallback == null) {
+				var spCallback = ServicePointManager.ServerCertificateValidationCallback;
+				if (spCallback != null)
+					certValidationCallback = new ServerCertValidationCallback (spCallback);
 			}
-			set { cb = value; }
+		}
+
+		internal ServerCertValidationCallback ServerCertValidationCallback {
+			get { return certValidationCallback; }
+			set { certValidationCallback = value; }
 		}
 
 		// Used when the obsolete ICertificatePolicy is set to DefaultCertificatePolicy
@@ -121,7 +130,7 @@ namespace System.Net
 			// the certificates that the server provided (which generally does not include the root) so, only  
 			// if there's a user callback, we'll create the X509Chain but won't build it
 			// ref: https://bugzilla.xamarin.com/show_bug.cgi?id=7245
-			if (ServerCertificateValidationCallback != null) {
+			if (certValidationCallback != null) {
 #endif
 				chain = new X509Chain ();
 				chain.ChainPolicy = new X509ChainPolicy ();
@@ -204,7 +213,7 @@ namespace System.Net
 			}
 #endif
 	
-			if (policy != null && (!(policy is DefaultCertificatePolicy) || cb == null)) {
+			if (policy != null && (!(policy is DefaultCertificatePolicy) || certValidationCallback == null)) {
 				ServicePoint sp = null;
 				HttpWebRequest req = sender as HttpWebRequest;
 				if (req != null)
@@ -217,8 +226,8 @@ namespace System.Net
 				user_denied = !result && !(policy is DefaultCertificatePolicy);
 			}
 			// If there's a 2.0 callback, it takes precedence
-			if (ServerCertificateValidationCallback != null) {
-				result = ServerCertificateValidationCallback (sender, leaf, chain, errors);
+			if (certValidationCallback != null) {
+				result = certValidationCallback.Invoke (sender, leaf, chain, errors);
 				user_denied = !result;
 			}
 			return new ValidationResult (result, user_denied, status11);

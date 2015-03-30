@@ -39,6 +39,7 @@ using System.IO;
 using System.Net;
 using System.Net.Cache;
 using System.Net.Sockets;
+using System.Net.Security;
 using System.Runtime.Remoting.Messaging;
 using System.Runtime.Serialization;
 using System.Security.Cryptography.X509Certificates;
@@ -103,6 +104,7 @@ namespace System.Net
 		static int defaultMaxResponseHeadersLength;
 		int readWriteTimeout = 300000; // ms
 		IMonoTlsProvider tlsProvider;
+		ServerCertValidationCallback certValidationCallback;
 
 		enum NtlmAuthState {
 			None,
@@ -669,7 +671,26 @@ namespace System.Net
 		internal bool ProxyQuery {
 			get { return servicePoint.UsesProxy && !servicePoint.UseConnect; }
 		}
-		
+
+		internal ServerCertValidationCallback ServerCertValidationCallback {
+			get { return certValidationCallback; }
+		}
+
+		public RemoteCertificateValidationCallback ServerCertificateValidationCallback {
+			get {
+				if (certValidationCallback == null)
+					return null;
+				return certValidationCallback.ValidationCallback;
+			}
+			set
+			{
+				if (value == null)
+					certValidationCallback = null;
+				else
+					certValidationCallback = new ServerCertValidationCallback (value);
+			}
+		}
+
 		// Methods
 		
 		internal ServicePoint GetServicePoint ()
