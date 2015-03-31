@@ -120,7 +120,7 @@ namespace System.Net
 			if (certs == null || certs.Count == 0)
 				return null;
 
-			ICertificatePolicy policy = ServicePointManager.CertificatePolicy;
+			ICertificatePolicy policy = ServicePointManager.GetLegacyCertificatePolicy ();
 
 			X509Certificate2 leaf = new X509Certificate2 (certs [0].RawData);
 			int status11 = 0; // Error code passed to the obsolete ICertificatePolicy callback

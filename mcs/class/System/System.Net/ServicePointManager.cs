@@ -177,6 +177,11 @@ namespace System.Net
 			set { policy = value; }
 		}
 
+		internal static ICertificatePolicy GetLegacyCertificatePolicy ()
+		{
+			return policy;
+		}
+
 		[MonoTODO("CRL checks not implemented")]
 		public static bool CheckCertificateRevocationList {
 			get { return _checkCRL; }
