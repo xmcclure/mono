@@ -32,19 +32,20 @@
 #if SECURITY_DEP
 
 #if MONOTOUCH || MONODROID
-using Mono.Security.Protocol.Tls;
+using Mono.Security.Interface;
 using MSX = Mono.Security.X509;
 using Mono.Security.X509.Extensions;
 #else
 extern alias MonoSecurity;
 using MonoSecurity::Mono.Security.X509.Extensions;
-using MonoSecurity::Mono.Security.Protocol.Tls;
+using MonoSecurity::Mono.Security.Interface;
 using MSX = MonoSecurity::Mono.Security.X509;
 #endif
 
 using System.Text.RegularExpressions;
 
 using System;
+using System.Net;
 using System.Threading;
 using System.Collections;
 using System.Collections.Generic;
@@ -57,7 +58,7 @@ using System.Globalization;
 using System.Net.Security;
 using System.Diagnostics;
 
-namespace System.Net
+namespace Mono.Net.Security
 {
 	internal class ChainValidationHelper
 	{
@@ -82,7 +83,17 @@ namespace System.Net
 		}
 		#endif
 	
-		public ChainValidationHelper (object sender, string hostName, RemoteCertificateValidationCallback callback = null)
+		public ChainValidationHelper (SslStream stream, string hostName, RemoteCertificateValidationCallback callback = null)
+			: this ((object)stream, hostName, callback)
+		{
+		}
+
+		internal ChainValidationHelper (IMonoSslStream stream, string hostName, RemoteCertificateValidationCallback callback = null)
+			: this ((object)stream, hostName, callback)
+		{
+		}
+
+		ChainValidationHelper (object sender, string hostName, RemoteCertificateValidationCallback callback)
 		{
 			this.sender = sender;
 			host = hostName;
@@ -235,7 +246,7 @@ namespace System.Net
 				result = certValidationCallback.Invoke (sender, leaf, chain, errors);
 				user_denied = !result;
 			}
-			return new ValidationResult (result, user_denied, status11);
+			return new ValidationResult (result, user_denied, status11, (MonoSslPolicyErrors)errors);
 		}
 
 		static int GetStatusFromChain (X509Chain chain)

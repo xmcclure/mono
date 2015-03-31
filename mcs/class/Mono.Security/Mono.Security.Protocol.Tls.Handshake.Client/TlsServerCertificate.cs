@@ -30,6 +30,7 @@ using System.Text.RegularExpressions;
 using System.Security.Cryptography;
 using X509Cert = System.Security.Cryptography.X509Certificates;
 
+using Mono.Security.Interface;
 using Mono.Security.X509;
 using Mono.Security.X509.Extensions;
 
