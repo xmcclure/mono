@@ -28,8 +28,10 @@
 #if MONO_SECURITY_ALIAS
 extern alias MonoSecurity;
 using MSI = MonoSecurity::Mono.Security.Interface;
+using MX = MonoSecurity::Mono.Security.X509;
 #else
 using MSI = Mono.Security.Interface;
+using MX = Mono.Security.X509;
 #endif
 #endif
 
@@ -172,7 +174,6 @@ namespace Mono.Net.Security
 				return new HttpWebRequest (requestUri, internalProvider);
 			}
 		}
-
 		#endregion
 
 #endif

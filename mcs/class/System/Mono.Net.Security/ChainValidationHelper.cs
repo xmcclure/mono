@@ -93,6 +93,13 @@ namespace Mono.Net.Security
 		{
 		}
 
+		internal static ValidationResult ValidateChain (CertificateValidationHelper helper, string targetHost, MSX.X509CertificateCollection certs)
+		{
+			var callback = Private.CallbackHelpers.MonoToPublic (helper.ServerCertificateValidationCallback);
+			var internalHelper = new ChainValidationHelper (helper, targetHost, callback);
+			return internalHelper.ValidateChain (certs);
+		}
+
 		ChainValidationHelper (object sender, string hostName, RemoteCertificateValidationCallback callback)
 		{
 			this.sender = sender;

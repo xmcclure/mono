@@ -76,6 +76,7 @@ MonoTouch/MonoPInvokeCallbackAttribute.cs
 ../Mono.Security/Mono.Security.X509.Extensions/NetscapeCertTypeExtension.cs
 ../Mono.Security/Mono.Security.X509.Extensions/SubjectAltNameExtension.cs
 
+../Mono.Security/Mono.Security.Interface/CertificateValidationHelper.cs
 ../Mono.Security/Mono.Security.Interface/IBufferOffsetSize.cs
 ../Mono.Security/Mono.Security.Interface/IMonoHttpsStream.cs
 ../Mono.Security/Mono.Security.Interface/IMonoTlsContext.cs

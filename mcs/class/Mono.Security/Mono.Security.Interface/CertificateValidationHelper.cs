@@ -28,12 +28,22 @@ using System;
 using System.IO;
 using System.Net;
 using System.Net.Security;
+using System.Reflection;
 using System.Security.Cryptography.X509Certificates;
 using Mono.Security.Protocol.Tls;
+using MX = Mono.Security.X509;
+#if MOBILE
+using Mono.Net.Security;
+#endif
 
 namespace Mono.Security.Interface
 {
-	public class ValidationResult
+	#if INSIDE_SYSTEM
+	internal
+	#else
+	public
+	#endif
+	class ValidationResult
 	{
 		bool trusted;
 		bool user_denied;
@@ -65,20 +75,46 @@ namespace Mono.Security.Interface
 		}
 	}
 
-	public class CertificateValidationHelper
+	#if INSIDE_SYSTEM
+	internal
+	#else
+	public
+	#endif
+	class CertificateValidationHelper
 	{
 		public MonoRemoteCertificateValidationCallback ServerCertificateValidationCallback {
-			get;
-			internal set;
+			get; set;
 		}
 
 		public MonoLocalCertificateSelectionCallback ClientCertificateSelectionCallback {
-			get;
-			internal set;
+			get; set;
 		}
 
-		internal CertificateValidationHelper ()
+		#if !INSIDE_SYSTEM
+		const string InternalHelperTypeName = "Mono.Net.Security.ChainValidationHelper";
+		static readonly Type internalHelperType;
+		static readonly MethodInfo validateChainMethod;
+		#endif
+
+		static CertificateValidationHelper ()
 		{
+			#if !INSIDE_SYSTEM
+			internalHelperType = Type.GetType (InternalHelperTypeName + ", " + Consts.AssemblySystem, true);
+			if (internalHelperType == null)
+				throw new NotSupportedException ();
+			validateChainMethod = internalHelperType.GetMethod ("ValidateChain", BindingFlags.Static | BindingFlags.NonPublic);
+			if (validateChainMethod == null)
+				throw new NotSupportedException ();
+			#endif
+		}
+
+		public ValidationResult ValidateChain (string targetHost, MX.X509CertificateCollection certs)
+		{
+			#if INSIDE_SYSTEM
+			return ChainValidationHelper.ValidateChain (this, targetHost, certs);
+			#else
+			return (ValidationResult)validateChainMethod.Invoke (null, new object[] { this, targetHost, certs });
+			#endif
 		}
 	}
 }
