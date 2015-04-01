@@ -47,12 +47,14 @@ using MonoHashAlgorithmType = MonoSecurity::Mono.Security.Protocol.Tls.HashAlgor
 using MonoExchangeAlgorithmType = MonoSecurity::Mono.Security.Protocol.Tls.ExchangeAlgorithmType;
 using MonoSecurityProtocolType = MonoSecurity::Mono.Security.Protocol.Tls.SecurityProtocolType;
 using MonoSecurity::Mono.Security.Protocol.Tls;
+using MonoSecurity::Mono.Security.Interface;
 #else
 using MonoCipherAlgorithmType = Mono.Security.Protocol.Tls.CipherAlgorithmType;
 using MonoHashAlgorithmType = Mono.Security.Protocol.Tls.HashAlgorithmType;
 using MonoExchangeAlgorithmType = Mono.Security.Protocol.Tls.ExchangeAlgorithmType;
 using MonoSecurityProtocolType = Mono.Security.Protocol.Tls.SecurityProtocolType;
 using Mono.Security.Protocol.Tls;
+using Mono.Security.Interface;
 #endif
 #if MONO_X509_ALIAS
 using X509CertificateCollection = PrebuiltSystem::System.Security.Cryptography.X509Certificates.X509CertificateCollection;
@@ -71,6 +73,7 @@ using System.Security.Principal;
 using System.Security.Cryptography;
 
 using System.Threading.Tasks;
+using Mono.Net.Security;
 
 namespace System.Net.Security 
 {
