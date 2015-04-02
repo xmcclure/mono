@@ -95,11 +95,14 @@ namespace Mono.Net.Security.Private
 			RemoteCertificateValidationCallback userCertificateValidationCallback,
 			LocalCertificateSelectionCallback userCertificateSelectionCallback)
 		{
-			var sslStream = (MonoSslStreamImpl)(object)provider.CreateSslStream (
+			var sslStream = provider.CreateSslStream (
 				innerStream, leaveInnerStreamOpen,
 				CallbackHelpers.PublicToMono (userCertificateValidationCallback),
 				CallbackHelpers.PublicToMono (userCertificateSelectionCallback));
-			return sslStream.Impl;
+			var monoSslStreamImpl = sslStream as MonoSslStreamImpl;
+			if (monoSslStreamImpl != null)
+				return monoSslStreamImpl.Impl;
+			return new MonoSslStreamWrapper (sslStream);
 		}
 
 		public MSI.IMonoTlsContext CreateTlsContext (
