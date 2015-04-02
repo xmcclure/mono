@@ -74,6 +74,10 @@ namespace Mono.Net.Security
 			get;
 		}
 
+		bool SupportsHttps {
+			get;
+		}
+
 		bool IsHttpsStream (Stream stream);
 
 		IMonoHttpsStream GetHttpsStream (Stream stream);

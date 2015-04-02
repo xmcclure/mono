@@ -73,6 +73,10 @@ namespace Mono.Net.Security.Private
 			get { return provider; }
 		}
 
+		public bool SupportsHttps {
+			get { return provider.SupportsHttps; }
+		}
+
 		public bool IsHttpsStream (Stream stream)
 		{
 			return provider.IsHttpsStream (stream);
