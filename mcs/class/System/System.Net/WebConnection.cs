@@ -415,8 +415,16 @@ namespace System.Net
 							if (!ok)
 								return false;
 						}
-						var httpsStream = tlsProvider.CreateHttpsClientStream (serverStream, request, buffer);
-						nstream = httpsStream.Stream;
+						if (tlsProvider.SupportsHttps) {
+							var httpsStream = tlsProvider.CreateHttpsClientStream (serverStream, request, buffer);
+							nstream = httpsStream.Stream;
+						} else {
+							var sslStream = tlsProvider.CreateSslStream (serverStream, false, request.ServerCertificateValidationCallback, null);
+							sslStream.AuthenticateAsClient (request.Address.Host);
+							if (buffer != null)
+								sslStream.Write (buffer, 0, buffer.Length);
+							nstream = sslStream.AuthenticatedStream;
+						}
 						certsAvailable = false;
 					}
 					// we also need to set ServicePoint.Certificate 
