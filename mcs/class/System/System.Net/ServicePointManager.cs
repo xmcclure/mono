@@ -123,7 +123,7 @@ namespace System.Net
 
 		static bool expectContinue = true;
 		static bool useNagle;
-		static RemoteCertificateValidationCallback server_cert_cb;
+		static ServerCertValidationCallback server_cert_cb;
 		static bool tcp_keepalive;
 		static int tcp_keepalive_time;
 		static int tcp_keepalive_interval;
@@ -257,13 +257,22 @@ namespace System.Net
 			set { _securityProtocol = value; }
 		}
 
-		public static RemoteCertificateValidationCallback ServerCertificateValidationCallback
-		{
+		internal static ServerCertValidationCallback ServerCertValidationCallback {
+			get { return server_cert_cb; }
+		}
+
+		public static RemoteCertificateValidationCallback ServerCertificateValidationCallback {
 			get {
-				return server_cert_cb;
+				if (server_cert_cb == null)
+					return null;
+				return server_cert_cb.ValidationCallback;
 			}
-			set {
-				server_cert_cb = value;
+			set
+			{
+				if (value == null)
+					server_cert_cb = null;
+				else
+					server_cert_cb = new ServerCertValidationCallback (value);
 			}
 		}
 

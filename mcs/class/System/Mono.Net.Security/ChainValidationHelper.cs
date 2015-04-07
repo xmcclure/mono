@@ -116,12 +116,7 @@ namespace Mono.Net.Security
 			sender = request;
 			host = request.Address.Host;
 
-			certValidationCallback = request.ServerCertValidationCallback;
-			if (certValidationCallback == null) {
-				var spCallback = ServicePointManager.ServerCertificateValidationCallback;
-				if (spCallback != null)
-					certValidationCallback = new ServerCertValidationCallback (spCallback);
-			}
+			certValidationCallback = request.ServerCertValidationCallback ?? ServicePointManager.ServerCertValidationCallback;
 		}
 
 		internal ServerCertValidationCallback ServerCertValidationCallback {
