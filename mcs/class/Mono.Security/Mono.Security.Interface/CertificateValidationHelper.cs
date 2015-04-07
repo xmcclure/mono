@@ -38,12 +38,7 @@ using Mono.Net.Security;
 
 namespace Mono.Security.Interface
 {
-	#if INSIDE_SYSTEM
-	internal
-	#else
-	public
-	#endif
-	class ValidationResult
+	public class ValidationResult
 	{
 		bool trusted;
 		bool user_denied;
