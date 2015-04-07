@@ -142,10 +142,8 @@ namespace Mono.Security.Interface
 		public abstract IMonoTlsContext CreateTlsContext (
 			string hostname, bool serverMode, TlsProtocols protocolFlags,
 			X509Certificate serverCertificate, X509CertificateCollection clientCertificates,
-			bool remoteCertRequired, bool checkCertName, bool checkCertRevocationStatus,
-			MonoEncryptionPolicy encryptionPolicy,
-			MonoRemoteCertificateValidationCallback userCertificateValidationCallback,
-			MonoLocalCertificateSelectionCallback userCertificateSelectionCallback,
+			bool remoteCertRequired, MonoEncryptionPolicy encryptionPolicy,
+			CertificateValidationHelper certificateValidationHelper,
 			MonoTlsSettings settings);
 
 #endregion

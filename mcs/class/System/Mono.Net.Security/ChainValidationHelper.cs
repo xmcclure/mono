@@ -62,7 +62,11 @@ namespace Mono.Net.Security
 {
 	internal class ChainValidationHelper
 	{
+		CertificateValidationHelper publicHelper;
 		ServerCertValidationCallback certValidationCallback;
+		LocalCertSelectionCallback certSelectionCallback;
+		bool checkCertName = true;
+		bool checkCertRevocationStatus = false;
 
 		#if !MONOTOUCH
 		static bool is_macosx = System.IO.File.Exists (OSX509Certificates.SecurityLibrary);
@@ -83,12 +87,36 @@ namespace Mono.Net.Security
 	
 		internal static ValidationResult ValidateChainFromHelper (CertificateValidationHelper helper, string targetHost, MSX.X509CertificateCollection certs)
 		{
-			var internalHelper = new ChainValidationHelper ();
+			var internalHelper = new ChainValidationHelper (helper);
+			return internalHelper.ValidateChain (helper, targetHost, certs);
+		}
+
+		internal ChainValidationHelper (CertificateValidationHelper helper)
+		{
+			this.publicHelper = helper;
 			if (helper.ServerCertificateValidationCallback != null) {
 				var callback = Private.CallbackHelpers.MonoToPublic (helper.ServerCertificateValidationCallback);
-				internalHelper.ServerCertValidationCallback = new ServerCertValidationCallback (callback);
+				certValidationCallback = new ServerCertValidationCallback (callback);
 			}
-			return internalHelper.ValidateChain (helper, targetHost, certs);
+			certSelectionCallback = Private.CallbackHelpers.MonoToInternal (helper.ClientCertificateSelectionCallback);
+			checkCertName = helper.CheckCertificateName;
+			checkCertRevocationStatus = helper.CheckCertificateRevocationStatus;
+		}
+
+		internal CertificateValidationHelper GetPublicHelper ()
+		{
+			if (publicHelper != null)
+				return publicHelper;
+
+			publicHelper = new CertificateValidationHelper ();
+			if (certValidationCallback != null)
+				publicHelper.ServerCertificateValidationCallback = Private.CallbackHelpers.PublicToMono (certValidationCallback.ValidationCallback);
+			if (certSelectionCallback != null)
+				publicHelper.ClientCertificateSelectionCallback = Private.CallbackHelpers.InternalToMono (certSelectionCallback);
+			publicHelper.CheckCertificateName = checkCertName;
+			publicHelper.CheckCertificateRevocationStatus = checkCertRevocationStatus;
+
+			return publicHelper;
 		}
 
 		internal ChainValidationHelper (RemoteCertificateValidationCallback callback = null)
@@ -100,6 +128,21 @@ namespace Mono.Net.Security
 		internal ServerCertValidationCallback ServerCertValidationCallback {
 			get { return certValidationCallback; }
 			set { certValidationCallback = value; }
+		}
+
+		internal LocalCertSelectionCallback LocalCertSelectionCallback {
+			get { return certSelectionCallback; }
+			set { certSelectionCallback = value; }
+		}
+
+		public bool CheckCertificateName {
+			get { return checkCertName; }
+			set { checkCertName = value; }
+		}
+
+		public bool CheckCertificateRevocationStatus {
+			get { return checkCertRevocationStatus; }
+			set { CheckCertificateRevocationStatus = value; }
 		}
 
 		internal ValidationResult ValidateChain (object sender, string host, MSX.X509CertificateCollection certs)

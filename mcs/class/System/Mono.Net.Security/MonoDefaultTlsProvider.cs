@@ -157,10 +157,8 @@ namespace Mono.Net.Security.Private
 		protected override IMonoTlsContext CreateTlsContextImpl (
 			string hostname, bool serverMode, TlsProtocols protocolFlags,
 			X509Certificate serverCertificate, X509CertificateCollection clientCertificates,
-			bool remoteCertRequired, bool checkCertName, bool checkCertRevocationStatus,
-			MonoEncryptionPolicy encryptionPolicy,
-			RemoteCertValidationCallback remoteValidationCallback,
-			LocalCertSelectionCallback certSelectionDelegate,
+			bool remoteCertRequired, MonoEncryptionPolicy encryptionPolicy,
+			ChainValidationHelper chainValidationHelper,
 			MonoTlsSettings settings)
 		{
 			throw new NotSupportedException ();

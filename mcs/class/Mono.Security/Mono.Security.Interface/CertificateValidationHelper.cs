@@ -85,6 +85,19 @@ namespace Mono.Security.Interface
 			get; set;
 		}
 
+		public bool CheckCertificateName {
+			get { return checkCertName; }
+			set { checkCertName = value; }
+		}
+
+		public bool CheckCertificateRevocationStatus {
+			get { return checkCertRevocationStatus; }
+			set { checkCertRevocationStatus = value; }
+		}
+
+		bool checkCertName = true;
+		bool checkCertRevocationStatus = false;
+
 		#if !INSIDE_SYSTEM
 		const string InternalHelperTypeName = "Mono.Net.Security.ChainValidationHelper";
 		static readonly Type internalHelperType;

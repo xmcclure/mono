@@ -118,40 +118,39 @@ namespace Mono.Net.Security.Private
 			LocalCertSelectionCallback certSelectionDelegate,
 			MSI.MonoTlsSettings settings)
 		{
+			var helper = CallbackHelpers.CreateInternalValidationHelper (
+				hostname, checkCertName, checkCertRevocationStatus,
+				remoteValidationCallback, certSelectionDelegate);
+
 			return CreateTlsContextImpl (
 				hostname, serverMode, protocolFlags,
 				serverCertificate, (X509CertificateCollection)(object)clientCertificates,
-				remoteCertRequired, checkCertName, checkCertRevocationStatus, encryptionPolicy,
-				remoteValidationCallback, certSelectionDelegate,
-				settings);
+				remoteCertRequired, encryptionPolicy, helper, settings);
 		}
 
 		protected abstract MSI.IMonoTlsContext CreateTlsContextImpl (
 			string hostname, bool serverMode, MSI.TlsProtocols protocolFlags,
 			X509Certificate serverCertificate, X509CertificateCollection clientCertificates,
-			bool remoteCertRequired, bool checkCertName, bool checkCertRevocationStatus,
-			MSI.MonoEncryptionPolicy encryptionPolicy,
-			RemoteCertValidationCallback remoteValidationCallback,
-			LocalCertSelectionCallback certSelectionDelegate,
+			bool remoteCertRequired, MSI.MonoEncryptionPolicy encryptionPolicy,
+			ChainValidationHelper chainValidationHelper,
 			MSI.MonoTlsSettings settings);
 
 		public override MSI.IMonoTlsContext CreateTlsContext (
 			string hostname, bool serverMode, MSI.TlsProtocols protocolFlags,
 			X509Certificate serverCertificate, XX509CertificateCollection clientCertificates,
-			bool remoteCertRequired, bool checkCertName, bool checkCertRevocationStatus,
-			MSI.MonoEncryptionPolicy encryptionPolicy,
-			MSI.MonoRemoteCertificateValidationCallback userCertificateValidationCallback,
-			MSI.MonoLocalCertificateSelectionCallback userCertificateSelectionCallback,
+			bool remoteCertRequired, MSI.MonoEncryptionPolicy encryptionPolicy,
+			MSI.CertificateValidationHelper certValidationHelper,
 			MSI.MonoTlsSettings settings)
 		{
+			ChainValidationHelper chainValidationHelper = null;
+			if (certValidationHelper != null)
+				chainValidationHelper = new ChainValidationHelper (certValidationHelper);
+
 			return CreateTlsContextImpl (
 				hostname, serverMode, (MSI.TlsProtocols)protocolFlags,
 				serverCertificate, (X509CertificateCollection)(object)clientCertificates,
-				remoteCertRequired, checkCertName, checkCertRevocationStatus,
-				(MSI.MonoEncryptionPolicy)encryptionPolicy,
-				CallbackHelpers.MonoToInternal (userCertificateValidationCallback),
-				CallbackHelpers.MonoToInternal (userCertificateSelectionCallback),
-				settings);
+				remoteCertRequired, (MSI.MonoEncryptionPolicy)encryptionPolicy,
+				chainValidationHelper, settings);
 		}
 	}
 }

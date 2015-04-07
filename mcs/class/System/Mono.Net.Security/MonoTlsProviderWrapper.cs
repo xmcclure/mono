@@ -118,14 +118,15 @@ namespace Mono.Net.Security.Private
 			LocalCertSelectionCallback certSelectionDelegate,
 			MSI.MonoTlsSettings settings)
 		{
+			var helper = CallbackHelpers.CreatePublicValidationHelper (
+				checkCertName, checkCertRevocationStatus,
+				remoteValidationCallback, certSelectionDelegate);
+
 			return provider.CreateTlsContext (
 				hostname, serverMode, protocolFlags,
 				serverCertificate, (XX509CertificateCollection)(object)clientCertificates,
-				remoteCertRequired, checkCertName, checkCertRevocationStatus,
-				(MSI.MonoEncryptionPolicy)encryptionPolicy,
-				CallbackHelpers.InternalToMono (remoteValidationCallback),
-				CallbackHelpers.InternalToMono (certSelectionDelegate),
-				settings);
+				remoteCertRequired, (MSI.MonoEncryptionPolicy)encryptionPolicy,
+				helper, settings);
 		}
 	}
 }

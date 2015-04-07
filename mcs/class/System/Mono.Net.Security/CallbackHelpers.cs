@@ -83,6 +83,14 @@ namespace Mono.Net.Security.Private
 			return (h, c, ch, e) => callback (h, c, (X509Chain)(object)ch, (SslPolicyErrors)e);
 		}
 
+		internal static RemoteCertificateValidationCallback InternalToPublic (string hostname, RemoteCertValidationCallback callback)
+		{
+			if (callback == null)
+				return null;
+
+			return (s, c, ch, e) => callback (hostname, c, ch, e);
+		}
+
 		internal static MSI.MonoLocalCertificateSelectionCallback InternalToMono (LocalCertSelectionCallback callback)
 		{
 			if (callback == null)
@@ -121,6 +129,35 @@ namespace Mono.Net.Security.Private
 				return null;
 
 			return (t, lc, rc, ai) => callback (t, (XX509CertificateCollection)(object)lc, rc, ai);
+		}
+
+#if INSIDE_SYSTEM
+		internal static ChainValidationHelper CreateInternalValidationHelper (
+			string hostname, bool checkCertName, bool checkCertRevocationStatus,
+			RemoteCertValidationCallback remoteValidationCallback,
+			LocalCertSelectionCallback certSelectionDelegate)
+		{
+			var helper = new ChainValidationHelper (InternalToPublic (hostname, remoteValidationCallback));
+			helper.LocalCertSelectionCallback = certSelectionDelegate;
+			helper.CheckCertificateName = checkCertName;
+			helper.CheckCertificateRevocationStatus = checkCertRevocationStatus;
+			return helper;
+		}
+#endif
+
+		internal static MSI.CertificateValidationHelper CreatePublicValidationHelper (
+			bool checkCertName, bool checkCertRevocationStatus,
+			RemoteCertValidationCallback remoteValidationCallback,
+			LocalCertSelectionCallback certSelectionDelegate)
+		{
+			var helper = new MSI.CertificateValidationHelper ();
+			if (remoteValidationCallback != null)
+				helper.ServerCertificateValidationCallback = InternalToMono (remoteValidationCallback);
+			if (certSelectionDelegate != null)
+				helper.ClientCertificateSelectionCallback = InternalToMono (certSelectionDelegate);
+			helper.CheckCertificateName = checkCertName;
+			helper.CheckCertificateRevocationStatus = checkCertRevocationStatus;
+			return helper;
 		}
 	}
 }
