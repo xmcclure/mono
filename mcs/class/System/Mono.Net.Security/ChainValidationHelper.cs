@@ -62,8 +62,6 @@ namespace Mono.Net.Security
 {
 	internal class ChainValidationHelper
 	{
-		object sender;
-		string host;
 		ServerCertValidationCallback certValidationCallback;
 
 		#if !MONOTOUCH
@@ -83,40 +81,20 @@ namespace Mono.Net.Security
 		}
 		#endif
 	
-		public ChainValidationHelper (SslStream stream, string hostName, RemoteCertificateValidationCallback callback = null)
-			: this ((object)stream, hostName, callback)
+		internal static ValidationResult ValidateChainFromHelper (CertificateValidationHelper helper, string targetHost, MSX.X509CertificateCollection certs)
 		{
+			var internalHelper = new ChainValidationHelper ();
+			if (helper.ServerCertificateValidationCallback != null) {
+				var callback = Private.CallbackHelpers.MonoToPublic (helper.ServerCertificateValidationCallback);
+				internalHelper.ServerCertValidationCallback = new ServerCertValidationCallback (callback);
+			}
+			return internalHelper.ValidateChain (helper, targetHost, certs);
 		}
 
-		internal ChainValidationHelper (IMonoSslStream stream, string hostName, RemoteCertificateValidationCallback callback = null)
-			: this ((object)stream, hostName, callback)
+		internal ChainValidationHelper (RemoteCertificateValidationCallback callback = null)
 		{
-		}
-
-		internal static ValidationResult ValidateChain (CertificateValidationHelper helper, string targetHost, MSX.X509CertificateCollection certs)
-		{
-			var callback = Private.CallbackHelpers.MonoToPublic (helper.ServerCertificateValidationCallback);
-			var internalHelper = new ChainValidationHelper (helper, targetHost, callback);
-			return internalHelper.ValidateChain (certs);
-		}
-
-		ChainValidationHelper (object sender, string hostName, RemoteCertificateValidationCallback callback)
-		{
-			this.sender = sender;
-			host = hostName;
-
-			if (callback == null)
-				callback = ServicePointManager.ServerCertificateValidationCallback;
 			if (callback != null)
 				certValidationCallback = new ServerCertValidationCallback (callback);
-		}
-
-		public ChainValidationHelper (HttpWebRequest request)
-		{
-			sender = request;
-			host = request.Address.Host;
-
-			certValidationCallback = request.ServerCertValidationCallback ?? ServicePointManager.ServerCertValidationCallback;
 		}
 
 		internal ServerCertValidationCallback ServerCertValidationCallback {
@@ -124,10 +102,17 @@ namespace Mono.Net.Security
 			set { certValidationCallback = value; }
 		}
 
-		// Used when the obsolete ICertificatePolicy is set to DefaultCertificatePolicy
-		// and the new ServerCertificateValidationCallback is not null
-		internal ValidationResult ValidateChain (MSX.X509CertificateCollection certs)
+		internal ValidationResult ValidateChain (object sender, string host, MSX.X509CertificateCollection certs)
 		{
+			var callback = certValidationCallback;
+			if (callback == null) {
+				var request = sender as HttpWebRequest;
+				if (request != null)
+					callback = request.ServerCertValidationCallback;
+				if (callback == null)
+					callback = ServicePointManager.ServerCertValidationCallback;
+			}
+
 			// user_denied is true if the user callback is called and returns false
 			bool user_denied = false;
 			if (certs == null || certs.Count == 0)
@@ -148,7 +133,7 @@ namespace Mono.Net.Security
 			// the certificates that the server provided (which generally does not include the root) so, only  
 			// if there's a user callback, we'll create the X509Chain but won't build it
 			// ref: https://bugzilla.xamarin.com/show_bug.cgi?id=7245
-			if (certValidationCallback != null) {
+			if (callback != null) {
 #endif
 				chain = new X509Chain ();
 				chain.ChainPolicy = new X509ChainPolicy ();
@@ -231,7 +216,7 @@ namespace Mono.Net.Security
 			}
 #endif
 	
-			if (policy != null && (!(policy is DefaultCertificatePolicy) || certValidationCallback == null)) {
+			if (policy != null && (!(policy is DefaultCertificatePolicy) || callback == null)) {
 				ServicePoint sp = null;
 				HttpWebRequest req = sender as HttpWebRequest;
 				if (req != null)
@@ -244,8 +229,8 @@ namespace Mono.Net.Security
 				user_denied = !result && !(policy is DefaultCertificatePolicy);
 			}
 			// If there's a 2.0 callback, it takes precedence
-			if (certValidationCallback != null) {
-				result = certValidationCallback.Invoke (sender, leaf, chain, errors);
+			if (callback != null) {
+				result = callback.Invoke (sender, leaf, chain, errors);
 				user_denied = !result;
 			}
 			return new ValidationResult (result, user_denied, status11, (MonoSslPolicyErrors)errors);

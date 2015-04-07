@@ -97,7 +97,7 @@ namespace Mono.Security.Interface
 			internalHelperType = Type.GetType (InternalHelperTypeName + ", " + Consts.AssemblySystem, true);
 			if (internalHelperType == null)
 				throw new NotSupportedException ();
-			validateChainMethod = internalHelperType.GetMethod ("ValidateChain", BindingFlags.Static | BindingFlags.NonPublic);
+			validateChainMethod = internalHelperType.GetMethod ("ValidateChainFromHelper", BindingFlags.Static | BindingFlags.NonPublic);
 			if (validateChainMethod == null)
 				throw new NotSupportedException ();
 			#endif
@@ -106,7 +106,7 @@ namespace Mono.Security.Interface
 		public ValidationResult ValidateChain (string targetHost, MX.X509CertificateCollection certs)
 		{
 			#if INSIDE_SYSTEM
-			return ChainValidationHelper.ValidateChain (this, targetHost, certs);
+			return ChainValidationHelper.ValidateChainFromHelper (this, targetHost, certs);
 			#else
 			return (ValidationResult)validateChainMethod.Invoke (null, new object[] { this, targetHost, certs });
 			#endif
