@@ -70,12 +70,7 @@ namespace Mono.Security.Interface
 		}
 	}
 
-	#if INSIDE_SYSTEM
-	internal
-	#else
-	public
-	#endif
-	class CertificateValidationHelper
+	public class CertificateValidationHelper
 	{
 		public MonoRemoteCertificateValidationCallback ServerCertificateValidationCallback {
 			get; set;
@@ -116,7 +111,7 @@ namespace Mono.Security.Interface
 			#endif
 		}
 
-		public ValidationResult ValidateChain (string targetHost, MX.X509CertificateCollection certs)
+		public ValidationResult ValidateChain (string targetHost, X509CertificateCollection certs)
 		{
 			#if INSIDE_SYSTEM
 			return ChainValidationHelper.ValidateChainFromHelper (this, targetHost, certs);

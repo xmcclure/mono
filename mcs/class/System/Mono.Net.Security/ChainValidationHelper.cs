@@ -85,10 +85,13 @@ namespace Mono.Net.Security
 		}
 		#endif
 	
-		internal static ValidationResult ValidateChainFromHelper (CertificateValidationHelper helper, string targetHost, MSX.X509CertificateCollection certs)
+		internal static ValidationResult ValidateChainFromHelper (CertificateValidationHelper helper, string targetHost, X509CertificateCollection certs)
 		{
 			var internalHelper = new ChainValidationHelper (helper);
-			return internalHelper.ValidateChain (helper, targetHost, certs);
+			var mcerts = new MSX.X509CertificateCollection ();
+			for (int i = 0; i < certs.Count; i++)
+				mcerts.Add (new MSX.X509Certificate (certs [0].GetRawCertData ()));
+			return internalHelper.ValidateChain (helper, targetHost, mcerts);
 		}
 
 		internal ChainValidationHelper (CertificateValidationHelper helper)
