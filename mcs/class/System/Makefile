@@ -39,6 +39,9 @@ endif
 ifeq (monodroid, $(PROFILE))
 LIB_MCS_FLAGS += -d:SECURITY_DEP
 endif
+ifeq (xammac, $(PROFILE))
+EXTERN_ALIAS_FLAGS = -d:MONO_SECURITY_ALIAS -d:MONO_X509_ALIAS
+endif
 ifndef PROFILE_ANY_MOBILE
 FINAL_MCS_FLAGS = -r:System.Configuration.dll -d:CONFIGURATION_DEP
 endif

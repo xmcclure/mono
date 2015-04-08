@@ -10,6 +10,8 @@ net_4_5_SUBDIRS = $(PROVIDERS)
 
 monodroid_SUBDIRS = $(net_4_5_SUBDIRS)
 
+monotouch_SUBDIRS = $(net_4_5_SUBDIRS)
+
 xammac_SUBDIRS = $(net_4_5_SUBDIRS)
 
 PROFILE_SUBDIRS = $(PROVIDERS)
