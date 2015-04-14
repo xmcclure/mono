@@ -590,7 +590,7 @@ namespace System.Net
 			return (statusCode >= 200 && statusCode != 204 && statusCode != 304);
 		}
 
-		internal void GetCertificates (Stream stream) 
+		void GetCertificates (Stream stream)
 		{
 			// here the SSL negotiation have been done
 #if SECURITY_DEP
@@ -1042,6 +1042,8 @@ namespace System.Net
 
 			try {
 				s.EndWrite (result);
+				if (ssl && !certsAvailable)
+					GetCertificates (s);
 				return true;
 			} catch (Exception exc) {
 				status = WebExceptionStatus.SendFailure;
