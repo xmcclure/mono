@@ -84,10 +84,10 @@ namespace System.Net
 		HttpWebRequest connect_request;
 
 		bool ssl;
-		bool certsAvailable;
 		Exception connect_exception;
 		static object classLock = new object ();
 		IMonoTlsProvider tlsProvider;
+		MonoTlsStream tlsStream;
 
 #if MONOTOUCH
 		[System.Runtime.InteropServices.DllImport ("__Internal")]
@@ -408,24 +408,15 @@ namespace System.Net
 #if SECURITY_DEP
 					ssl = true;
 					EnsureSSLStreamAvailable (request);
-					if (!reused || nstream == null || !tlsProvider.IsHttpsStream (nstream)) {
+					if (!reused || nstream == null || tlsStream == null) {
 						byte [] buffer = null;
 						if (sPoint.UseConnect) {
 							bool ok = CreateTunnel (request, sPoint.Address, serverStream, out buffer);
 							if (!ok)
 								return false;
 						}
-						if (tlsProvider.SupportsHttps) {
-							var httpsStream = tlsProvider.CreateHttpsClientStream (serverStream, request, buffer);
-							nstream = httpsStream.Stream;
-						} else {
-							var sslStream = tlsProvider.CreateSslStream (serverStream, false, request.ServerCertificateValidationCallback, null);
-							sslStream.AuthenticateAsClient (request.Address.Host);
-							if (buffer != null)
-								sslStream.Write (buffer, 0, buffer.Length);
-							nstream = sslStream.AuthenticatedStream;
-						}
-						certsAvailable = false;
+						tlsStream = new MonoTlsStream (request, serverStream);
+						nstream = tlsStream.CreateStream (buffer);
 					}
 					// we also need to set ServicePoint.Certificate 
 					// and ServicePoint.ClientCertificate but this can
@@ -438,9 +429,12 @@ namespace System.Net
 					ssl = false;
 					nstream = serverStream;
 				}
-			} catch (Exception) {
-				if (!request.Aborted)
+			} catch (Exception ex) {
+				if (tlsStream != null)
+					status = tlsStream.ExceptionStatus;
+				else if (!request.Aborted)
 					status = WebExceptionStatus.ConnectFailure;
+				Data.Challenge = null;
 				return false;
 			}
 
@@ -588,20 +582,6 @@ namespace System.Net
 			if (method == "HEAD")
 				return false;
 			return (statusCode >= 200 && statusCode != 204 && statusCode != 304);
-		}
-
-		void GetCertificates (Stream stream)
-		{
-			// here the SSL negotiation have been done
-#if SECURITY_DEP
-			var httpsStream = tlsProvider.GetHttpsStream (stream);
-			X509Certificate client = httpsStream.SelectedClientCertificate;
-			X509Certificate server = httpsStream.ServerCertificate;
-			sPoint.SetCertificates (client, server);
-			certsAvailable = (server != null);
-#else
-			throw new NotSupportedException ();
-#endif
 		}
 
 		internal static void InitRead (object state)
@@ -1042,8 +1022,10 @@ namespace System.Net
 
 			try {
 				s.EndWrite (result);
-				if (ssl && !certsAvailable)
-					GetCertificates (s);
+#if SECURITY_DEP
+				if (tlsStream != null)
+					tlsStream.CheckCertificates ();
+#endif
 				return true;
 			} catch (Exception exc) {
 				status = WebExceptionStatus.SendFailure;
@@ -1108,9 +1090,10 @@ namespace System.Net
 
 			try {
 				s.Write (buffer, offset, size);
-				// here SSL handshake should have been done
-				if (ssl && !certsAvailable)
-					GetCertificates (s);
+#if SECURITY_DEP
+				if (tlsStream != null)
+					tlsStream.CheckCertificates ();
+#endif
 			} catch (Exception e) {
 				err_msg = e.Message;
 				WebExceptionStatus wes = WebExceptionStatus.SendFailure;
@@ -1118,17 +1101,6 @@ namespace System.Net
 				if (e is WebException) {
 					HandleError (wes, e, msg);
 					return false;
-				}
-
-				// if SSL is in use then check for TrustFailure
-				if (ssl) {
-#if SECURITY_DEP
-					var httpsStream = tlsProvider.GetHttpsStream (s);
-					if (httpsStream.TrustFailure) {
-						wes = WebExceptionStatus.TrustFailure;
-						msg = "Trust failure";
-					}
-#endif
 				}
 
 				HandleError (wes, e, msg);

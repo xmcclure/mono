@@ -741,6 +741,7 @@ Mono.Net.Security/MonoSslStreamWrapper.cs
 Mono.Net.Security/MonoTlsProviderFactory.cs
 Mono.Net.Security/MonoTlsProviderImpl.cs
 Mono.Net.Security/MonoTlsProviderWrapper.cs
+Mono.Net.Security/MonoTlsStream.cs
 
 ReferenceSources/BinaryCompatibility.cs
 ReferenceSources/BootstrapHelper.cs
