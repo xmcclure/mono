@@ -77,18 +77,20 @@ namespace Mono.Security.Providers.DotNet
 
 		public override MonoSslStream CreateSslStream (
 			Stream innerStream, bool leaveInnerStreamOpen,
-			MonoRemoteCertificateValidationCallback userCertificateValidationCallback,
-			MonoLocalCertificateSelectionCallback userCertificateSelectionCallback,
+			CertificateValidationHelper validationHelper,
 			MonoTlsSettings settings = null)
 		{
 			if (settings != null)
 				throw new NotSupportedException ("Mono-specific API Extensions not available.");
 
-			var sslStream = new DotNetSslStreamImpl (
-				innerStream, leaveInnerStreamOpen,
-				ConvertCallback (userCertificateValidationCallback),
-				ConvertCallback (userCertificateSelectionCallback));
-			return sslStream;
+			RemoteCertificateValidationCallback validation_callback = null;
+			LocalCertificateSelectionCallback selection_callback = null;
+			if (validationHelper != null) {
+				validation_callback = ConvertCallback (validationHelper.ServerCertificateValidationCallback);
+				selection_callback = ConvertCallback (validationHelper.ClientCertificateSelectionCallback);
+			}
+
+			return new DotNetSslStreamImpl (innerStream, leaveInnerStreamOpen, validation_callback, selection_callback);
 		}
 
 		public override IMonoTlsContext CreateTlsContext (

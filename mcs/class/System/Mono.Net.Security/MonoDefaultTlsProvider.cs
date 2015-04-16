@@ -145,13 +145,9 @@ namespace Mono.Net.Security.Private
 
 		protected override IMonoSslStream CreateSslStreamImpl (
 			Stream innerStream, bool leaveInnerStreamOpen,
-			RemoteCertificateValidationCallback userCertificateValidationCallback,
-			LocalCertificateSelectionCallback userCertificateSelectionCallback)
+			ChainValidationHelper validationHelper)
 		{
-			return new LegacySslStream (
-				innerStream, leaveInnerStreamOpen,
-				userCertificateValidationCallback,
-				userCertificateSelectionCallback);
+			return new LegacySslStream (innerStream, leaveInnerStreamOpen, validationHelper);
 		}
 
 		protected override IMonoTlsContext CreateTlsContextImpl (

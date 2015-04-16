@@ -143,7 +143,21 @@ namespace Mono.Net.Security.Private
 			helper.CheckCertificateRevocationStatus = checkCertRevocationStatus;
 			return helper;
 		}
+
+		internal static ChainValidationHelper GetInternalValidationHelper (MSI.CertificateValidationHelper validationHelper)
+		{
+			if (validationHelper == null)
+				return null;
+			return new ChainValidationHelper (validationHelper);
+		}
 #endif
+
+		internal static MSI.CertificateValidationHelper GetPublicValidationHelper (ChainValidationHelper validationHelper)
+		{
+			if (validationHelper == null)
+				return null;
+			return validationHelper.GetPublicHelper ();
+		}
 
 		internal static MSI.CertificateValidationHelper CreatePublicValidationHelper (
 			bool checkCertName, bool checkCertRevocationStatus,

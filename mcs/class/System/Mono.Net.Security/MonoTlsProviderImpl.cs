@@ -82,30 +82,23 @@ namespace Mono.Net.Security.Private
 
 		IMonoSslStream IMonoTlsProvider.CreateSslStream (
 			Stream innerStream, bool leaveInnerStreamOpen,
-			RemoteCertificateValidationCallback userCertificateValidationCallback,
-			LocalCertificateSelectionCallback userCertificateSelectionCallback)
+			ChainValidationHelper validationHelper)
 		{
-			return CreateSslStreamImpl (
-				innerStream, leaveInnerStreamOpen,
-				userCertificateValidationCallback,
-				userCertificateSelectionCallback);
+			return CreateSslStreamImpl (innerStream, leaveInnerStreamOpen, validationHelper);
 		}
 
 		protected abstract IMonoSslStream CreateSslStreamImpl (
 			Stream innerStream, bool leaveInnerStreamOpen,
-			RemoteCertificateValidationCallback userCertificateValidationCallback,
-			LocalCertificateSelectionCallback userCertificateSelectionCallback);
+			ChainValidationHelper validationHelper);
 
 		public override MSI.MonoSslStream CreateSslStream (
 			Stream innerStream, bool leaveInnerStreamOpen,
-			MSI.MonoRemoteCertificateValidationCallback userCertificateValidationCallback,
-			MSI.MonoLocalCertificateSelectionCallback userCertificateSelectionCallback,
+			MSI.CertificateValidationHelper validationHelper,
 			MSI.MonoTlsSettings settings = null)
 		{
 			var sslStream = CreateSslStreamImpl (
 				innerStream, leaveInnerStreamOpen,
-				CallbackHelpers.MonoToPublic (userCertificateValidationCallback),
-				CallbackHelpers.MonoToPublic (userCertificateSelectionCallback));
+				CallbackHelpers.GetInternalValidationHelper (validationHelper));
 			return new MonoSslStreamImpl (sslStream);
 		}
 

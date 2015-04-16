@@ -81,8 +81,8 @@ namespace Mono.Net.Security
 		#region Fields
 
 		SslStreamBase ssl_stream;
+		ChainValidationHelper validationHelper;
 		RemoteCertificateValidationCallback validation_callback;
-		LocalCertificateSelectionCallback selection_callback;
 
 		#endregion // Fields
 
@@ -98,19 +98,10 @@ namespace Mono.Net.Security
 		{
 		}
 
-		[MonoTODO ("userCertificateValidationCallback is not passed X509Chain and SslPolicyErrors correctly")]
-		public LegacySslStream (Stream innerStream, bool leaveInnerStreamOpen, RemoteCertificateValidationCallback userCertificateValidationCallback)
-			: this (innerStream, leaveInnerStreamOpen, userCertificateValidationCallback, null)
-		{
-		}
-
-		[MonoTODO ("userCertificateValidationCallback is not passed X509Chain and SslPolicyErrors correctly")]
-		public LegacySslStream (Stream innerStream, bool leaveInnerStreamOpen, RemoteCertificateValidationCallback userCertificateValidationCallback, LocalCertificateSelectionCallback userCertificateSelectionCallback)
+		public LegacySslStream (Stream innerStream, bool leaveInnerStreamOpen, ChainValidationHelper validationHelper)
 			: base (innerStream, leaveInnerStreamOpen)
 		{
-			// they are nullable.
-			validation_callback = userCertificateValidationCallback;
-			selection_callback = userCertificateSelectionCallback;
+			this.validationHelper = validationHelper;
 		}
 		#endregion // Constructors
 
@@ -331,7 +322,7 @@ namespace Mono.Net.Security
 			string [] acceptableIssuers = new string [serverRequestedCerts != null ? serverRequestedCerts.Count : 0];
 			for (int i = 0; i < acceptableIssuers.Length; i++)
 				acceptableIssuers [i] = serverRequestedCerts [i].GetIssuerName ();
-			return selection_callback (this, targetHost, clientCerts, serverCert, acceptableIssuers);
+			return validationHelper.LocalCertSelectionCallback (targetHost, clientCerts, serverCert, acceptableIssuers);
 		}
 
 		public virtual IAsyncResult BeginAuthenticateAsClient (string targetHost, AsyncCallback asyncCallback, object asyncState)
@@ -365,56 +356,11 @@ namespace Mono.Net.Security
 				return null;
 			};
 
-#if MONOTOUCH || MONODROID
 			// Even if validation_callback is null this allows us to verify requests where the user
 			// does not provide a verification callback but attempts to authenticate with the website
 			// as a client (see https://bugzilla.xamarin.com/show_bug.cgi?id=18962 for an example)
-			var helper = new ChainValidationHelper (validation_callback);
-			s.ServerCertValidation2 += (certs) => helper.ValidateChain (this, targetHost, certs);
-#else
-			if (validation_callback != null) {
-				s.ServerCertValidationDelegate = delegate (X509Certificate cert, int [] certErrors) {
-					X509Chain chain = new X509Chain ();
-					X509Certificate2 x2 = (cert as X509Certificate2);
-					if (x2 == null)
-						x2 = new X509Certificate2 (cert);
-
-					if (!ServicePointManager.CheckCertificateRevocationList)
-						chain.ChainPolicy.RevocationMode = X509RevocationMode.NoCheck;
-
-					// SSL specific checks (done by Mono.Security.dll SSL/TLS implementation) 
-					SslPolicyErrors errors = SslPolicyErrors.None;
-					foreach (int i in certErrors) {
-						switch (i) {
-						case -2146762490: // CERT_E_PURPOSE
-							errors |= SslPolicyErrors.RemoteCertificateNotAvailable;
-							break;
-						case -2146762481: // CERT_E_CN_NO_MATCH
-							errors |= SslPolicyErrors.RemoteCertificateNameMismatch;
-							break;
-						default:
-							errors |= SslPolicyErrors.RemoteCertificateChainErrors;
-							break;
-						}
-					}
-
-					chain.Build (x2);
-
-					// non-SSL specific X509 checks (i.e. RFC3280 related checks)
-					foreach (X509ChainStatus status in chain.ChainStatus) {
-						if (status.Status == X509ChainStatusFlags.NoError)
-							continue;
-						if ((status.Status & X509ChainStatusFlags.PartialChain) != 0)
-							errors |= SslPolicyErrors.RemoteCertificateNotAvailable;
-						else
-							errors |= SslPolicyErrors.RemoteCertificateChainErrors;
-					}
-
-					return validation_callback (this, cert, chain, errors);
-				};
-			}
-#endif
-			if (selection_callback != null)
+			s.ServerCertValidation2 += (certs) => validationHelper.ValidateChain (this, targetHost, certs);
+			if (validationHelper.LocalCertSelectionCallback != null)
 				s.ClientCertSelectionDelegate = OnCertificateSelection;
 
 			ssl_stream = s;

@@ -60,6 +60,9 @@ namespace Mono.Net.Security
 			get { return status; }
 		}
 
+#if SECURITY_DEP
+		ChainValidationHelper validationHelper;
+
 		public MonoTlsStream (HttpWebRequest request, NetworkStream networkStream)
 		{
 			this.request = request;
@@ -67,22 +70,10 @@ namespace Mono.Net.Security
 
 			provider = request.TlsProvider ?? MonoTlsProviderFactory.GetProviderInternal ();
 			status = WebExceptionStatus.SecureChannelFailure;
+
+			validationHelper = new ChainValidationHelper (this);
 		}
 
-		internal bool CertValidationCallback (object sender, X509Certificate certificate, X509Chain chain, SslPolicyErrors sslPolicyErrors)
-		{
-			try {
-				if (request.ServerCertificateValidationCallback (sender, certificate, chain, sslPolicyErrors))
-					return true;
-				status = WebExceptionStatus.TrustFailure;
-				return false;
-			} catch {
-				status = WebExceptionStatus.TrustFailure;
-				return false;
-			}
-		}
-
-#if SECURITY_DEP
 		internal bool CheckCertificates ()
 		{
 			if (hasCertificates)
@@ -100,10 +91,12 @@ namespace Mono.Net.Security
 
 		internal Stream CreateStream (byte[] buffer)
 		{
+			sslStream = provider.CreateSslStream (networkStream, false, validationHelper);
+
 			try {
-				sslStream = provider.CreateSslStream (networkStream, false, CertValidationCallback, null);
 				sslStream.AuthenticateAsClient (request.Address.Host);
 			} catch {
+				status = WebExceptionStatus.TrustFailure;
 				sslStream = null;
 				throw;
 			}

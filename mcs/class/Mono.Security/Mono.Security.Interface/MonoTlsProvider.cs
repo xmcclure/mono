@@ -123,8 +123,7 @@ namespace Mono.Security.Interface
 		 */
 		public abstract MonoSslStream CreateSslStream (
 			Stream innerStream, bool leaveInnerStreamOpen,
-			MonoRemoteCertificateValidationCallback userCertificateValidationCallback,
-			MonoLocalCertificateSelectionCallback userCertificateSelectionCallback,
+			CertificateValidationHelper validationHelper,
 			MonoTlsSettings settings = null);
 
 #endregion
