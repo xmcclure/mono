@@ -31,6 +31,15 @@
 // WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 //
 
+#if SECURITY_DEP
+#if MONO_SECURITY_ALIAS
+extern alias MonoSecurity;
+using MonoSecurity::Mono.Security.Interface;
+#else
+using Mono.Security.Interface;
+#endif
+#endif
+
 using System;
 using System.Collections;
 using System.Configuration;
@@ -104,6 +113,9 @@ namespace System.Net
 		static int defaultMaxResponseHeadersLength;
 		int readWriteTimeout = 300000; // ms
 		IMonoTlsProvider tlsProvider;
+#if SECURITY_DEP
+		MonoTlsSettings tlsSettings;
+#endif
 		ServerCertValidationCallback certValidationCallback;
 
 		enum NtlmAuthState {
@@ -145,11 +157,14 @@ namespace System.Net
 			ResetAuthorization ();
 		}
 
-		internal HttpWebRequest (Uri uri, IMonoTlsProvider tlsProvider)
+#if SECURITY_DEP
+		internal HttpWebRequest (Uri uri, IMonoTlsProvider tlsProvider, MonoTlsSettings settings = null)
 			: this (uri)
 		{
 			this.tlsProvider = tlsProvider;
+			this.tlsSettings = settings;
 		}
+#endif
 		
 		[Obsolete ("Serialization is obsoleted for this type", false)]
 		protected HttpWebRequest (SerializationInfo serializationInfo, StreamingContext streamingContext) 
@@ -245,6 +260,12 @@ namespace System.Net
 		internal IMonoTlsProvider TlsProvider {
 			get { return tlsProvider; }
 		}
+
+#if SECURITY_DEP
+		internal MonoTlsSettings TlsSettings {
+			get { return tlsSettings; }
+		}
+#endif
 		
 		public X509CertificateCollection ClientCertificates {
 			get {

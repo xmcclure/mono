@@ -87,7 +87,8 @@ namespace Mono.Net.Security
 
 		IMonoSslStream CreateSslStream (
 			Stream innerStream, bool leaveInnerStreamOpen,
-			ICertificateValidator certificateValidator);
+			ICertificateValidator certificateValidator,
+			MonoTlsSettings settings);
 
 		IMonoTlsContext CreateTlsContext (
 			string hostname, bool serverMode, TlsProtocols protocolFlags,

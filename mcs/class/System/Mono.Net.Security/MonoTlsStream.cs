@@ -24,9 +24,24 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-#if SECURITY_DEP && MONO_X509_ALIAS
+#if SECURITY_DEP
+#if MONO_SECURITY_ALIAS
+extern alias MonoSecurity;
+#endif
+#if MONO_X509_ALIAS
 extern alias PrebuiltSystem;
-using X509CertificateCollection = PrebuiltSystem::System.Security.Cryptography.X509Certificates.X509CertificateCollection;
+#endif
+
+#if MONO_SECURITY_ALIAS
+using MonoSecurity::Mono.Security.Interface;
+#else
+using Mono.Security.Interface;
+#endif
+#if MONO_X509_ALIAS
+using XX509CertificateCollection = PrebuiltSystem::System.Security.Cryptography.X509Certificates.X509CertificateCollection;
+#else
+using XX509CertificateCollection = System.Security.Cryptography.X509Certificates.X509CertificateCollection;
+#endif
 #endif
 
 using System;
@@ -61,20 +76,22 @@ namespace Mono.Net.Security
 		}
 
 #if SECURITY_DEP
-		ChainValidationHelper validationHelper;
+		readonly ChainValidationHelper validationHelper;
+		readonly MonoTlsSettings settings;
 
 		public MonoTlsStream (HttpWebRequest request, NetworkStream networkStream)
 		{
 			this.request = request;
 			this.networkStream = networkStream;
 
+			settings = request.TlsSettings;
 			provider = request.TlsProvider ?? MonoTlsProviderFactory.GetProviderInternal ();
 			status = WebExceptionStatus.SecureChannelFailure;
 
 			validationHelper = new ChainValidationHelper (this);
 		}
 
-		internal X509Certificate SelectClientCertificate (string targetHost, X509CertificateCollection localCertificates, X509Certificate remoteCertificate, string[] acceptableIssuers)
+		internal X509Certificate SelectClientCertificate (string targetHost, XX509CertificateCollection localCertificates, X509Certificate remoteCertificate, string[] acceptableIssuers)
 		{
 			if (localCertificates == null || localCertificates.Count == 0)
 				return null;
@@ -98,11 +115,11 @@ namespace Mono.Net.Security
 
 		internal Stream CreateStream (byte[] buffer)
 		{
-			sslStream = provider.CreateSslStream (networkStream, false, validationHelper);
+			sslStream = provider.CreateSslStream (networkStream, false, validationHelper, settings);
 
 			try {
 				sslStream.AuthenticateAsClient (
-					request.Address.Host, (X509CertificateCollection)(object)request.ClientCertificates,
+					request.Address.Host, (XX509CertificateCollection)(object)request.ClientCertificates,
 					(SslProtocols)ServicePointManager.SecurityProtocol,
 					ServicePointManager.CheckCertificateRevocationList);
 			} catch {

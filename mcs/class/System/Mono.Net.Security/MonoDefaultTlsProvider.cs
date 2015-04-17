@@ -145,7 +145,8 @@ namespace Mono.Net.Security.Private
 
 		protected override IMonoSslStream CreateSslStreamImpl (
 			Stream innerStream, bool leaveInnerStreamOpen,
-			ICertificateValidator certificateValidator)
+			ICertificateValidator certificateValidator,
+			MonoTlsSettings settings)
 		{
 			return new LegacySslStream (innerStream, leaveInnerStreamOpen, certificateValidator);
 		}

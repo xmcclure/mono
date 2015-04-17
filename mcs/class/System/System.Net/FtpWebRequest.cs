@@ -1175,7 +1175,7 @@ namespace System.Net
 #if SECURITY_DEP
 			var provider = MonoTlsProviderFactory.GetProviderInternal ();
 			var helper = new ChainValidationHelper (callback);
-			var sslStream = provider.CreateSslStream (stream, true, helper);
+			var sslStream = provider.CreateSslStream (stream, true, helper, null);
 			//sslStream.AuthenticateAsClient (Host, this.ClientCertificates, SslProtocols.Default, false);
 			//TODO: client certificates
 			sslStream.AuthenticateAsClient (requestUri.Host, null, SslProtocols.Default, false);

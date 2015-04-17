@@ -1165,7 +1165,7 @@ try {
 #if SECURITY_DEP
 			var tlsProvider = MonoTlsProviderFactory.GetProviderInternal ();
 			var validationHelper = new ChainValidationHelper (callback);
-			var sslStream = tlsProvider.CreateSslStream (stream, false, validationHelper);
+			var sslStream = tlsProvider.CreateSslStream (stream, false, validationHelper, null);
 			CheckCancellation ();
 			sslStream.AuthenticateAsClient (Host, this.ClientCertificates, SslProtocols.Default, false);
 			stream = sslStream.AuthenticatedStream;

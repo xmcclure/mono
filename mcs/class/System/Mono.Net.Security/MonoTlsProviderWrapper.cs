@@ -96,11 +96,13 @@ namespace Mono.Net.Security.Private
 
 		public IMonoSslStream CreateSslStream (
 			Stream innerStream, bool leaveInnerStreamOpen,
-			MSI.ICertificateValidator certificateValidator)
+			MSI.ICertificateValidator certificateValidator,
+			MSI.MonoTlsSettings settings)
 		{
 			var sslStream = provider.CreateSslStream (
 				innerStream, leaveInnerStreamOpen,
-				CallbackHelpers.GetPublicValidationHelper (certificateValidator));
+				CallbackHelpers.GetPublicValidationHelper (certificateValidator),
+				settings);
 			var monoSslStreamImpl = sslStream as MonoSslStreamImpl;
 			if (monoSslStreamImpl != null)
 				return monoSslStreamImpl.Impl;
