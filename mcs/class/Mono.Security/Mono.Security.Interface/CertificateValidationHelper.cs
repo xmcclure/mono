@@ -80,7 +80,7 @@ namespace Mono.Security.Interface
 			get;
 		}
 
-		ValidationResult ValidateChain (object sender, string targetHost, MX.X509CertificateCollection certificates);
+		ValidationResult ValidateChain (string targetHost, MX.X509CertificateCollection certificates);
 	}
 
 	public class CertificateValidationHelper
@@ -167,12 +167,9 @@ namespace Mono.Security.Interface
 			#endif
 		}
 
-		public ValidationResult ValidateChain (string targetHost, X509CertificateCollection certs)
+		public ValidationResult ValidateChain (string targetHost, MX.X509CertificateCollection certs)
 		{
-			var mcerts = new MX.X509CertificateCollection ();
-			for (int i = 0; i < certs.Count; i++)
-				mcerts.Add (new MX.X509Certificate (certs [0].GetRawCertData ()));
-			return CertificateValidator.ValidateChain (this, targetHost, mcerts);
+			return CertificateValidator.ValidateChain (targetHost, certs);
 		}
 	}
 }

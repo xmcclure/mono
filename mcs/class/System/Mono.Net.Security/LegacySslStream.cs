@@ -361,7 +361,7 @@ namespace Mono.Net.Security
 			// Even if validation_callback is null this allows us to verify requests where the user
 			// does not provide a verification callback but attempts to authenticate with the website
 			// as a client (see https://bugzilla.xamarin.com/show_bug.cgi?id=18962 for an example)
-			s.ServerCertValidation2 += (certs) => certificateValidator.ValidateChain (this, targetHost, certs);
+			s.ServerCertValidation2 += (certs) => certificateValidator.ValidateChain (targetHost, certs);
 			if (certificateValidator.ValidationHelper.ClientCertificateSelectionCallback != null)
 				s.ClientCertSelectionDelegate = OnCertificateSelection;
 

@@ -72,6 +72,7 @@ namespace Mono.Net.Security
 {
 	internal class ChainValidationHelper : ICertificateValidator
 	{
+		object sender;
 		CertificateValidationHelper publicHelper;
 		ServerCertValidationCallback certValidationCallback;
 		LocalCertSelectionCallback certSelectionCallback;
@@ -103,6 +104,7 @@ namespace Mono.Net.Security
 
 		ChainValidationHelper (CertificateValidationHelper helper)
 		{
+			this.sender = helper;
 			this.publicHelper = helper;
 			if (helper.ServerCertificateValidationCallback != null) {
 				var callback = Private.CallbackHelpers.MonoToPublic (helper.ServerCertificateValidationCallback);
@@ -120,8 +122,10 @@ namespace Mono.Net.Security
 			return new CertificateValidationHelper (this, validationCallback, selectionCallback, checkCertName, checkCertRevocationStatus);
 		}
 
-		internal ChainValidationHelper (RemoteCertificateValidationCallback callback = null)
+		internal ChainValidationHelper (object sender, RemoteCertificateValidationCallback callback = null)
 		{
+			this.sender = sender;
+			request = sender as HttpWebRequest;
 			if (callback != null)
 				certValidationCallback = new ServerCertValidationCallback (callback);
 		}
@@ -129,6 +133,7 @@ namespace Mono.Net.Security
 		internal ChainValidationHelper (MonoTlsStream stream)
 		{
 			request = stream.Request;
+			sender = request;
 			certValidationCallback = request.ServerCertValidationCallback;
 			certSelectionCallback = new LocalCertSelectionCallback (stream.SelectClientCertificate);
 		}
@@ -161,7 +166,7 @@ namespace Mono.Net.Security
 			}
 		}
 
-		public ValidationResult ValidateChain (object sender, string host, MSX.X509CertificateCollection certs)
+		public ValidationResult ValidateChain (string host, MSX.X509CertificateCollection certs)
 		{
 			var callback = certValidationCallback;
 			if (callback == null) {

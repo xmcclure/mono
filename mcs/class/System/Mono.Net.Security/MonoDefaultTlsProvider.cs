@@ -138,8 +138,8 @@ namespace Mono.Net.Security.Private
 #endif
 
 			SslClientStream scs = (SslClientStream) nstream;
-			var helper = new ChainValidationHelper ();
-			scs.ServerCertValidation2 += (certs) => helper.ValidateChain (request, request.Address.Host, certs);
+			var helper = new ChainValidationHelper (request);
+			scs.ServerCertValidation2 += (certs) => helper.ValidateChain (request.Address.Host, certs);
 			return (IMonoHttpsStream)nstream;
 		}
 
