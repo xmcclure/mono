@@ -132,46 +132,19 @@ namespace Mono.Net.Security.Private
 		}
 
 #if INSIDE_SYSTEM
-		internal static ChainValidationHelper CreateInternalValidationHelper (
-			string hostname, bool checkCertName, bool checkCertRevocationStatus,
-			RemoteCertValidationCallback remoteValidationCallback,
-			LocalCertSelectionCallback certSelectionDelegate)
-		{
-			var helper = new ChainValidationHelper (InternalToPublic (hostname, remoteValidationCallback));
-			helper.LocalCertSelectionCallback = certSelectionDelegate;
-			helper.CheckCertificateName = checkCertName;
-			helper.CheckCertificateRevocationStatus = checkCertRevocationStatus;
-			return helper;
-		}
-
-		internal static ChainValidationHelper GetInternalValidationHelper (MSI.CertificateValidationHelper validationHelper)
+		internal static MSI.ICertificateValidator GetInternalValidationHelper (MSI.CertificateValidationHelper validationHelper)
 		{
 			if (validationHelper == null)
 				return null;
-			return new ChainValidationHelper (validationHelper);
+			return validationHelper.CertificateValidator;
 		}
 #endif
 
-		internal static MSI.CertificateValidationHelper GetPublicValidationHelper (ChainValidationHelper validationHelper)
+		internal static MSI.CertificateValidationHelper GetPublicValidationHelper (MSI.ICertificateValidator certificateValidator)
 		{
-			if (validationHelper == null)
+			if (certificateValidator == null)
 				return null;
-			return validationHelper.GetPublicHelper ();
-		}
-
-		internal static MSI.CertificateValidationHelper CreatePublicValidationHelper (
-			bool checkCertName, bool checkCertRevocationStatus,
-			RemoteCertValidationCallback remoteValidationCallback,
-			LocalCertSelectionCallback certSelectionDelegate)
-		{
-			var helper = new MSI.CertificateValidationHelper ();
-			if (remoteValidationCallback != null)
-				helper.ServerCertificateValidationCallback = InternalToMono (remoteValidationCallback);
-			if (certSelectionDelegate != null)
-				helper.ClientCertificateSelectionCallback = InternalToMono (certSelectionDelegate);
-			helper.CheckCertificateName = checkCertName;
-			helper.CheckCertificateRevocationStatus = checkCertRevocationStatus;
-			return helper;
+			return certificateValidator.ValidationHelper;
 		}
 	}
 }

@@ -97,8 +97,7 @@ namespace Mono.Security.Providers.DotNet
 			string hostname, bool serverMode, TlsProtocols protocolFlags,
 			X509Certificate serverCertificate, X509CertificateCollection clientCertificates,
 			bool remoteCertRequired, MonoEncryptionPolicy encryptionPolicy,
-			CertificateValidationHelper certificateValidationHelper,
-			MonoTlsSettings settings)
+			ICertificateValidator certificateValidator, MonoTlsSettings settings)
 		{
 			throw new NotSupportedException ();
 		}

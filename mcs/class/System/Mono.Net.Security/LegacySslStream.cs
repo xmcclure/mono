@@ -47,12 +47,14 @@ using MonoHashAlgorithmType = MonoSecurity::Mono.Security.Protocol.Tls.HashAlgor
 using MonoExchangeAlgorithmType = MonoSecurity::Mono.Security.Protocol.Tls.ExchangeAlgorithmType;
 using MonoSecurityProtocolType = MonoSecurity::Mono.Security.Protocol.Tls.SecurityProtocolType;
 using MonoSecurity::Mono.Security.Protocol.Tls;
+using MonoSecurity::Mono.Security.Interface;
 #else
 using MonoCipherAlgorithmType = Mono.Security.Protocol.Tls.CipherAlgorithmType;
 using MonoHashAlgorithmType = Mono.Security.Protocol.Tls.HashAlgorithmType;
 using MonoExchangeAlgorithmType = Mono.Security.Protocol.Tls.ExchangeAlgorithmType;
 using MonoSecurityProtocolType = Mono.Security.Protocol.Tls.SecurityProtocolType;
 using Mono.Security.Protocol.Tls;
+using Mono.Security.Interface;
 #endif
 #if MONO_X509_ALIAS
 using X509CertificateCollection = PrebuiltSystem::System.Security.Cryptography.X509Certificates.X509CertificateCollection;
@@ -81,7 +83,7 @@ namespace Mono.Net.Security
 		#region Fields
 
 		SslStreamBase ssl_stream;
-		ChainValidationHelper validationHelper;
+		ICertificateValidator certificateValidator;
 		RemoteCertificateValidationCallback validation_callback;
 
 		#endregion // Fields
@@ -98,10 +100,10 @@ namespace Mono.Net.Security
 		{
 		}
 
-		public LegacySslStream (Stream innerStream, bool leaveInnerStreamOpen, ChainValidationHelper validationHelper)
+		public LegacySslStream (Stream innerStream, bool leaveInnerStreamOpen, ICertificateValidator certificateValidator)
 			: base (innerStream, leaveInnerStreamOpen)
 		{
-			this.validationHelper = validationHelper;
+			this.certificateValidator = certificateValidator;
 		}
 		#endregion // Constructors
 
@@ -322,7 +324,7 @@ namespace Mono.Net.Security
 			string [] acceptableIssuers = new string [serverRequestedCerts != null ? serverRequestedCerts.Count : 0];
 			for (int i = 0; i < acceptableIssuers.Length; i++)
 				acceptableIssuers [i] = serverRequestedCerts [i].GetIssuerName ();
-			return validationHelper.LocalCertSelectionCallback (targetHost, clientCerts, serverCert, acceptableIssuers);
+			return certificateValidator.ValidationHelper.ClientCertificateSelectionCallback (targetHost, clientCerts, serverCert, acceptableIssuers);
 		}
 
 		public virtual IAsyncResult BeginAuthenticateAsClient (string targetHost, AsyncCallback asyncCallback, object asyncState)
@@ -359,8 +361,8 @@ namespace Mono.Net.Security
 			// Even if validation_callback is null this allows us to verify requests where the user
 			// does not provide a verification callback but attempts to authenticate with the website
 			// as a client (see https://bugzilla.xamarin.com/show_bug.cgi?id=18962 for an example)
-			s.ServerCertValidation2 += (certs) => validationHelper.ValidateChain (this, targetHost, certs);
-			if (validationHelper.LocalCertSelectionCallback != null)
+			s.ServerCertValidation2 += (certs) => certificateValidator.ValidateChain (this, targetHost, certs);
+			if (certificateValidator.ValidationHelper.ClientCertificateSelectionCallback != null)
 				s.ClientCertSelectionDelegate = OnCertificateSelection;
 
 			ssl_stream = s;

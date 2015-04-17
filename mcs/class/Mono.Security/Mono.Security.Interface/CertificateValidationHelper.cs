@@ -28,6 +28,7 @@ using System;
 using System.IO;
 using System.Net;
 using System.Net.Security;
+using System.Threading;
 using System.Reflection;
 using System.Security.Cryptography.X509Certificates;
 using Mono.Security.Protocol.Tls;
@@ -70,33 +71,71 @@ namespace Mono.Security.Interface
 		}
 	}
 
+	/**
+	 * Internal interface - do not implement
+	 */
+	public interface ICertificateValidator
+	{
+		CertificateValidationHelper ValidationHelper {
+			get;
+		}
+
+		ValidationResult ValidateChain (object sender, string targetHost, MX.X509CertificateCollection certificates);
+	}
+
 	public class CertificateValidationHelper
 	{
+		public CertificateValidationHelper (
+			MonoRemoteCertificateValidationCallback validationCallback = null,
+			MonoLocalCertificateSelectionCallback selectionCallback = null,
+			bool checkCertificateName = true, bool checkCertRevocationStatus = false)
+		{
+			ServerCertificateValidationCallback = validationCallback;
+			ClientCertificateSelectionCallback = selectionCallback;
+			CheckCertificateName = checkCertName;
+			CheckCertificateRevocationStatus = checkCertRevocationStatus;
+		}
+
+		/**
+		 * Internal API.
+		 */
+		public CertificateValidationHelper (ICertificateValidator validator,
+			MonoRemoteCertificateValidationCallback validationCallback,
+			MonoLocalCertificateSelectionCallback selectionCallback,
+			bool checkCertificateName, bool checkCertRevocationStatus)
+			: this (validationCallback, selectionCallback, checkCertificateName, checkCertRevocationStatus)
+		{
+			this.validator = validator;
+		}
+
 		public MonoRemoteCertificateValidationCallback ServerCertificateValidationCallback {
-			get; set;
+			get;
+			private set;
 		}
 
 		public MonoLocalCertificateSelectionCallback ClientCertificateSelectionCallback {
-			get; set;
+			get;
+			private set;
 		}
 
 		public bool CheckCertificateName {
-			get { return checkCertName; }
-			set { checkCertName = value; }
+			get;
+			private set;
 		}
 
 		public bool CheckCertificateRevocationStatus {
-			get { return checkCertRevocationStatus; }
-			set { checkCertRevocationStatus = value; }
+			get;
+			private set;
 		}
 
 		bool checkCertName = true;
 		bool checkCertRevocationStatus = false;
+		volatile ICertificateValidator validator;
 
 		#if !INSIDE_SYSTEM
 		const string InternalHelperTypeName = "Mono.Net.Security.ChainValidationHelper";
 		static readonly Type internalHelperType;
-		static readonly MethodInfo validateChainMethod;
+		static readonly MethodInfo createMethod;
 		#endif
 
 		static CertificateValidationHelper ()
@@ -105,19 +144,35 @@ namespace Mono.Security.Interface
 			internalHelperType = Type.GetType (InternalHelperTypeName + ", " + Consts.AssemblySystem, true);
 			if (internalHelperType == null)
 				throw new NotSupportedException ();
-			validateChainMethod = internalHelperType.GetMethod ("ValidateChainFromHelper", BindingFlags.Static | BindingFlags.NonPublic);
-			if (validateChainMethod == null)
+			createMethod = internalHelperType.GetMethod ("Create", BindingFlags.Static | BindingFlags.NonPublic);
+			if (createMethod == null)
 				throw new NotSupportedException ();
+			#endif
+		}
+
+		public ICertificateValidator CertificateValidator {
+			get {
+				if (validator == null)
+					Interlocked.CompareExchange<ICertificateValidator> (ref validator, CreateValidator (), null);
+				return validator;
+			}
+		}
+
+		ICertificateValidator CreateValidator ()
+		{
+			#if INSIDE_SYSTEM
+			return ChainValidationHelper.Create (this);
+			#else
+			return (ICertificateValidator)createMethod.Invoke (null, new object[] { this });
 			#endif
 		}
 
 		public ValidationResult ValidateChain (string targetHost, X509CertificateCollection certs)
 		{
-			#if INSIDE_SYSTEM
-			return ChainValidationHelper.ValidateChainFromHelper (this, targetHost, certs);
-			#else
-			return (ValidationResult)validateChainMethod.Invoke (null, new object[] { this, targetHost, certs });
-			#endif
+			var mcerts = new MX.X509CertificateCollection ();
+			for (int i = 0; i < certs.Count; i++)
+				mcerts.Add (new MX.X509Certificate (certs [0].GetRawCertData ()));
+			return CertificateValidator.ValidateChain (this, targetHost, mcerts);
 		}
 	}
 }

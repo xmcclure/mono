@@ -8,6 +8,7 @@ using MonoSecurity::Mono.Security.Interface;
 #else
 using Mono.Security.Interface;
 #endif
+using Mono.Net.Security;
 
 namespace System.Net.Security
 {
@@ -19,29 +20,29 @@ namespace System.Net.Security
 		#if SECURITY_DEP
 		SSPIConfiguration _Configuration;
 
-		internal SslStream (Stream innerStream, bool leaveInnerStreamOpen, CertificateValidationHelper validationHelper, EncryptionPolicy encryptionPolicy, MonoTlsSettings settings)
+		internal SslStream (Stream innerStream, bool leaveInnerStreamOpen, ICertificateValidator certificateValidator, EncryptionPolicy encryptionPolicy, MonoTlsSettings settings)
 			: base (innerStream, leaveInnerStreamOpen)
 		{
 			if (encryptionPolicy != EncryptionPolicy.RequireEncryption && encryptionPolicy != EncryptionPolicy.AllowNoEncryption && encryptionPolicy != EncryptionPolicy.NoEncryption)
 				throw new ArgumentException (SR.GetString (SR.net_invalid_enum, "EncryptionPolicy"), "encryptionPolicy");
 
-			_Configuration = new MyConfiguration (validationHelper, settings);
+			_Configuration = new MyConfiguration (certificateValidator, settings);
 			_SslState = new SslState (innerStream, null, null, encryptionPolicy, _Configuration);
 		}
 
 		class MyConfiguration : SSPIConfiguration
 		{
-			CertificateValidationHelper validationHelper;
+			ICertificateValidator validator;
 			MonoTlsSettings settings;
 
-			public MyConfiguration (CertificateValidationHelper validationHelper, MonoTlsSettings settings)
+			public MyConfiguration (ICertificateValidator validator, MonoTlsSettings settings)
 			{
-				this.validationHelper = validationHelper;
+				this.validator = validator;
 				this.settings = settings;
 			}
 
-			public CertificateValidationHelper ValidationHelper {
-				get { return validationHelper; }
+			public ICertificateValidator CertificateValidator {
+				get { return validator; }
 			}
 
 			public MonoTlsSettings Settings {

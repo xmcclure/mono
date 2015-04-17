@@ -96,11 +96,11 @@ namespace Mono.Net.Security.Private
 
 		public IMonoSslStream CreateSslStream (
 			Stream innerStream, bool leaveInnerStreamOpen,
-			ChainValidationHelper validationHelper)
+			MSI.ICertificateValidator certificateValidator)
 		{
 			var sslStream = provider.CreateSslStream (
 				innerStream, leaveInnerStreamOpen,
-				CallbackHelpers.GetPublicValidationHelper (validationHelper));
+				CallbackHelpers.GetPublicValidationHelper (certificateValidator));
 			var monoSslStreamImpl = sslStream as MonoSslStreamImpl;
 			if (monoSslStreamImpl != null)
 				return monoSslStreamImpl.Impl;
@@ -111,15 +111,14 @@ namespace Mono.Net.Security.Private
 			string hostname, bool serverMode, MSI.TlsProtocols protocolFlags,
 			X509Certificate serverCertificate, XX509CertificateCollection clientCertificates,
 			bool remoteCertRequired, bool checkCertName, bool checkCertRevocationStatus,
-			MSI.MonoEncryptionPolicy encryptionPolicy,
-			MSI.CertificateValidationHelper validationHelper,
+			MSI.MonoEncryptionPolicy encryptionPolicy, MSI.ICertificateValidator certificateValidator,
 			MSI.MonoTlsSettings settings)
 		{
 			return provider.CreateTlsContext (
 				hostname, serverMode, protocolFlags,
 				serverCertificate, (XX509CertificateCollection)(object)clientCertificates,
 				remoteCertRequired, (MSI.MonoEncryptionPolicy)encryptionPolicy,
-				validationHelper, settings);
+				certificateValidator, settings);
 		}
 	}
 }

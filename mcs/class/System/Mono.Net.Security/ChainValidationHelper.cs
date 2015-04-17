@@ -31,18 +31,27 @@
 
 #if SECURITY_DEP
 
-#if MONOTOUCH || MONODROID
+#if MONO_SECURITY_ALIAS
+extern alias MonoSecurity;
+#endif
+#if MONO_X509_ALIAS
+extern alias PrebuiltSystem;
+#endif
+
+#if MONO_SECURITY_ALIAS
+using MonoSecurity::Mono.Security.Interface;
+using MSX = MonoSecurity::Mono.Security.X509;
+using MonoSecurity::Mono.Security.X509.Extensions;
+#else
 using Mono.Security.Interface;
 using MSX = Mono.Security.X509;
 using Mono.Security.X509.Extensions;
-#else
-extern alias MonoSecurity;
-using MonoSecurity::Mono.Security.X509.Extensions;
-using MonoSecurity::Mono.Security.Interface;
-using MSX = MonoSecurity::Mono.Security.X509;
 #endif
-
-using System.Text.RegularExpressions;
+#if MONO_X509_ALIAS
+using XX509CertificateCollection = PrebuiltSystem::System.Security.Cryptography.X509Certificates.X509CertificateCollection;
+#else
+using XX509CertificateCollection = System.Security.Cryptography.X509Certificates.X509CertificateCollection;
+#endif
 
 using System;
 using System.Net;
@@ -52,6 +61,7 @@ using System.Collections.Generic;
 using System.Collections.Specialized;
 using System.Configuration;
 using System.Net.Configuration;
+using System.Text.RegularExpressions;
 using System.Security.Cryptography.X509Certificates;
 
 using System.Globalization;
@@ -60,11 +70,12 @@ using System.Diagnostics;
 
 namespace Mono.Net.Security
 {
-	internal class ChainValidationHelper
+	internal class ChainValidationHelper : ICertificateValidator
 	{
 		CertificateValidationHelper publicHelper;
 		ServerCertValidationCallback certValidationCallback;
 		LocalCertSelectionCallback certSelectionCallback;
+		HttpWebRequest request;
 		bool checkCertName = true;
 		bool checkCertRevocationStatus = false;
 
@@ -85,16 +96,12 @@ namespace Mono.Net.Security
 		}
 		#endif
 	
-		internal static ValidationResult ValidateChainFromHelper (CertificateValidationHelper helper, string targetHost, X509CertificateCollection certs)
+		internal static ICertificateValidator Create (CertificateValidationHelper helper)
 		{
-			var internalHelper = new ChainValidationHelper (helper);
-			var mcerts = new MSX.X509CertificateCollection ();
-			for (int i = 0; i < certs.Count; i++)
-				mcerts.Add (new MSX.X509Certificate (certs [0].GetRawCertData ()));
-			return internalHelper.ValidateChain (helper, targetHost, mcerts);
+			return new ChainValidationHelper (helper);
 		}
 
-		internal ChainValidationHelper (CertificateValidationHelper helper)
+		ChainValidationHelper (CertificateValidationHelper helper)
 		{
 			this.publicHelper = helper;
 			if (helper.ServerCertificateValidationCallback != null) {
@@ -106,20 +113,11 @@ namespace Mono.Net.Security
 			checkCertRevocationStatus = helper.CheckCertificateRevocationStatus;
 		}
 
-		internal CertificateValidationHelper GetPublicHelper ()
+		CertificateValidationHelper CreatePublicHelper ()
 		{
-			if (publicHelper != null)
-				return publicHelper;
-
-			publicHelper = new CertificateValidationHelper ();
-			if (certValidationCallback != null)
-				publicHelper.ServerCertificateValidationCallback = Private.CallbackHelpers.PublicToMono (certValidationCallback.ValidationCallback);
-			if (certSelectionCallback != null)
-				publicHelper.ClientCertificateSelectionCallback = Private.CallbackHelpers.InternalToMono (certSelectionCallback);
-			publicHelper.CheckCertificateName = checkCertName;
-			publicHelper.CheckCertificateRevocationStatus = checkCertRevocationStatus;
-
-			return publicHelper;
+			var validationCallback = certValidationCallback != null ? Private.CallbackHelpers.PublicToMono (certValidationCallback.ValidationCallback) : null;
+			var selectionCallback = certSelectionCallback != null ? Private.CallbackHelpers.InternalToMono (certSelectionCallback) : null;
+			return new CertificateValidationHelper (this, validationCallback, selectionCallback, checkCertName, checkCertRevocationStatus);
 		}
 
 		internal ChainValidationHelper (RemoteCertificateValidationCallback callback = null)
@@ -130,7 +128,8 @@ namespace Mono.Net.Security
 
 		internal ChainValidationHelper (MonoTlsStream stream)
 		{
-			certValidationCallback = stream.Request.ServerCertValidationCallback;
+			request = stream.Request;
+			certValidationCallback = request.ServerCertValidationCallback;
 			certSelectionCallback = new LocalCertSelectionCallback (stream.SelectClientCertificate);
 		}
 
@@ -154,11 +153,18 @@ namespace Mono.Net.Security
 			set { CheckCertificateRevocationStatus = value; }
 		}
 
-		internal ValidationResult ValidateChain (object sender, string host, MSX.X509CertificateCollection certs)
+		public CertificateValidationHelper ValidationHelper {
+			get {
+				if (publicHelper == null)
+					Interlocked.CompareExchange (ref publicHelper, CreatePublicHelper (), null);
+				return publicHelper;
+			}
+		}
+
+		public ValidationResult ValidateChain (object sender, string host, MSX.X509CertificateCollection certs)
 		{
 			var callback = certValidationCallback;
 			if (callback == null) {
-				var request = sender as HttpWebRequest;
 				if (request != null)
 					callback = request.ServerCertValidationCallback;
 				if (callback == null)
@@ -270,14 +276,13 @@ namespace Mono.Net.Security
 	
 			if (policy != null && (!(policy is DefaultCertificatePolicy) || callback == null)) {
 				ServicePoint sp = null;
-				HttpWebRequest req = sender as HttpWebRequest;
-				if (req != null)
-					sp = req.ServicePointNoLock;
+				if (request != null)
+					sp = request.ServicePointNoLock;
 				if (status11 == 0 && errors != 0)
 					status11 = GetStatusFromChain (chain);
 
 				// pre 2.0 callback
-				result = policy.CheckValidationResult (sp, leaf, req, status11);
+				result = policy.CheckValidationResult (sp, leaf, request, status11);
 				user_denied = !result && !(policy is DefaultCertificatePolicy);
 			}
 			// If there's a 2.0 callback, it takes precedence

@@ -73,13 +73,13 @@ namespace System.Net.Security
 		{
 			var provider = MNS.MonoTlsProviderFactory.GetProviderInternal ();
 			var settings = userConfig != null ? userConfig.Settings : null;
-			var validationHelper = userConfig != null ? userConfig.ValidationHelper : null;
-			if (validationHelper != null && (certSelectionDelegate != null || remoteValidationCallback != null))
+			var certValidator = userConfig != null ? userConfig.CertificateValidator : null;
+			if (certValidator != null && (certSelectionDelegate != null || remoteValidationCallback != null))
 				throw new InvalidOperationException ();
 			var context = provider.CreateTlsContext (
 				hostname, serverMode, (TlsProtocols)protocolFlags, serverCertificate, clientCertificates,
 				remoteCertRequired, checkCertName, checkCertRevocationStatus,
-				(MonoEncryptionPolicy)encryptionPolicy, validationHelper, settings);
+				(MonoEncryptionPolicy)encryptionPolicy, certValidator, settings);
 			return new SSPIInterface (context);
 		}
 	}

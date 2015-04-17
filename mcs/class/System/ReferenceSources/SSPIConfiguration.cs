@@ -36,7 +36,7 @@ namespace System.Net.Security
 {
 	internal interface SSPIConfiguration
 	{
-		CertificateValidationHelper ValidationHelper {
+		ICertificateValidator CertificateValidator {
 			get;
 		}
 

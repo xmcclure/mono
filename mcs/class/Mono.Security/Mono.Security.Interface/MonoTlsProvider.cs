@@ -142,7 +142,7 @@ namespace Mono.Security.Interface
 			string hostname, bool serverMode, TlsProtocols protocolFlags,
 			X509Certificate serverCertificate, X509CertificateCollection clientCertificates,
 			bool remoteCertRequired, MonoEncryptionPolicy encryptionPolicy,
-			CertificateValidationHelper certificateValidationHelper,
+			ICertificateValidator certificateValidator,
 			MonoTlsSettings settings);
 
 #endregion

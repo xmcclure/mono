@@ -87,14 +87,13 @@ namespace Mono.Net.Security
 
 		IMonoSslStream CreateSslStream (
 			Stream innerStream, bool leaveInnerStreamOpen,
-			ChainValidationHelper validationHelper);
+			ICertificateValidator certificateValidator);
 
 		IMonoTlsContext CreateTlsContext (
 			string hostname, bool serverMode, TlsProtocols protocolFlags,
 			X509Certificate serverCertificate, XX509CertificateCollection clientCertificates,
 			bool remoteCertRequired, bool checkCertName, bool checkCertRevocationStatus,
-			MonoEncryptionPolicy encryptionPolicy,
-			CertificateValidationHelper validationHelper,
+			MonoEncryptionPolicy encryptionPolicy, ICertificateValidator certificateValidator,
 			MonoTlsSettings settings);
 #endif
 	}
