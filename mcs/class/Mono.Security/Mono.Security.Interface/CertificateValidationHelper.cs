@@ -88,7 +88,9 @@ namespace Mono.Security.Interface
 			string targetHost, X509CertificateCollection localCertificates, X509Certificate remoteCertificate,
 			string[] acceptableIssuers);
 
+		#if !INSIDE_SYSTEM
 		ValidationResult ValidateChain (string targetHost, MX.X509CertificateCollection certificates);
+		#endif
 	}
 
 	public class CertificateValidationHelper
@@ -149,9 +151,11 @@ namespace Mono.Security.Interface
 			#endif
 		}
 
+		#if !INSIDE_SYSTEM
 		public ValidationResult ValidateChain (string targetHost, MX.X509CertificateCollection certs)
 		{
 			return CertificateValidator.ValidateChain (targetHost, certs);
 		}
+		#endif
 	}
 }

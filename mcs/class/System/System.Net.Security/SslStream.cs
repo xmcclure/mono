@@ -423,7 +423,7 @@ namespace System.Net.Security
 			// does not provide a verification callback but attempts to authenticate with the website
 			// as a client (see https://bugzilla.xamarin.com/show_bug.cgi?id=18962 for an example)
 			var helper = new ChainValidationHelper (validation_callback);
-			s.ServerCertValidation2 += (certs) => helper.ValidateChain (this, targetHost, certs);
+			s.ServerCertValidation2 += (certs) => helper.ValidateChain (targetHost, certs);
 #else
 			if (validation_callback != null) {
 				s.ServerCertValidationDelegate = delegate (X509Certificate cert, int [] certErrors) {
