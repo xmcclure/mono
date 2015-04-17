@@ -76,10 +76,6 @@ namespace Mono.Security.Interface
 	 */
 	public interface ICertificateValidator
 	{
-		CertificateValidationHelper ValidationHelper {
-			get;
-		}
-
 		MonoTlsSettings Settings {
 			get;
 		}
@@ -93,29 +89,8 @@ namespace Mono.Security.Interface
 		#endif
 	}
 
-	public class CertificateValidationHelper
+	public static class CertificateValidationHelper
 	{
-		public CertificateValidationHelper (MonoTlsSettings settings)
-		{
-			Settings = settings;
-		}
-
-		public MonoTlsSettings Settings {
-			get;
-			private set;
-		}
-
-		/**
-		 * Internal API.
-		 */
-		public CertificateValidationHelper (ICertificateValidator validator)
-		{
-			this.validator = validator;
-			Settings = validator.Settings;
-		}
-
-		ICertificateValidator validator;
-
 		#if !INSIDE_SYSTEM
 		const string InternalHelperTypeName = "Mono.Net.Security.ChainValidationHelper";
 		static readonly Type internalHelperType;
@@ -134,28 +109,13 @@ namespace Mono.Security.Interface
 			#endif
 		}
 
-		public ICertificateValidator CertificateValidator {
-			get {
-				if (validator == null)
-					Interlocked.CompareExchange<ICertificateValidator> (ref validator, CreateValidator (), null);
-				return validator;
-			}
-		}
-
-		ICertificateValidator CreateValidator ()
+		public static ICertificateValidator CreateDefaultValidator (MonoTlsSettings settings)
 		{
 			#if INSIDE_SYSTEM
-			return ChainValidationHelper.Create (this);
+			return ChainValidationHelper.Create (settings);
 			#else
-			return (ICertificateValidator)createMethod.Invoke (null, new object[] { this });
+			return (ICertificateValidator)createMethod.Invoke (null, new object[] { settings });
 			#endif
 		}
-
-		#if !INSIDE_SYSTEM
-		public ValidationResult ValidateChain (string targetHost, MX.X509CertificateCollection certs)
-		{
-			return CertificateValidator.ValidateChain (targetHost, certs);
-		}
-		#endif
 	}
 }

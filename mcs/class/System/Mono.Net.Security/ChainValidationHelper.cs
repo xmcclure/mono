@@ -74,7 +74,6 @@ namespace Mono.Net.Security
 	{
 		object sender;
 		MonoTlsSettings settings;
-		CertificateValidationHelper publicHelper;
 		ServerCertValidationCallback certValidationCallback;
 		LocalCertSelectionCallback certSelectionCallback;
 		HttpWebRequest request;
@@ -96,16 +95,14 @@ namespace Mono.Net.Security
 		}
 		#endif
 	
-		internal static ICertificateValidator Create (CertificateValidationHelper helper)
+		internal static ICertificateValidator Create (MonoTlsSettings settings)
 		{
-			return new ChainValidationHelper (helper);
+			return new ChainValidationHelper (settings);
 		}
 
-		ChainValidationHelper (CertificateValidationHelper helper)
+		ChainValidationHelper (MonoTlsSettings settings)
 		{
-			this.sender = helper;
-			this.publicHelper = helper;
-			this.settings = helper.Settings;
+			this.settings = settings;
 
 			if (settings != null) {
 				if (settings.ServerCertificateValidationCallback != null) {
@@ -114,11 +111,6 @@ namespace Mono.Net.Security
 				}
 				certSelectionCallback = Private.CallbackHelpers.MonoToInternal (settings.ClientCertificateSelectionCallback);
 			}
-		}
-
-		CertificateValidationHelper CreatePublicHelper ()
-		{
-			return new CertificateValidationHelper (this);
 		}
 
 		internal ChainValidationHelper (object sender, RemoteCertificateValidationCallback callback = null)
@@ -150,14 +142,6 @@ namespace Mono.Net.Security
 
 		public MonoTlsSettings Settings {
 			get { return settings; }
-		}
-
-		public CertificateValidationHelper ValidationHelper {
-			get {
-				if (publicHelper == null)
-					Interlocked.CompareExchange (ref publicHelper, CreatePublicHelper (), null);
-				return publicHelper;
-			}
 		}
 
 		public X509Certificate SelectClientCertificate (
