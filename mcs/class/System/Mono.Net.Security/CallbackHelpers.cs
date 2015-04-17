@@ -131,21 +131,6 @@ namespace Mono.Net.Security.Private
 			return (t, lc, rc, ai) => callback (t, (XX509CertificateCollection)(object)lc, rc, ai);
 		}
 
-#if INSIDE_SYSTEM
-		internal static MSI.ICertificateValidator GetInternalValidationHelper (MSI.CertificateValidationHelper validationHelper)
-		{
-			if (validationHelper == null)
-				return null;
-			return validationHelper.CertificateValidator;
-		}
-#endif
-
-		internal static MSI.CertificateValidationHelper GetPublicValidationHelper (MSI.ICertificateValidator certificateValidator)
-		{
-			if (certificateValidator == null)
-				return null;
-			return certificateValidator.ValidationHelper;
-		}
 	}
 }
 

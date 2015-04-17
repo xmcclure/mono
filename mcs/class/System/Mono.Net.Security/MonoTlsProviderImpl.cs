@@ -95,13 +95,10 @@ namespace Mono.Net.Security.Private
 
 		public override MSI.MonoSslStream CreateSslStream (
 			Stream innerStream, bool leaveInnerStreamOpen,
-			MSI.CertificateValidationHelper validationHelper,
+			MSI.ICertificateValidator certificateValidator,
 			MSI.MonoTlsSettings settings = null)
 		{
-			var sslStream = CreateSslStreamImpl (
-				innerStream, leaveInnerStreamOpen,
-				CallbackHelpers.GetInternalValidationHelper (validationHelper),
-				settings);
+			var sslStream = CreateSslStreamImpl (innerStream, leaveInnerStreamOpen, certificateValidator, settings);
 			return new MonoSslStreamImpl (sslStream);
 		}
 
