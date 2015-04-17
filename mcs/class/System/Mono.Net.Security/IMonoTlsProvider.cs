@@ -94,8 +94,7 @@ namespace Mono.Net.Security
 			X509Certificate serverCertificate, XX509CertificateCollection clientCertificates,
 			bool remoteCertRequired, bool checkCertName, bool checkCertRevocationStatus,
 			MonoEncryptionPolicy encryptionPolicy,
-			RemoteCertValidationCallback remoteValidationCallback,
-			LocalCertSelectionCallback certSelectionDelegate,
+			CertificateValidationHelper validationHelper,
 			MonoTlsSettings settings);
 #endif
 	}

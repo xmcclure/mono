@@ -19,33 +19,29 @@ namespace System.Net.Security
 		#if SECURITY_DEP
 		SSPIConfiguration _Configuration;
 
-		internal SslStream (Stream innerStream, bool leaveInnerStreamOpen, RemoteCertificateValidationCallback userCertificateValidationCallback, 
-		                         LocalCertificateSelectionCallback userCertificateSelectionCallback, EncryptionPolicy encryptionPolicy, MonoTlsSettings settings)
+		internal SslStream (Stream innerStream, bool leaveInnerStreamOpen, CertificateValidationHelper validationHelper, EncryptionPolicy encryptionPolicy, MonoTlsSettings settings)
 			: base (innerStream, leaveInnerStreamOpen)
 		{
 			if (encryptionPolicy != EncryptionPolicy.RequireEncryption && encryptionPolicy != EncryptionPolicy.AllowNoEncryption && encryptionPolicy != EncryptionPolicy.NoEncryption)
 				throw new ArgumentException (SR.GetString (SR.net_invalid_enum, "EncryptionPolicy"), "encryptionPolicy");
 
-			_userCertificateValidationCallback = userCertificateValidationCallback;
-			_userCertificateSelectionCallback = userCertificateSelectionCallback;
-			RemoteCertValidationCallback _userCertValidationCallbackWrapper = new RemoteCertValidationCallback (userCertValidationCallbackWrapper);
-			LocalCertSelectionCallback _userCertSelectionCallbackWrapper = userCertificateSelectionCallback == null ? null : new LocalCertSelectionCallback (userCertSelectionCallbackWrapper);
-			_Configuration = WrapSettings (settings);
-			_SslState = new SslState (innerStream, _userCertValidationCallbackWrapper, _userCertSelectionCallbackWrapper, encryptionPolicy, _Configuration);
-		}
-
-		static SSPIConfiguration WrapSettings (MonoTlsSettings settings)
-		{
-			return settings != null ? new MyConfiguration (settings) : null;
+			_Configuration = new MyConfiguration (validationHelper, settings);
+			_SslState = new SslState (innerStream, null, null, encryptionPolicy, _Configuration);
 		}
 
 		class MyConfiguration : SSPIConfiguration
 		{
+			CertificateValidationHelper validationHelper;
 			MonoTlsSettings settings;
 
-			public MyConfiguration (MonoTlsSettings settings)
+			public MyConfiguration (CertificateValidationHelper validationHelper, MonoTlsSettings settings)
 			{
+				this.validationHelper = validationHelper;
 				this.settings = settings;
+			}
+
+			public CertificateValidationHelper ValidationHelper {
+				get { return validationHelper; }
 			}
 
 			public MonoTlsSettings Settings {
