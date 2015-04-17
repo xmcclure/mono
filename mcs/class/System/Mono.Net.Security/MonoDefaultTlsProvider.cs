@@ -148,7 +148,7 @@ namespace Mono.Net.Security.Private
 			ICertificateValidator certificateValidator,
 			MonoTlsSettings settings)
 		{
-			return new LegacySslStream (innerStream, leaveInnerStreamOpen, certificateValidator);
+			return new LegacySslStream (innerStream, leaveInnerStreamOpen, certificateValidator, settings);
 		}
 
 		protected override IMonoTlsContext CreateTlsContextImpl (

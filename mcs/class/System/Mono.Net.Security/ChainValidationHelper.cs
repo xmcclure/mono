@@ -73,12 +73,11 @@ namespace Mono.Net.Security
 	internal class ChainValidationHelper : ICertificateValidator
 	{
 		object sender;
+		MonoTlsSettings settings;
 		CertificateValidationHelper publicHelper;
 		ServerCertValidationCallback certValidationCallback;
 		LocalCertSelectionCallback certSelectionCallback;
 		HttpWebRequest request;
-		bool checkCertName = true;
-		bool checkCertRevocationStatus = false;
 
 		#if !MONOTOUCH
 		static bool is_macosx = System.IO.File.Exists (OSX509Certificates.SecurityLibrary);
@@ -106,20 +105,20 @@ namespace Mono.Net.Security
 		{
 			this.sender = helper;
 			this.publicHelper = helper;
-			if (helper.ServerCertificateValidationCallback != null) {
-				var callback = Private.CallbackHelpers.MonoToPublic (helper.ServerCertificateValidationCallback);
-				certValidationCallback = new ServerCertValidationCallback (callback);
+			this.settings = helper.Settings;
+
+			if (settings != null) {
+				if (settings.ServerCertificateValidationCallback != null) {
+					var callback = Private.CallbackHelpers.MonoToPublic (settings.ServerCertificateValidationCallback);
+					certValidationCallback = new ServerCertValidationCallback (callback);
+				}
+				certSelectionCallback = Private.CallbackHelpers.MonoToInternal (settings.ClientCertificateSelectionCallback);
 			}
-			certSelectionCallback = Private.CallbackHelpers.MonoToInternal (helper.ClientCertificateSelectionCallback);
-			checkCertName = helper.CheckCertificateName;
-			checkCertRevocationStatus = helper.CheckCertificateRevocationStatus;
 		}
 
 		CertificateValidationHelper CreatePublicHelper ()
 		{
-			var validationCallback = certValidationCallback != null ? Private.CallbackHelpers.PublicToMono (certValidationCallback.ValidationCallback) : null;
-			var selectionCallback = certSelectionCallback != null ? Private.CallbackHelpers.InternalToMono (certSelectionCallback) : null;
-			return new CertificateValidationHelper (this, validationCallback, selectionCallback, checkCertName, checkCertRevocationStatus);
+			return new CertificateValidationHelper (this);
 		}
 
 		internal ChainValidationHelper (object sender, RemoteCertificateValidationCallback callback = null)
@@ -130,9 +129,10 @@ namespace Mono.Net.Security
 				certValidationCallback = new ServerCertValidationCallback (callback);
 		}
 
-		internal ChainValidationHelper (MonoTlsStream stream)
+		internal ChainValidationHelper (MonoTlsStream stream, MonoTlsSettings settings)
 		{
 			request = stream.Request;
+			this.settings = settings;
 			sender = request;
 			certValidationCallback = request.ServerCertValidationCallback;
 			certSelectionCallback = new LocalCertSelectionCallback (stream.SelectClientCertificate);
@@ -148,14 +148,8 @@ namespace Mono.Net.Security
 			set { certSelectionCallback = value; }
 		}
 
-		public bool CheckCertificateName {
-			get { return checkCertName; }
-			set { checkCertName = value; }
-		}
-
-		public bool CheckCertificateRevocationStatus {
-			get { return checkCertRevocationStatus; }
-			set { CheckCertificateRevocationStatus = value; }
+		public MonoTlsSettings Settings {
+			get { return settings; }
 		}
 
 		public CertificateValidationHelper ValidationHelper {
@@ -164,6 +158,15 @@ namespace Mono.Net.Security
 					Interlocked.CompareExchange (ref publicHelper, CreatePublicHelper (), null);
 				return publicHelper;
 			}
+		}
+
+		public X509Certificate SelectClientCertificate (
+			string targetHost, XX509CertificateCollection localCertificates, X509Certificate remoteCertificate,
+			string[] acceptableIssuers)
+		{
+			if (LocalCertSelectionCallback == null)
+				return null;
+			return LocalCertSelectionCallback (targetHost, localCertificates, remoteCertificate, acceptableIssuers);
 		}
 
 		public ValidationResult ValidateChain (string host, MSX.X509CertificateCollection certs)

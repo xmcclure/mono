@@ -85,9 +85,9 @@ namespace Mono.Security.Providers.DotNet
 
 			RemoteCertificateValidationCallback validation_callback = null;
 			LocalCertificateSelectionCallback selection_callback = null;
-			if (validationHelper != null) {
-				validation_callback = ConvertCallback (validationHelper.ServerCertificateValidationCallback);
-				selection_callback = ConvertCallback (validationHelper.ClientCertificateSelectionCallback);
+			if (settings != null) {
+				validation_callback = ConvertCallback (settings.ServerCertificateValidationCallback);
+				selection_callback = ConvertCallback (settings.ClientCertificateSelectionCallback);
 			}
 
 			return new DotNetSslStreamImpl (innerStream, leaveInnerStreamOpen, validation_callback, selection_callback);

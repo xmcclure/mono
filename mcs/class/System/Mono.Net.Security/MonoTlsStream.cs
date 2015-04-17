@@ -88,7 +88,7 @@ namespace Mono.Net.Security
 			provider = request.TlsProvider ?? MonoTlsProviderFactory.GetProviderInternal ();
 			status = WebExceptionStatus.SecureChannelFailure;
 
-			validationHelper = new ChainValidationHelper (this);
+			validationHelper = new ChainValidationHelper (this, settings);
 		}
 
 		internal X509Certificate SelectClientCertificate (string targetHost, XX509CertificateCollection localCertificates, X509Certificate remoteCertificate, string[] acceptableIssuers)

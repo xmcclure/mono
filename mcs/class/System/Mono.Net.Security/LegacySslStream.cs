@@ -83,6 +83,7 @@ namespace Mono.Net.Security
 		#region Fields
 
 		SslStreamBase ssl_stream;
+		MonoTlsSettings settings;
 		ICertificateValidator certificateValidator;
 		RemoteCertificateValidationCallback validation_callback;
 
@@ -100,10 +101,11 @@ namespace Mono.Net.Security
 		{
 		}
 
-		public LegacySslStream (Stream innerStream, bool leaveInnerStreamOpen, ICertificateValidator certificateValidator)
+		public LegacySslStream (Stream innerStream, bool leaveInnerStreamOpen, ICertificateValidator certificateValidator, MonoTlsSettings settings)
 			: base (innerStream, leaveInnerStreamOpen)
 		{
 			this.certificateValidator = certificateValidator;
+			this.settings = settings;
 		}
 		#endregion // Constructors
 
@@ -324,7 +326,7 @@ namespace Mono.Net.Security
 			string [] acceptableIssuers = new string [serverRequestedCerts != null ? serverRequestedCerts.Count : 0];
 			for (int i = 0; i < acceptableIssuers.Length; i++)
 				acceptableIssuers [i] = serverRequestedCerts [i].GetIssuerName ();
-			return certificateValidator.ValidationHelper.ClientCertificateSelectionCallback (targetHost, clientCerts, serverCert, acceptableIssuers);
+			return certificateValidator.SelectClientCertificate (targetHost, clientCerts, serverCert, acceptableIssuers);
 		}
 
 		public virtual IAsyncResult BeginAuthenticateAsClient (string targetHost, AsyncCallback asyncCallback, object asyncState)
@@ -362,8 +364,7 @@ namespace Mono.Net.Security
 			// does not provide a verification callback but attempts to authenticate with the website
 			// as a client (see https://bugzilla.xamarin.com/show_bug.cgi?id=18962 for an example)
 			s.ServerCertValidation2 += (certs) => certificateValidator.ValidateChain (targetHost, certs);
-			if (certificateValidator.ValidationHelper.ClientCertificateSelectionCallback != null)
-				s.ClientCertSelectionDelegate = OnCertificateSelection;
+			s.ClientCertSelectionDelegate = OnCertificateSelection;
 
 			ssl_stream = s;
 

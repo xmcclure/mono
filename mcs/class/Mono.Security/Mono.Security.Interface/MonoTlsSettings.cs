@@ -27,8 +27,28 @@ using System;
 
 namespace Mono.Security.Interface
 {
-	public abstract class MonoTlsSettings
+	public class MonoTlsSettings
 	{
+		public MonoRemoteCertificateValidationCallback ServerCertificateValidationCallback {
+			get; set;
+		}
+
+		public MonoLocalCertificateSelectionCallback ClientCertificateSelectionCallback {
+			get; set;
+		}
+
+		public bool CheckCertificateName {
+			get { return checkCertName; }
+			set { checkCertName = value; }
+		}
+
+		public bool CheckCertificateRevocationStatus {
+			get { return checkCertRevocationStatus; }
+			set { checkCertRevocationStatus = value; }
+		}
+
+		bool checkCertName = true;
+		bool checkCertRevocationStatus = false;
 	}
 }
 

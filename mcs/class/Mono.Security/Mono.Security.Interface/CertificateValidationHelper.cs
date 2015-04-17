@@ -80,57 +80,39 @@ namespace Mono.Security.Interface
 			get;
 		}
 
+		MonoTlsSettings Settings {
+			get;
+		}
+
+		X509Certificate SelectClientCertificate (
+			string targetHost, X509CertificateCollection localCertificates, X509Certificate remoteCertificate,
+			string[] acceptableIssuers);
+
 		ValidationResult ValidateChain (string targetHost, MX.X509CertificateCollection certificates);
 	}
 
 	public class CertificateValidationHelper
 	{
-		public CertificateValidationHelper (
-			MonoRemoteCertificateValidationCallback validationCallback = null,
-			MonoLocalCertificateSelectionCallback selectionCallback = null,
-			bool checkCertificateName = true, bool checkCertRevocationStatus = false)
+		public CertificateValidationHelper (MonoTlsSettings settings)
 		{
-			ServerCertificateValidationCallback = validationCallback;
-			ClientCertificateSelectionCallback = selectionCallback;
-			CheckCertificateName = checkCertName;
-			CheckCertificateRevocationStatus = checkCertRevocationStatus;
+			Settings = settings;
+		}
+
+		public MonoTlsSettings Settings {
+			get;
+			private set;
 		}
 
 		/**
 		 * Internal API.
 		 */
-		public CertificateValidationHelper (ICertificateValidator validator,
-			MonoRemoteCertificateValidationCallback validationCallback,
-			MonoLocalCertificateSelectionCallback selectionCallback,
-			bool checkCertificateName, bool checkCertRevocationStatus)
-			: this (validationCallback, selectionCallback, checkCertificateName, checkCertRevocationStatus)
+		public CertificateValidationHelper (ICertificateValidator validator)
 		{
 			this.validator = validator;
+			Settings = validator.Settings;
 		}
 
-		public MonoRemoteCertificateValidationCallback ServerCertificateValidationCallback {
-			get;
-			private set;
-		}
-
-		public MonoLocalCertificateSelectionCallback ClientCertificateSelectionCallback {
-			get;
-			private set;
-		}
-
-		public bool CheckCertificateName {
-			get;
-			private set;
-		}
-
-		public bool CheckCertificateRevocationStatus {
-			get;
-			private set;
-		}
-
-		bool checkCertName = true;
-		bool checkCertRevocationStatus = false;
-		volatile ICertificateValidator validator;
+		ICertificateValidator validator;
 
 		#if !INSIDE_SYSTEM
 		const string InternalHelperTypeName = "Mono.Net.Security.ChainValidationHelper";
