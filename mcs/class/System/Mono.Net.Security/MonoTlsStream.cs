@@ -74,6 +74,13 @@ namespace Mono.Net.Security
 			validationHelper = new ChainValidationHelper (this);
 		}
 
+		internal X509Certificate SelectClientCertificate (string targetHost, X509CertificateCollection localCertificates, X509Certificate remoteCertificate, string[] acceptableIssuers)
+		{
+			if (localCertificates == null || localCertificates.Count == 0)
+				return null;
+			return localCertificates [0];
+		}
+
 		internal bool CheckCertificates ()
 		{
 			if (hasCertificates)
@@ -94,7 +101,10 @@ namespace Mono.Net.Security
 			sslStream = provider.CreateSslStream (networkStream, false, validationHelper);
 
 			try {
-				sslStream.AuthenticateAsClient (request.Address.Host);
+				sslStream.AuthenticateAsClient (
+					request.Address.Host, (X509CertificateCollection)(object)request.ClientCertificates,
+					(SslProtocols)ServicePointManager.SecurityProtocol,
+					ServicePointManager.CheckCertificateRevocationList);
 			} catch {
 				status = WebExceptionStatus.TrustFailure;
 				sslStream = null;

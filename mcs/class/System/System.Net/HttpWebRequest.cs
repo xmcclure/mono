@@ -250,15 +250,15 @@ namespace System.Net
 			get {
 				if (certificates == null)
 					certificates = new X509CertificateCollection ();
-
 				return certificates;
 			}
-			[MonoTODO]
 			set {
-				throw GetMustImplement ();
+				if (value == null)
+					throw new ArgumentNullException ("value");
+				certificates = value;
 			}
 		}
-		
+
 		public string Connection {
 			get { return webHeaders ["Connection"]; }
 			set {

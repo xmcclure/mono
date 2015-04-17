@@ -131,6 +131,7 @@ namespace Mono.Net.Security
 		internal ChainValidationHelper (MonoTlsStream stream)
 		{
 			certValidationCallback = stream.Request.ServerCertValidationCallback;
+			certSelectionCallback = new LocalCertSelectionCallback (stream.SelectClientCertificate);
 		}
 
 		internal ServerCertValidationCallback ServerCertValidationCallback {
