@@ -102,9 +102,9 @@ namespace Mono.Security.Interface
 		 *        mobile build.
 		 * 
 		 */
-		public static HttpWebRequest CreateHttpsRequest (System.Uri requestUri, MonoTlsProvider provider)
+		public static HttpWebRequest CreateHttpsRequest (System.Uri requestUri, MonoTlsProvider provider, MonoTlsSettings settings = null)
 		{
-			return (HttpWebRequest)createHttpsRequestMethod.Invoke (null, new object[] { requestUri, provider });
+			return (HttpWebRequest)createHttpsRequestMethod.Invoke (null, new object[] { requestUri, provider, settings });
 		}
 
 		static Type factoryType;

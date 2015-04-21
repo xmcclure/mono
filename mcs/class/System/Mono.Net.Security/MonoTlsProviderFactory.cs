@@ -167,11 +167,11 @@ namespace Mono.Net.Security
 			}
 		}
 
-		internal static HttpWebRequest CreateHttpsRequest (Uri requestUri, MSI.MonoTlsProvider provider)
+		internal static HttpWebRequest CreateHttpsRequest (Uri requestUri, MSI.MonoTlsProvider provider, MSI.MonoTlsSettings settings)
 		{
 			lock (locker) {
 				var internalProvider = provider != null ? new Private.MonoTlsProviderWrapper (provider) : null;
-				return new HttpWebRequest (requestUri, internalProvider);
+				return new HttpWebRequest (requestUri, internalProvider, settings);
 			}
 		}
 		#endregion
