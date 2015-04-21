@@ -1008,9 +1008,6 @@ namespace System.Net
 
 		internal bool EndWrite (HttpWebRequest request, bool throwOnError, IAsyncResult result)
 		{
-			if (request.FinishedReading)
-				return true;
-
 			Stream s = null;
 			lock (this) {
 				if (Data.request != request)
@@ -1022,6 +1019,8 @@ namespace System.Net
 
 			try {
 				s.EndWrite (result);
+				if (request.FinishedReading)
+					return true;
 #if SECURITY_DEP
 				if (tlsStream != null)
 					tlsStream.CheckCertificates ();
