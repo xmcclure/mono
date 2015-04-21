@@ -70,12 +70,15 @@ using System.Diagnostics;
 
 namespace Mono.Net.Security
 {
+	internal delegate bool ServerCertValidationCallbackWrapper (ServerCertValidationCallback callback, X509Certificate certificate, X509Chain chain, MonoSslPolicyErrors sslPolicyErrors);
+
 	internal class ChainValidationHelper : ICertificateValidator
 	{
 		object sender;
 		MonoTlsSettings settings;
 		ServerCertValidationCallback certValidationCallback;
 		LocalCertSelectionCallback certSelectionCallback;
+		ServerCertValidationCallbackWrapper callbackWrapper;
 		HttpWebRequest request;
 
 		#if !MONOTOUCH
@@ -97,20 +100,50 @@ namespace Mono.Net.Security
 	
 		internal static ICertificateValidator Create (MonoTlsSettings settings)
 		{
-			return new ChainValidationHelper (settings);
-		}
-
-		ChainValidationHelper (MonoTlsSettings settings)
-		{
-			this.settings = settings;
+			var helper = new ChainValidationHelper (settings);
+			helper.settings = settings;
 
 			if (settings != null) {
 				if (settings.ServerCertificateValidationCallback != null) {
 					var callback = Private.CallbackHelpers.MonoToPublic (settings.ServerCertificateValidationCallback);
-					certValidationCallback = new ServerCertValidationCallback (callback);
+					helper.certValidationCallback = new ServerCertValidationCallback (callback);
 				}
-				certSelectionCallback = Private.CallbackHelpers.MonoToInternal (settings.ClientCertificateSelectionCallback);
+				helper.certSelectionCallback = Private.CallbackHelpers.MonoToInternal (settings.ClientCertificateSelectionCallback);
 			}
+
+			return helper;
+		}
+
+		#region SslStream support
+
+		/*
+		 * This is a hack which is used in SslStream - see ReferenceSources/SslStream.cs for details.
+		 */
+		internal static ICertificateValidator CloneWithCallbackWrapper (ICertificateValidator validator, ServerCertValidationCallbackWrapper wrapper)
+		{
+			var cloned = new ChainValidationHelper ((ChainValidationHelper)validator);
+			cloned.callbackWrapper = wrapper;
+			return cloned;
+		}
+
+		internal static bool InvokeCallback (ServerCertValidationCallback callback, object sender, X509Certificate certificate, X509Chain chain, MonoSslPolicyErrors sslPolicyErrors)
+		{
+			return callback.Invoke (sender, certificate, chain, (SslPolicyErrors)sslPolicyErrors);
+		}
+
+		#endregion
+
+		ChainValidationHelper (ChainValidationHelper other)
+		{
+			sender = other.sender;
+			settings = other.settings;
+			certValidationCallback = other.certValidationCallback;
+			certSelectionCallback = other.certSelectionCallback;
+			request = other.request;
+		}
+
+		ChainValidationHelper ()
+		{
 		}
 
 		internal ChainValidationHelper (object sender, RemoteCertificateValidationCallback callback = null)
@@ -163,6 +196,8 @@ namespace Mono.Net.Security
 					callback = ServicePointManager.ServerCertValidationCallback;
 			}
 
+			var hasCallback = callback != null || callbackWrapper != null;
+
 			// user_denied is true if the user callback is called and returns false
 			bool user_denied = false;
 			if (certs == null || certs.Count == 0)
@@ -183,7 +218,7 @@ namespace Mono.Net.Security
 			// the certificates that the server provided (which generally does not include the root) so, only  
 			// if there's a user callback, we'll create the X509Chain but won't build it
 			// ref: https://bugzilla.xamarin.com/show_bug.cgi?id=7245
-			if (callback != null) {
+			if (hasCallback) {
 #endif
 				chain = new X509Chain ();
 				chain.ChainPolicy = new X509ChainPolicy ();
@@ -278,8 +313,11 @@ namespace Mono.Net.Security
 				user_denied = !result && !(policy is DefaultCertificatePolicy);
 			}
 			// If there's a 2.0 callback, it takes precedence
-			if (callback != null) {
-				result = callback.Invoke (sender, leaf, chain, errors);
+			if (hasCallback) {
+				if (callbackWrapper != null)
+					result = callbackWrapper.Invoke (callback, leaf, chain, (MonoSslPolicyErrors)errors);
+				else
+					result = callback.Invoke (sender, leaf, chain, errors);
 				user_denied = !result;
 			}
 			return new ValidationResult (result, user_denied, status11, (MonoSslPolicyErrors)errors);
