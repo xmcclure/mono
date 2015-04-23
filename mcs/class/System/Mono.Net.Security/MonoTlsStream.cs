@@ -65,10 +65,13 @@ namespace Mono.Net.Security
 
 		IMonoSslStream sslStream;
 		WebExceptionStatus status;
-		bool hasCertificates;
 
 		internal HttpWebRequest Request {
 			get { return request; }
+		}
+
+		internal IMonoSslStream SslStream {
+			get { return sslStream; }
 		}
 
 		internal WebExceptionStatus ExceptionStatus {
@@ -93,24 +96,12 @@ namespace Mono.Net.Security
 
 		internal X509Certificate SelectClientCertificate (string targetHost, XX509CertificateCollection localCertificates, X509Certificate remoteCertificate, string[] acceptableIssuers)
 		{
+			X509Certificate clientCertificate;
 			if (localCertificates == null || localCertificates.Count == 0)
-				return null;
-			return localCertificates [0];
-		}
-
-		internal bool CheckCertificates ()
-		{
-			if (hasCertificates)
-				return true;
-			if (sslStream == null)
-				return false;
-
-			var client = sslStream.LocalCertificate;
-			var server = sslStream.RemoteCertificate;
-			request.ServicePoint.SetCertificates (client, server);
-
-			hasCertificates = true;
-			return true;
+				clientCertificate = null;
+			else
+				clientCertificate = localCertificates [0];
+			return clientCertificate;
 		}
 
 		internal Stream CreateStream (byte[] buffer)
@@ -118,10 +109,14 @@ namespace Mono.Net.Security
 			sslStream = provider.CreateSslStream (networkStream, false, validationHelper, settings);
 
 			try {
+				request.ServicePoint.SetClientCertificate (null);
+
 				sslStream.AuthenticateAsClient (
 					request.Address.Host, (XX509CertificateCollection)(object)request.ClientCertificates,
 					(SslProtocols)ServicePointManager.SecurityProtocol,
 					ServicePointManager.CheckCertificateRevocationList);
+
+				request.ServicePoint.SetClientCertificate (sslStream.LocalCertificate);
 			} catch {
 				status = WebExceptionStatus.TrustFailure;
 				sslStream = null;

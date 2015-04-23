@@ -85,7 +85,6 @@ namespace Mono.Net.Security
 		SslStreamBase ssl_stream;
 		MonoTlsSettings settings;
 		ICertificateValidator certificateValidator;
-		RemoteCertificateValidationCallback validation_callback;
 
 		#endregion // Fields
 
@@ -401,17 +400,10 @@ namespace Mono.Net.Security
 				return cert2 != null ? cert2.PrivateKey : null;
 			};
 
-			if (validation_callback != null)
-				s.ClientCertValidationDelegate = delegate (X509Certificate cert, int [] certErrors) {
-					X509Chain chain = null;
-					if (cert is X509Certificate2) {
-						chain = new X509Chain ();
-						chain.Build ((X509Certificate2) cert);
-					}
-					// FIXME: SslPolicyErrors is incomplete
-					SslPolicyErrors errors = certErrors.Length > 0 ? SslPolicyErrors.RemoteCertificateChainErrors : SslPolicyErrors.None;
-					return validation_callback (this, cert, chain, errors);
-				};
+			s.ClientCertValidationDelegate = delegate (X509Certificate cert, int[] certErrors) {
+				var errors = certErrors.Length > 0 ? MonoSslPolicyErrors.RemoteCertificateChainErrors : MonoSslPolicyErrors.None;
+				return ((ChainValidationHelper)certificateValidator).ValidateClientCertificate (cert, errors);
+			};
 
 			ssl_stream = s;
 

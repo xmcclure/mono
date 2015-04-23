@@ -85,6 +85,8 @@ namespace Mono.Security.Interface
 			string[] acceptableIssuers);
 
 		#if !INSIDE_SYSTEM
+		ValidationResult ValidateClientCertificate (MX.X509CertificateCollection certificates);
+
 		ValidationResult ValidateChain (string targetHost, MX.X509CertificateCollection certificates);
 		#endif
 	}

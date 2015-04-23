@@ -1019,12 +1019,6 @@ namespace System.Net
 
 			try {
 				s.EndWrite (result);
-				if (request.FinishedReading)
-					return true;
-#if SECURITY_DEP
-				if (tlsStream != null)
-					tlsStream.CheckCertificates ();
-#endif
 				return true;
 			} catch (Exception exc) {
 				status = WebExceptionStatus.SendFailure;
@@ -1089,10 +1083,6 @@ namespace System.Net
 
 			try {
 				s.Write (buffer, offset, size);
-#if SECURITY_DEP
-				if (tlsStream != null)
-					tlsStream.CheckCertificates ();
-#endif
 			} catch (Exception e) {
 				err_msg = e.Message;
 				WebExceptionStatus wes = WebExceptionStatus.SendFailure;

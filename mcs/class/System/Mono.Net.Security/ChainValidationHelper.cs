@@ -79,6 +79,7 @@ namespace Mono.Net.Security
 		ServerCertValidationCallback certValidationCallback;
 		LocalCertSelectionCallback certSelectionCallback;
 		ServerCertValidationCallbackWrapper callbackWrapper;
+		MonoTlsStream tlsStream;
 		HttpWebRequest request;
 
 		#if !MONOTOUCH
@@ -139,6 +140,7 @@ namespace Mono.Net.Security
 			settings = other.settings;
 			certValidationCallback = other.certValidationCallback;
 			certSelectionCallback = other.certSelectionCallback;
+			tlsStream = other.tlsStream;
 			request = other.request;
 		}
 
@@ -156,9 +158,11 @@ namespace Mono.Net.Security
 
 		internal ChainValidationHelper (MonoTlsStream stream, MonoTlsSettings settings)
 		{
-			request = stream.Request;
+			this.tlsStream = stream;
+			this.request = stream.Request;
 			this.settings = settings;
-			sender = request;
+			this.sender = request;
+
 			certValidationCallback = request.ServerCertValidationCallback;
 			certSelectionCallback = new LocalCertSelectionCallback (stream.SelectClientCertificate);
 		}
@@ -186,7 +190,29 @@ namespace Mono.Net.Security
 			return LocalCertSelectionCallback (targetHost, localCertificates, remoteCertificate, acceptableIssuers);
 		}
 
+		internal bool ValidateClientCertificate (X509Certificate certificate, MonoSslPolicyErrors errors)
+		{
+			var mcerts = new MSX.X509CertificateCollection ();
+			mcerts.Add (new MSX.X509Certificate (certificate.GetRawCertData ()));
+
+			var result = ValidateChain (null, mcerts, (SslPolicyErrors)errors);
+			if (result == null)
+				return false;
+
+			return result.Trusted && !result.UserDenied;
+		}
+
+		public ValidationResult ValidateClientCertificate (MSX.X509CertificateCollection certs)
+		{
+			return ValidateChain (null, certs, 0);
+		}
+
 		public ValidationResult ValidateChain (string host, MSX.X509CertificateCollection certs)
+		{
+			return ValidateChain (host, certs, 0);
+		}
+
+		ValidationResult ValidateChain (string host, MSX.X509CertificateCollection certs, SslPolicyErrors errors)
 		{
 			var callback = certValidationCallback;
 			if (callback == null) {
@@ -198,16 +224,24 @@ namespace Mono.Net.Security
 
 			var hasCallback = callback != null || callbackWrapper != null;
 
+			X509Certificate2 leaf;
+			if (certs == null || certs.Count == 0)
+				leaf = null;
+			else
+				leaf = new X509Certificate2 (certs [0].RawData);
+
+			if (tlsStream != null)
+				request.ServicePoint.SetServerCertificate (leaf);
+
+			if (leaf == null)
+				return null;
+
 			// user_denied is true if the user callback is called and returns false
 			bool user_denied = false;
-			if (certs == null || certs.Count == 0)
-				return null;
 
 			ICertificatePolicy policy = ServicePointManager.GetLegacyCertificatePolicy ();
 
-			X509Certificate2 leaf = new X509Certificate2 (certs [0].RawData);
 			int status11 = 0; // Error code passed to the obsolete ICertificatePolicy callback
-			SslPolicyErrors errors = 0;
 			X509Chain chain = null;
 			bool result = false;
 
@@ -254,7 +288,7 @@ namespace Mono.Net.Security
 					status11 = -2146762490; //CERT_E_PURPOSE 0x800B0106
 				}
 
-				if (!CheckServerIdentity (certs [0], host)) {
+				if (host != null && !CheckServerIdentity (certs [0], host)) {
 					errors |= SslPolicyErrors.RemoteCertificateNameMismatch;
 					status11 = -2146762481; // CERT_E_CN_NO_MATCH 0x800B010F
 				}
