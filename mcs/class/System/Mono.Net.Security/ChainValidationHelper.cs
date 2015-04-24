@@ -209,7 +209,16 @@ namespace Mono.Net.Security
 
 		public ValidationResult ValidateChain (string host, MSX.X509CertificateCollection certs)
 		{
-			return ValidateChain (host, certs, 0);
+			try {
+				var result = ValidateChain (host, certs, 0);
+				if (tlsStream != null)
+					tlsStream.CertificateValidationFailed = result == null || !result.Trusted || result.UserDenied;
+				return result;
+			} catch {
+				if (tlsStream != null)
+					tlsStream.CertificateValidationFailed = true;
+				throw;
+			}
 		}
 
 		ValidationResult ValidateChain (string host, MSX.X509CertificateCollection certs, SslPolicyErrors errors)

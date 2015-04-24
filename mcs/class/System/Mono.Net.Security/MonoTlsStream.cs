@@ -78,6 +78,10 @@ namespace Mono.Net.Security
 			get { return status; }
 		}
 
+		internal bool CertificateValidationFailed {
+			get; set;
+		}
+
 #if SECURITY_DEP
 		readonly ChainValidationHelper validationHelper;
 		readonly MonoTlsSettings settings;
@@ -109,18 +113,19 @@ namespace Mono.Net.Security
 			sslStream = provider.CreateSslStream (networkStream, false, validationHelper, settings);
 
 			try {
-				request.ServicePoint.SetClientCertificate (null);
-
 				sslStream.AuthenticateAsClient (
 					request.Address.Host, (XX509CertificateCollection)(object)request.ClientCertificates,
 					(SslProtocols)ServicePointManager.SecurityProtocol,
 					ServicePointManager.CheckCertificateRevocationList);
 
+				status = WebExceptionStatus.Success;
+			} finally {
+				if (CertificateValidationFailed)
+					status = WebExceptionStatus.TrustFailure;
+
 				request.ServicePoint.SetClientCertificate (sslStream.LocalCertificate);
-			} catch {
-				status = WebExceptionStatus.TrustFailure;
-				sslStream = null;
-				throw;
+				if (status != WebExceptionStatus.Success)
+					sslStream = null;
 			}
 
 			try {
