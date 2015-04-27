@@ -122,6 +122,10 @@ namespace Mono.Net.Security
 			get;
 		}
 
+		X509Certificate InternalLocalCertificate {
+			get;
+		}
+
 		X509Certificate LocalCertificate {
 			get;
 		}

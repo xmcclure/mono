@@ -290,6 +290,10 @@ namespace Mono.Net.Security.Private
 			get { return Impl.CheckCertRevocationStatus; }
 		}
 
+		X509Certificate IMonoSslStream.InternalLocalCertificate {
+			get { return Impl.InternalLocalCertificate; }
+		}
+
 		public X509Certificate LocalCertificate {
 			get { return Impl.LocalCertificate; }
 		}

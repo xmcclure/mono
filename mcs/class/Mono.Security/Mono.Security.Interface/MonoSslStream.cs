@@ -168,6 +168,10 @@ namespace Mono.Security.Interface
 			get;
 		}
 
+		public abstract X509Certificate InternalLocalCertificate {
+			get;
+		}
+
 		public abstract X509Certificate LocalCertificate {
 			get;
 		}

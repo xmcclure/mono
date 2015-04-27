@@ -260,6 +260,16 @@ namespace Mono.Security.Providers.DotNet
 			get { return Impl.CheckCertRevocationStatus; }
 		}
 
+		public override X509Certificate InternalLocalCertificate {
+			get {
+				try {
+					return LocalCertificate;
+				} catch {
+					return null;
+				}
+			}
+		}
+
 		public override X509Certificate LocalCertificate {
 			get { return Impl.LocalCertificate; }
 		}

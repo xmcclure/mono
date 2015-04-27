@@ -275,6 +275,12 @@ namespace Mono.Net.Security
 			}
 		}
 
+		X509Certificate IMonoSslStream.InternalLocalCertificate {
+			get {
+				return IsServer ? ssl_stream.ServerCertificate : ((SslClientStream) ssl_stream).SelectedClientCertificate;
+			}
+		}
+
 		public virtual X509Certificate LocalCertificate {
 			get {
 				CheckConnectionAuthenticated ();

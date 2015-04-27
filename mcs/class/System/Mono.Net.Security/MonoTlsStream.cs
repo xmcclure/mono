@@ -123,7 +123,7 @@ namespace Mono.Net.Security
 				if (CertificateValidationFailed)
 					status = WebExceptionStatus.TrustFailure;
 
-				request.ServicePoint.SetClientCertificate (sslStream.LocalCertificate);
+				request.ServicePoint.SetClientCertificate (sslStream.InternalLocalCertificate);
 				if (status != WebExceptionStatus.Success)
 					sslStream = null;
 			}

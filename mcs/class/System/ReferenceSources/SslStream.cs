@@ -91,6 +91,10 @@ namespace System.Net.Security
 		{
 			_SslState.EndShutdown (asyncResult);
 		}
+
+		internal X509Certificate InternalLocalCertificate {
+			get { return _SslState.InternalLocalCertificate; }
+		}
 	}
 }
 #endif
