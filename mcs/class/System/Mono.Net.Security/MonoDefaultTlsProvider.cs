@@ -33,9 +33,11 @@ extern alias MonoSecurity;
 
 #if MONO_X509_ALIAS
 using XHttpWebRequest = PrebuiltSystem::System.Net.HttpWebRequest;
+using XSslProtocols = PrebuiltSystem::System.Security.Authentication.SslProtocols;
 using XX509CertificateCollection = PrebuiltSystem::System.Security.Cryptography.X509Certificates.X509CertificateCollection;
 #else
 using XHttpWebRequest = System.Net.HttpWebRequest;
+using XSslProtocols = System.Security.Authentication.SslProtocols;
 using XX509CertificateCollection = System.Security.Cryptography.X509Certificates.X509CertificateCollection;
 #endif
 
@@ -111,6 +113,10 @@ namespace Mono.Net.Security.Private
 
 		public override bool SupportsTlsContext {
 			get { return false; }
+		}
+
+		public override XSslProtocols SupportedProtocols {
+			get { return XSslProtocols.Ssl3 | XSslProtocols.Tls; }
 		}
 
 		public override bool IsHttpsStream (Stream stream)

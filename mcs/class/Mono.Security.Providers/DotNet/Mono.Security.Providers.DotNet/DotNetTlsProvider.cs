@@ -27,6 +27,7 @@ using System;
 using System.IO;
 using System.Net;
 using System.Net.Security;
+using System.Security.Authentication;
 using System.Security.Cryptography.X509Certificates;
 using Mono.Security.Interface;
 
@@ -53,6 +54,10 @@ namespace Mono.Security.Providers.DotNet
 
 		public override bool SupportsTlsContext {
 			get { return false; }
+		}
+
+		public override SslProtocols SupportedProtocols {
+			get { return (SslProtocols)ServicePointManager.SecurityProtocol; }
 		}
 
 		public override bool IsHttpsStream (Stream stream)
