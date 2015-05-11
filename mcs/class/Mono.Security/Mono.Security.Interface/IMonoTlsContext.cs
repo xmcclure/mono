@@ -31,11 +31,15 @@ namespace Mono.Security.Interface
 {
 	public interface IMonoTlsContext : IDisposable
 	{
+		bool IsServer {
+			get;
+		}
+
 		bool IsValid {
 			get;
 		}
 
-		void Initialize (bool serverMode);
+		void Initialize ();
 
 		bool HasCredentials {
 			get;

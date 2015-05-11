@@ -131,7 +131,7 @@ namespace System.Net.Security
 				if (credentials == null || credentials.IsInvalid)
 					return (int)SecurityStatus.CredentialsNeeded;
 
-				secModule.Context.Initialize (true);
+				secModule.Context.Initialize ();
 				safeContext = new SafeDeleteContext (secModule.Context);
 			}
 
@@ -151,7 +151,7 @@ namespace System.Net.Security
 				throw new InvalidOperationException ();
 
 			if (safeContext == null) {
-				secModule.Context.Initialize (false);
+				secModule.Context.Initialize ();
 				safeContext = new SafeDeleteContext (secModule.Context);
 			}
 
