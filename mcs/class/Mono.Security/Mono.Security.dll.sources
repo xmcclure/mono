@@ -137,7 +137,6 @@
 
 ./Mono.Security.Interface/CertificateValidationHelper.cs
 ./Mono.Security.Interface/IBufferOffsetSize.cs
-./Mono.Security.Interface/IMonoHttpsStream.cs
 ./Mono.Security.Interface/IMonoTlsContext.cs
 ./Mono.Security.Interface/MonoSslStream.cs
 ./Mono.Security.Interface/MonoTlsProvider.cs

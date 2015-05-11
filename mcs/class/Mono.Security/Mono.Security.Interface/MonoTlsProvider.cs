@@ -72,32 +72,6 @@ namespace Mono.Security.Interface
 
 	public abstract class MonoTlsProvider
 	{
-#region HttpsClientStream
-
-		/*
-		 * This section reflects how Mono's web stack currently accesses
-		 * the TLS code.  Since that's currently using the obsolete @HttpsClientStream,
-		 * this section needs to be cleaned up.  It is therefor marked as [Obsolete].
-		 *
-		 * It is only used in WebClient.cs.
-		 *
-		 */
-
-		public abstract bool SupportsHttps {
-			get;
-		}
-
-		#pragma warning disable 618
-		public abstract bool IsHttpsStream (Stream stream);
-
-		public abstract IMonoHttpsStream GetHttpsStream (Stream stream);
-
-		public abstract IMonoHttpsStream CreateHttpsClientStream (
-			Stream innerStream, HttpWebRequest request, byte[] buffer);
-		#pragma warning restore
-
-#endregion
-
 #region SslStream
 
 		/*

@@ -99,10 +99,6 @@ namespace Mono.Net.Security.Private
 			get { return this; }
 		}
 
-		public override bool SupportsHttps {
-			get { return true; }
-		}
-
 		public override bool SupportsSslStream {
 			get { return true; }
 		}
@@ -117,36 +113,6 @@ namespace Mono.Net.Security.Private
 
 		public override XSslProtocols SupportedProtocols {
 			get { return XSslProtocols.Ssl3 | XSslProtocols.Tls; }
-		}
-
-		public override bool IsHttpsStream (Stream stream)
-		{
-			return stream.GetType () == sslStream;
-		}
-
-		public override IMonoHttpsStream GetHttpsStream (Stream stream)
-		{
-			return (IMonoHttpsStream)stream;
-		}
-
-		protected override IMonoHttpsStream CreateHttpsClientStreamImpl (
-			Stream innerStream, XHttpWebRequest request, byte[] buffer)
-		{
-			Stream nstream;
-#if MOBILE
-			nstream = new HttpsClientStream (innerStream, request.ClientCertificates, request, buffer);
-#else
-			object[] args = new object [4] {
-				innerStream,
-				request.ClientCertificates,
-				request, buffer};
-			nstream = (Stream) Activator.CreateInstance (sslStream, args);
-#endif
-
-			SslClientStream scs = (SslClientStream) nstream;
-			var helper = new ChainValidationHelper (request);
-			scs.ServerCertValidation2 += (certs) => helper.ValidateChain (request.Address.Host, certs);
-			return (IMonoHttpsStream)nstream;
 		}
 
 		protected override IMonoSslStream CreateSslStreamImpl (

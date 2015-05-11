@@ -34,13 +34,12 @@ using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 using SNS = System.Net.Security;
 using SNCX = System.Security.Cryptography.X509Certificates;
-using Mono.Security.Interface;
 
 namespace Mono.Security.Protocol.Tls {
 
 	// Note: DO NOT REUSE this class - instead use SslClientStream
 
-	internal class HttpsClientStream : SslClientStream, IMonoHttpsStream {
+	internal class HttpsClientStream : SslClientStream {
 
 		private HttpWebRequest _request;
 		private int _status;
@@ -67,10 +66,6 @@ namespace Mono.Security.Protocol.Tls {
 				X509Certificate2 cert = (certificate as X509Certificate2);
 				return (cert == null) ? null : cert.PrivateKey;
 			};
-		}
-
-		Stream IMonoHttpsStream.Stream {
-			get { return this; }
 		}
 
 		public bool TrustFailure {

@@ -74,17 +74,6 @@ namespace Mono.Net.Security
 			get;
 		}
 
-		bool SupportsHttps {
-			get;
-		}
-
-		bool IsHttpsStream (Stream stream);
-
-		IMonoHttpsStream GetHttpsStream (Stream stream);
-
-		IMonoHttpsStream CreateHttpsClientStream (
-			Stream innerStream, HttpWebRequest request, byte[] buffer);
-
 		IMonoSslStream CreateSslStream (
 			Stream innerStream, bool leaveInnerStreamOpen,
 			ICertificateValidator certificateValidator,

@@ -63,23 +63,6 @@ namespace Mono.Net.Security.Private
 			get { return this; }
 		}
 
-		MSI.IMonoHttpsStream IMonoTlsProvider.CreateHttpsClientStream (
-			Stream innerStream, HttpWebRequest request, byte[] buffer)
-		{
-			var request2 = (XHttpWebRequest)(object)request;
-			return CreateHttpsClientStreamImpl (innerStream, request2, buffer);
-		}
-
-		protected abstract MSI.IMonoHttpsStream CreateHttpsClientStreamImpl (
-			Stream innerStream, XHttpWebRequest request, byte[] buffer);
-
-		public override MSI.IMonoHttpsStream CreateHttpsClientStream (
-			Stream innerStream, XHttpWebRequest request, byte[] buffer)
-		{
-			var request2 = (HttpWebRequest)(object)request;
-			return CreateHttpsClientStreamImpl (innerStream, request, buffer);
-		}
-
 		IMonoSslStream IMonoTlsProvider.CreateSslStream (
 			Stream innerStream, bool leaveInnerStreamOpen,
 			MSI.ICertificateValidator certificateValidator,

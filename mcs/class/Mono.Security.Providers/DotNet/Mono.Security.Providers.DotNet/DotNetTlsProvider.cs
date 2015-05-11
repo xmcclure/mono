@@ -40,10 +40,6 @@ namespace Mono.Security.Providers.DotNet
 	 */
 	public class DotNetTlsProvider : MonoTlsProvider
 	{
-		public override bool SupportsHttps {
-			get { return false; }
-		}
-
 		public override bool SupportsSslStream {
 			get { return true; }
 		}
@@ -59,26 +55,6 @@ namespace Mono.Security.Providers.DotNet
 		public override SslProtocols SupportedProtocols {
 			get { return (SslProtocols)ServicePointManager.SecurityProtocol; }
 		}
-
-		public override bool IsHttpsStream (Stream stream)
-		{
-			return false;
-		}
-
-#pragma warning disable 618
-
-		public override IMonoHttpsStream GetHttpsStream (Stream stream)
-		{
-			throw new InvalidOperationException ();
-		}
-
-		public override IMonoHttpsStream CreateHttpsClientStream (
-			Stream innerStream, HttpWebRequest request, byte[] buffer)
-		{
-			throw new NotSupportedException ("Web API is not supported.");
-		}
-
-#pragma warning restore 618
 
 		public override MonoSslStream CreateSslStream (
 			Stream innerStream, bool leaveInnerStreamOpen,
