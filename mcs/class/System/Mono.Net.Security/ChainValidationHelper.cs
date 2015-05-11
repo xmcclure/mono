@@ -208,6 +208,10 @@ namespace Mono.Net.Security
 
 		ValidationResult ValidateChain (string host, MSX.X509CertificateCollection certs, SslPolicyErrors errors)
 		{
+			// user_denied is true if the user callback is called and returns false
+			bool user_denied = false;
+			bool result = false;
+
 			var hasCallback = certValidationCallback != null || callbackWrapper != null;
 
 			X509Certificate2 leaf;
@@ -219,8 +223,17 @@ namespace Mono.Net.Security
 			if (tlsStream != null)
 				request.ServicePoint.SetServerCertificate (leaf);
 
-			if (leaf == null)
-				return null;
+			if (leaf == null) {
+				errors |= SslPolicyErrors.RemoteCertificateNotAvailable;
+				if (hasCallback) {
+					if (callbackWrapper != null)
+						result = callbackWrapper.Invoke (certValidationCallback, leaf, null, (MonoSslPolicyErrors)errors);
+					else
+						result = certValidationCallback.Invoke (sender, leaf, null, errors);
+					user_denied = !result;
+				}
+				return new ValidationResult (result, user_denied, 0, (MonoSslPolicyErrors)errors);
+			}
 
 			bool needsChain;
 			bool skipSystemValidators = false;
@@ -243,14 +256,10 @@ namespace Mono.Net.Security
 #endif
 			}
 
-			// user_denied is true if the user callback is called and returns false
-			bool user_denied = false;
-
 			ICertificatePolicy policy = ServicePointManager.GetLegacyCertificatePolicy ();
 
 			int status11 = 0; // Error code passed to the obsolete ICertificatePolicy callback
 			X509Chain chain = null;
-			bool result = false;
 
 			if (needsChain) {
 				chain = new X509Chain ();
