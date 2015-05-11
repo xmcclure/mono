@@ -7,6 +7,15 @@
 // (c) Copyright 2006 Novell, Inc. (http://www.novell.com)
 //
 
+#if SECURITY_DEP
+#if MONO_SECURITY_ALIAS
+extern alias MonoSecurity;
+using MSI = MonoSecurity::Mono.Security.Interface;
+#else
+using MSI = Mono.Security.Interface;
+#endif
+#endif
+
 using System;
 using System.IO;
 using System.Net.Sockets;
@@ -1156,28 +1165,12 @@ namespace System.Net
 			ChangeToSSLSocket (ref stream);
 		}
 
-#if SECURITY_DEP
-		RemoteCertificateValidationCallback callback = delegate (object sender,
-									 X509Certificate certificate,
-									 X509Chain chain,
-									 SslPolicyErrors sslPolicyErrors) {
-			// honor any exciting callback defined on ServicePointManager
-			if (ServicePointManager.ServerCertificateValidationCallback != null)
-				return ServicePointManager.ServerCertificateValidationCallback (sender, certificate, chain, sslPolicyErrors);
-			// otherwise provide our own
-			if (sslPolicyErrors != SslPolicyErrors.None)
-				throw new InvalidOperationException ("SSL authentication error: " + sslPolicyErrors);
-			return true;
-			};
-#endif
-
 		internal bool ChangeToSSLSocket (ref Stream stream) {
 #if SECURITY_DEP
 			var provider = MonoTlsProviderFactory.GetProviderInternal ();
-			var helper = new ChainValidationHelper (callback);
-			var sslStream = provider.CreateSslStream (stream, true, helper, null);
-			//sslStream.AuthenticateAsClient (Host, this.ClientCertificates, SslProtocols.Default, false);
-			//TODO: client certificates
+			var settings = new MSI.MonoTlsSettings ();
+			settings.UseServicePointManagerCallback = true;
+			var sslStream = provider.CreateSslStream (stream, true, null, settings);
 			sslStream.AuthenticateAsClient (requestUri.Host, null, SslProtocols.Default, false);
 			stream = sslStream.AuthenticatedStream;
 			return true;

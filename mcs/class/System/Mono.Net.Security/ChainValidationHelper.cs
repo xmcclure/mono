@@ -74,15 +74,15 @@ namespace Mono.Net.Security
 
 	internal class ChainValidationHelper : ICertificateValidator
 	{
-		object sender;
-		MonoTlsSettings settings;
-		ServerCertValidationCallback certValidationCallback;
-		LocalCertSelectionCallback certSelectionCallback;
-		ServerCertValidationCallbackWrapper callbackWrapper;
-		MonoTlsStream tlsStream;
-		HttpWebRequest request;
+		readonly object sender;
+		readonly MonoTlsSettings settings;
+		readonly ServerCertValidationCallback certValidationCallback;
+		readonly LocalCertSelectionCallback certSelectionCallback;
+		readonly ServerCertValidationCallbackWrapper callbackWrapper;
+		readonly MonoTlsStream tlsStream;
+		readonly HttpWebRequest request;
 
-		#if !MONOTOUCH
+#if !MONOTOUCH
 		static bool is_macosx = System.IO.File.Exists (OSX509Certificates.SecurityLibrary);
 		static X509RevocationMode revocation_mode;
 
@@ -97,34 +97,21 @@ namespace Mono.Net.Security
 			} catch {
 			}
 		}
-		#endif
+#endif
 	
 		internal static ICertificateValidator Create (MonoTlsSettings settings)
 		{
-			var helper = new ChainValidationHelper (settings);
-			helper.settings = settings;
-
-			if (settings != null) {
-				if (settings.ServerCertificateValidationCallback != null) {
-					var callback = Private.CallbackHelpers.MonoToPublic (settings.ServerCertificateValidationCallback);
-					helper.certValidationCallback = new ServerCertValidationCallback (callback);
-				}
-				helper.certSelectionCallback = Private.CallbackHelpers.MonoToInternal (settings.ClientCertificateSelectionCallback);
-			}
-
-			return helper;
+			return new ChainValidationHelper (settings, null);
 		}
 
-		#region SslStream support
+#region SslStream support
 
 		/*
 		 * This is a hack which is used in SslStream - see ReferenceSources/SslStream.cs for details.
 		 */
 		internal static ICertificateValidator CloneWithCallbackWrapper (ICertificateValidator validator, ServerCertValidationCallbackWrapper wrapper)
 		{
-			var cloned = new ChainValidationHelper ((ChainValidationHelper)validator);
-			cloned.callbackWrapper = wrapper;
-			return cloned;
+			return new ChainValidationHelper ((ChainValidationHelper)validator, wrapper);
 		}
 
 		internal static bool InvokeCallback (ServerCertValidationCallback callback, object sender, X509Certificate certificate, X509Chain chain, MonoSslPolicyErrors sslPolicyErrors)
@@ -132,9 +119,9 @@ namespace Mono.Net.Security
 			return callback.Invoke (sender, certificate, chain, (SslPolicyErrors)sslPolicyErrors);
 		}
 
-		#endregion
+#endregion
 
-		ChainValidationHelper (ChainValidationHelper other)
+		ChainValidationHelper (ChainValidationHelper other, ServerCertValidationCallbackWrapper callbackWrapper = null)
 		{
 			sender = other.sender;
 			settings = other.settings;
@@ -142,39 +129,37 @@ namespace Mono.Net.Security
 			certSelectionCallback = other.certSelectionCallback;
 			tlsStream = other.tlsStream;
 			request = other.request;
+			this.callbackWrapper = callbackWrapper;
 		}
 
-		ChainValidationHelper ()
+		internal ChainValidationHelper (MonoTlsSettings settings, MonoTlsStream stream)
 		{
-		}
-
-		internal ChainValidationHelper (object sender, RemoteCertificateValidationCallback callback = null)
-		{
-			this.sender = sender;
-			request = sender as HttpWebRequest;
-			if (callback != null)
-				certValidationCallback = new ServerCertValidationCallback (callback);
-		}
-
-		internal ChainValidationHelper (MonoTlsStream stream, MonoTlsSettings settings)
-		{
-			this.tlsStream = stream;
-			this.request = stream.Request;
 			this.settings = settings;
-			this.sender = request;
+			this.tlsStream = stream;
 
-			certValidationCallback = request.ServerCertValidationCallback;
-			certSelectionCallback = new LocalCertSelectionCallback (stream.SelectClientCertificate);
-		}
+			var fallbackToSPM = false;
 
-		internal ServerCertValidationCallback ServerCertValidationCallback {
-			get { return certValidationCallback; }
-			set { certValidationCallback = value; }
-		}
+			if (settings != null) {
+				if (settings.ServerCertificateValidationCallback != null) {
+					var callback = Private.CallbackHelpers.MonoToPublic (settings.ServerCertificateValidationCallback);
+					certValidationCallback = new ServerCertValidationCallback (callback);
+				}
+				certSelectionCallback = Private.CallbackHelpers.MonoToInternal (settings.ClientCertificateSelectionCallback);
+				fallbackToSPM = settings.UseServicePointManagerCallback;
+			}
 
-		internal LocalCertSelectionCallback LocalCertSelectionCallback {
-			get { return certSelectionCallback; }
-			set { certSelectionCallback = value; }
+			if (stream != null) {
+				this.request = stream.Request;
+				this.sender = request;
+
+				if (certValidationCallback == null)
+					certValidationCallback = request.ServerCertValidationCallback;
+				if (certSelectionCallback == null)
+					certSelectionCallback = new LocalCertSelectionCallback (stream.SelectClientCertificate);
+			}
+
+			if (fallbackToSPM && certValidationCallback == null)
+				certValidationCallback = ServicePointManager.ServerCertValidationCallback;
 		}
 
 		public MonoTlsSettings Settings {
@@ -185,9 +170,9 @@ namespace Mono.Net.Security
 			string targetHost, XX509CertificateCollection localCertificates, X509Certificate remoteCertificate,
 			string[] acceptableIssuers)
 		{
-			if (LocalCertSelectionCallback == null)
+			if (certSelectionCallback == null)
 				return null;
-			return LocalCertSelectionCallback (targetHost, localCertificates, remoteCertificate, acceptableIssuers);
+			return certSelectionCallback (targetHost, localCertificates, remoteCertificate, acceptableIssuers);
 		}
 
 		internal bool ValidateClientCertificate (X509Certificate certificate, MonoSslPolicyErrors errors)
@@ -223,15 +208,7 @@ namespace Mono.Net.Security
 
 		ValidationResult ValidateChain (string host, MSX.X509CertificateCollection certs, SslPolicyErrors errors)
 		{
-			var callback = certValidationCallback;
-			if (callback == null) {
-				if (request != null)
-					callback = request.ServerCertValidationCallback;
-				if (callback == null)
-					callback = ServicePointManager.ServerCertValidationCallback;
-			}
-
-			var hasCallback = callback != null || callbackWrapper != null;
+			var hasCallback = certValidationCallback != null || callbackWrapper != null;
 
 			X509Certificate2 leaf;
 			if (certs == null || certs.Count == 0)
@@ -245,6 +222,27 @@ namespace Mono.Net.Security
 			if (leaf == null)
 				return null;
 
+			bool needsChain;
+			bool skipSystemValidators = false;
+#if MONOTOUCH
+			// The X509Chain is not really usable with MonoTouch (since the decision is not based on this data)
+			// However if someone wants to override the results (good or bad) from iOS then they will want all
+			// the certificates that the server provided (which generally does not include the root) so, only  
+			// if there's a user callback, we'll create the X509Chain but won't build it
+			// ref: https://bugzilla.xamarin.com/show_bug.cgi?id=7245
+			needsChain = hasCallback;
+#else
+			needsChain = true;
+#endif
+			if (settings != null) {
+				skipSystemValidators = settings.SkipSystemValidators;
+#if MONOTOUCH || MONODROID
+				needsChain = settings.CallbackNeedsCertificateChain;
+#else
+				needsChain = !settings.SkipSystemValidators || settings.CallbackNeedsCertificateChain;
+#endif
+			}
+
 			// user_denied is true if the user callback is called and returns false
 			bool user_denied = false;
 
@@ -254,15 +252,7 @@ namespace Mono.Net.Security
 			X509Chain chain = null;
 			bool result = false;
 
-
-#if MONOTOUCH
-			// The X509Chain is not really usable with MonoTouch (since the decision is not based on this data)
-			// However if someone wants to override the results (good or bad) from iOS then they will want all
-			// the certificates that the server provided (which generally does not include the root) so, only  
-			// if there's a user callback, we'll create the X509Chain but won't build it
-			// ref: https://bugzilla.xamarin.com/show_bug.cgi?id=7245
-			if (hasCallback) {
-#endif
+			if (needsChain) {
 				chain = new X509Chain ();
 				chain.ChainPolicy = new X509ChainPolicy ();
 
@@ -274,20 +264,18 @@ namespace Mono.Net.Security
 					X509Certificate2 c2 = new X509Certificate2 (certs [i].RawData);
 					chain.ChainPolicy.ExtraStore.Add (c2);
 				}
-
-
-#if MONOTOUCH
 			}
 
-
-#else
-			try {
-				if (!chain.Build (leaf))
-					errors |= GetErrorsFromChain (chain);
-			} catch (Exception e) {
-				Console.Error.WriteLine ("ERROR building certificate chain: {0}", e);
-				Console.Error.WriteLine ("Please, report this problem to the Mono team");
-				errors |= SslPolicyErrors.RemoteCertificateChainErrors;
+#if !MONOTOUCH
+			if (needsChain) {
+				try {
+					if (!chain.Build (leaf))
+						errors |= GetErrorsFromChain (chain);
+				} catch (Exception e) {
+					Console.Error.WriteLine ("ERROR building certificate chain: {0}", e);
+					Console.Error.WriteLine ("Please, report this problem to the Mono team");
+					errors |= SslPolicyErrors.RemoteCertificateChainErrors;
+				}
 			}
 
 			// for OSX and iOS we're using the native API to check for the SSL server policy and host names
@@ -301,8 +289,10 @@ namespace Mono.Net.Security
 					errors |= SslPolicyErrors.RemoteCertificateNameMismatch;
 					status11 = -2146762481; // CERT_E_CN_NO_MATCH 0x800B010F
 				}
-			} else {
+			}
 #endif
+
+			if (!skipSystemValidators && is_macosx) {
 				// Attempt to use OSX certificates
 				// Ideally we should return the SecTrustResult
 				OSX509Certificates.SecTrustResult trustResult = OSX509Certificates.SecTrustResult.Deny;
@@ -325,26 +315,23 @@ namespace Mono.Net.Security
 					status11 = (int)trustResult;
 					errors |= SslPolicyErrors.RemoteCertificateChainErrors;
 				}
-
-
-#if !MONOTOUCH
 			}
-#endif
-	
 
 
 #if MONODROID && SECURITY_DEP
-			result = AndroidPlatform.TrustEvaluateSsl (certs, sender, leaf, chain, errors);
-			if (result) {
-				// chain.Build() + GetErrorsFromChain() (above) will ALWAYS fail on
-				// Android (there are no mozroots or preinstalled root certificates),
-				// thus `errors` will ALWAYS have RemoteCertificateChainErrors.
-				// Android just verified the chain; clear RemoteCertificateChainErrors.
-				errors  &= ~SslPolicyErrors.RemoteCertificateChainErrors;
+			if (!skipSystemValidators) {
+				result = AndroidPlatform.TrustEvaluateSsl (certs, sender, leaf, chain, errors);
+				if (result) {
+					// chain.Build() + GetErrorsFromChain() (above) will ALWAYS fail on
+					// Android (there are no mozroots or preinstalled root certificates),
+					// thus `errors` will ALWAYS have RemoteCertificateChainErrors.
+					// Android just verified the chain; clear RemoteCertificateChainErrors.
+					errors  &= ~SslPolicyErrors.RemoteCertificateChainErrors;
+				}
 			}
 #endif
 	
-			if (policy != null && (!(policy is DefaultCertificatePolicy) || callback == null)) {
+			if (policy != null && (!(policy is DefaultCertificatePolicy) || certValidationCallback == null)) {
 				ServicePoint sp = null;
 				if (request != null)
 					sp = request.ServicePointNoLock;
@@ -358,9 +345,9 @@ namespace Mono.Net.Security
 			// If there's a 2.0 callback, it takes precedence
 			if (hasCallback) {
 				if (callbackWrapper != null)
-					result = callbackWrapper.Invoke (callback, leaf, chain, (MonoSslPolicyErrors)errors);
+					result = callbackWrapper.Invoke (certValidationCallback, leaf, chain, (MonoSslPolicyErrors)errors);
 				else
-					result = callback.Invoke (sender, leaf, chain, errors);
+					result = certValidationCallback.Invoke (sender, leaf, chain, errors);
 				user_denied = !result;
 			}
 			return new ValidationResult (result, user_denied, status11, (MonoSslPolicyErrors)errors);
@@ -449,7 +436,7 @@ namespace Mono.Net.Security
 		}
 
 
-		#if !MONOTOUCH
+#if !MONOTOUCH
 		static SslPolicyErrors GetErrorsFromChain (X509Chain chain)
 		{
 			SslPolicyErrors errors = SslPolicyErrors.None;
@@ -610,7 +597,7 @@ namespace Mono.Net.Security
 			string start = pattern.Substring (0, index);
 			return (String.Compare (hostname, 0, start, 0, start.Length, true, CultureInfo.InvariantCulture) == 0);
 		}
-		#endif
+#endif
 	}
 }
 #endif

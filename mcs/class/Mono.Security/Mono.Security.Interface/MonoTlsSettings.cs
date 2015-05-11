@@ -47,8 +47,26 @@ namespace Mono.Security.Interface
 			set { checkCertRevocationStatus = value; }
 		}
 
+		public bool UseServicePointManagerCallback {
+			get { return useServicePointManagerCallback; }
+			set { useServicePointManagerCallback = value; }
+		}
+
+		public bool SkipSystemValidators {
+			get { return skipSystemValidators; }
+			set { skipSystemValidators = value; }
+		}
+
+		public bool CallbackNeedsCertificateChain {
+			get { return callbackNeedsChain; }
+			set { callbackNeedsChain = value; }
+		}
+
 		bool checkCertName = true;
 		bool checkCertRevocationStatus = false;
+		bool useServicePointManagerCallback = false;
+		bool skipSystemValidators = false;
+		bool callbackNeedsChain = true;
 	}
 }
 
