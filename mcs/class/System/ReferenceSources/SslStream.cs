@@ -27,8 +27,9 @@ namespace System.Net.Security
 			if (encryptionPolicy != EncryptionPolicy.RequireEncryption && encryptionPolicy != EncryptionPolicy.AllowNoEncryption && encryptionPolicy != EncryptionPolicy.NoEncryption)
 				throw new ArgumentException (SR.GetString (SR.net_invalid_enum, "EncryptionPolicy"), "encryptionPolicy");
 
-			if (certificateValidator != null)
-				certificateValidator = ChainValidationHelper.CloneWithCallbackWrapper (certificateValidator, myUserCertValidationCallbackWrapper);
+			if (certificateValidator == null)
+				certificateValidator = ChainValidationHelper.Create (settings);
+			certificateValidator = ChainValidationHelper.CloneWithCallbackWrapper (certificateValidator, myUserCertValidationCallbackWrapper);
 
 			_Configuration = new MyConfiguration (certificateValidator, settings);
 			_SslState = new SslState (innerStream, null, null, encryptionPolicy, _Configuration);
