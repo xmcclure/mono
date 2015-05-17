@@ -156,6 +156,9 @@ namespace Mono.Net.Security
 					certValidationCallback = request.ServerCertValidationCallback;
 				if (certSelectionCallback == null)
 					certSelectionCallback = new LocalCertSelectionCallback (stream.SelectClientCertificate);
+
+				if (settings == null)
+					fallbackToSPM = true;
 			}
 
 			if (fallbackToSPM && certValidationCallback == null)
