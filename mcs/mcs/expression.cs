@@ -126,6 +126,11 @@ namespace Mono.CSharp
 		{
 			return visitor.Visit (this);
 		}
+
+		public override bool HasConditionalAccess ()
+		{
+			return expr.HasConditionalAccess ();
+		}
 	}
 	
 	//
@@ -10364,7 +10369,7 @@ namespace Mono.CSharp
 		public override Expression DoResolveLValue (ResolveContext ec, Expression right_side)
 		{
 			if (ConditionalAccess)
-				throw new NotSupportedException ("null propagating operator assignment");
+				Error_NullPropagatingLValue (ec);
 
 			return DoResolve (ec);
 		}
@@ -11432,19 +11437,19 @@ namespace Mono.CSharp
 	//
 	public class StackAlloc : Expression {
 		TypeSpec otype;
-		Expression t;
+		Expression texpr;
 		Expression count;
 		
 		public StackAlloc (Expression type, Expression count, Location l)
 		{
-			t = type;
+			texpr = type;
 			this.count = count;
 			loc = l;
 		}
 
 		public Expression TypeExpression {
 			get {
-				return this.t;
+				return texpr;
 			}
 		}
 
@@ -11485,7 +11490,7 @@ namespace Mono.CSharp
 				ec.Report.Error (255, loc, "Cannot use stackalloc in finally or catch");
 			}
 
-			otype = t.ResolveAsType (ec);
+			otype = texpr.ResolveAsType (ec);
 			if (otype == null)
 				return null;
 
@@ -11517,7 +11522,7 @@ namespace Mono.CSharp
 		{
 			StackAlloc target = (StackAlloc) t;
 			target.count = count.Clone (clonectx);
-			target.t = t.Clone (clonectx);
+			target.texpr = texpr.Clone (clonectx);
 		}
 		
 		public override object Accept (StructuralVisitor visitor)

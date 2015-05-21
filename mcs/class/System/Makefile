@@ -51,14 +51,16 @@ endif
 #
 ifeq (secxml/, $(intermediate))
 LOCAL_MCS_FLAGS = -lib:$(bare_libdir) 
-LIB_MCS_FLAGS += -d:SECURITY_DEP -d:XML_DEP -r:PrebuiltSystem=$(bare_libdir)/System.dll -r:System.Xml.dll -r:MonoSecurity=Mono.Security.dll $(EXTERN_ALIAS_FLAGS)
+LIB_REFS += System.Xml MonoSecurity=Mono.Security
+LIB_MCS_FLAGS += -d:SECURITY_DEP -d:XML_DEP -r:PrebuiltSystem=$(bare_libdir)/System.dll $(EXTERN_ALIAS_FLAGS)
 endif
 
 #
 # Flags used to build the final version of System (when intermediate is not defined)
 #
 ifndef intermediate
-LIB_MCS_FLAGS += -d:SECURITY_DEP -d:XML_DEP -r:PrebuiltSystem=$(secxml_libdir)/System.dll -r:System.Xml.dll -r:MonoSecurity=Mono.Security.dll $(EXTERN_ALIAS_FLAGS) $(FINAL_MCS_FLAGS)
+LIB_REFS += System.Xml MonoSecurity=Mono.Security
+LIB_MCS_FLAGS += -d:SECURITY_DEP -d:XML_DEP -r:PrebuiltSystem=$(secxml_libdir)/System.dll $(EXTERN_ALIAS_FLAGS) $(FINAL_MCS_FLAGS)
 endif
 
 EXTRA_DISTFILES = \

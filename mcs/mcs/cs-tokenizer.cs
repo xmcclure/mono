@@ -409,6 +409,7 @@ namespace Mono.CSharp
 			public int parsing_generic_less_than;
 			public int current_token;
 			public object val;
+			public int parsing_string_interpolation;
 
 			public Position (Tokenizer t)
 			{
@@ -427,6 +428,7 @@ namespace Mono.CSharp
 					ifstack = new Stack<int> (clone);
 				}
 				parsing_generic_less_than = t.parsing_generic_less_than;
+				parsing_string_interpolation = t.parsing_string_interpolation;
 				current_token = t.current_token;
 				val = t.val;
 			}
@@ -471,6 +473,7 @@ namespace Mono.CSharp
 			previous_col = p.previous_col;
 			ifstack = p.ifstack;
 			parsing_generic_less_than = p.parsing_generic_less_than;
+			parsing_string_interpolation = p.parsing_string_interpolation;
 			current_token = p.current_token;
 			val = p.val;
 		}
@@ -925,7 +928,13 @@ namespace Mono.CSharp
 
 		static bool is_identifier_start_character (int c)
 		{
-			return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_' || Char.IsLetter ((char)c);
+			if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_')
+				return true;
+
+			if (c < 0x80)
+				return false;
+
+			return is_identifier_start_character_slow_part ((char) c);
 		}
 
 		static bool is_identifier_part_character (char c)
@@ -945,21 +954,46 @@ namespace Mono.CSharp
 			return is_identifier_part_character_slow_part (c);
 		}
 
+		static bool is_identifier_start_character_slow_part (char c)
+		{
+			switch (Char.GetUnicodeCategory (c)) {
+			case UnicodeCategory.LetterNumber:
+			case UnicodeCategory.UppercaseLetter:
+			case UnicodeCategory.LowercaseLetter:
+			case UnicodeCategory.TitlecaseLetter:
+			case UnicodeCategory.ModifierLetter:
+			case UnicodeCategory.OtherLetter:
+				return true;
+			}
+			return false;
+		}
+
 		static bool is_identifier_part_character_slow_part (char c)
 		{
-			if (Char.IsLetter (c))
-				return true;
-
 			switch (Char.GetUnicodeCategory (c)) {
-				case UnicodeCategory.ConnectorPunctuation:
+			// connecting-character:  A Unicode character of the class Pc
+			case UnicodeCategory.ConnectorPunctuation:
 
-				// combining-character: A Unicode character of classes Mn or Mc
-				case UnicodeCategory.NonSpacingMark:
-				case UnicodeCategory.SpacingCombiningMark:
+			// combining-character: A Unicode character of classes Mn or Mc
+			case UnicodeCategory.NonSpacingMark:
+			case UnicodeCategory.SpacingCombiningMark:
 
-				// decimal-digit-character: A Unicode character of the class Nd 
-				case UnicodeCategory.DecimalDigitNumber:
+			// decimal-digit-character: A Unicode character of the class Nd 
+			case UnicodeCategory.DecimalDigitNumber:
+
+			// plus is_identifier_start_character_slow_part
+			case UnicodeCategory.LetterNumber:
+			case UnicodeCategory.UppercaseLetter:
+			case UnicodeCategory.LowercaseLetter:
+			case UnicodeCategory.TitlecaseLetter:
+			case UnicodeCategory.ModifierLetter:
+			case UnicodeCategory.OtherLetter:
 				return true;
+
+			// formatting-character: A Unicode character of the class Cf
+			case UnicodeCategory.Format:
+				// csc bug compatibility which recognizes it as a whitespace
+				return c != 0xFEFF;
 			}
 
 			return false;
@@ -1296,6 +1330,7 @@ namespace Mono.CSharp
 			case Token.NULL:
 			case Token.THIS:
 			case Token.NEW:
+			case Token.INTERPOLATED_STRING:
 				next_token = Token.INTERR;
 				break;
 				
@@ -3181,9 +3216,14 @@ namespace Mono.CSharp
 			if (c == '\\') {
 				int surrogate;
 				c = escape (c, out surrogate);
-				if (surrogate != 0) {
-					id_builder [pos++] = (char) c;
+				if (quoted || is_identifier_start_character (c)) {
+					// it's added bellow
+				} else if (surrogate != 0) {
+					id_builder [pos++] = (char)c;
 					c = surrogate;
+				} else {
+					Report.Error (1056, Location, "Unexpected character `\\{0}'", c.ToString ("x4"));
+					return Token.ERROR;
 				}
 			}
 
@@ -3204,9 +3244,18 @@ namespace Mono.CSharp
 							c = escape (c, out surrogate);
 							if (is_identifier_part_character ((char) c))
 								id_builder[pos++] = (char) c;
-
-							if (surrogate != 0) {
+							else if (surrogate != 0) {
 								c = surrogate;
+							} else {
+								switch (c) {
+								// TODO: Probably need more whitespace characters
+								case 0xFEFF:
+									putback_char = c;
+									break;
+								default:
+									Report.Error (1056, Location, "Unexpected character `\\{0}'", c.ToString ("x4"));
+									return Token.ERROR;
+								}
 							}
 
 							continue;
@@ -3913,6 +3962,9 @@ namespace Mono.CSharp
 						if (pos == value_builder.Length)
 							Array.Resize (ref value_builder, pos * 2);
 
+						if (pos == value_builder.Length)
+							Array.Resize (ref value_builder, pos * 2);
+
 						value_builder [pos++] = (char)ch;
 						ch = surrogate;
 					}
@@ -3923,6 +3975,9 @@ namespace Mono.CSharp
 				}
 
 				++col;
+				if (pos == value_builder.Length)
+					Array.Resize (ref value_builder, pos * 2);
+
 				value_builder[pos++] = (char) ch;
 			}
 		}

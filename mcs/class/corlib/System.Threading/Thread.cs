@@ -67,7 +67,6 @@ namespace System.Threading {
 		private IntPtr start_notify;
 		private IntPtr stack_ptr;
 		private UIntPtr static_data; /* GC-tracked */
-		private IntPtr jit_data;
 		private IntPtr runtime_thread_info;
 		/* current System.Runtime.Remoting.Contexts.Context instance
 		   keep as an object to avoid triggering its class constructor when not needed */
@@ -78,14 +77,9 @@ namespace System.Threading {
 		internal int _serialized_principal_version;
 		private IntPtr appdomain_refs;
 		private int interruption_requested;
-		private IntPtr suspend_event;
-		private IntPtr suspended_event;
-		private IntPtr resume_event;
 		private IntPtr synch_cs;
 		internal bool threadpool_thread;
-		private bool thread_dump_requested;
 		private bool thread_interrupt_requested;
-		private IntPtr end_stack;
 		/* These are used from managed code */
 		internal int stack_size;
 		internal byte apartment_state;
@@ -95,14 +89,12 @@ namespace System.Threading {
 		private IntPtr manage_callback;
 		private IntPtr interrupt_on_stop;
 		private IntPtr flags;
-		private IntPtr android_tid;
 		private IntPtr thread_pinning_ref;
-		private int ignore_next_signal;
+		private IntPtr async_invoke_method;
 		/* 
 		 * These fields are used to avoid having to increment corlib versions
 		 * when a new field is added to the unmanaged MonoThread structure.
 		 */
-		private IntPtr unused0;
 		private IntPtr unused1;
 		private IntPtr unused2;
 		#endregion
@@ -118,19 +110,12 @@ namespace System.Threading {
 		}
 	}
 
-	[ClassInterface (ClassInterfaceType.None)]
-	[ComVisible (true)]
-	[ComDefaultInterface (typeof (_Thread))]
 	[StructLayout (LayoutKind.Sequential)]
-#if MOBILE
-	public sealed class Thread : CriticalFinalizerObject {
-#else
-	public sealed class Thread : CriticalFinalizerObject, _Thread {
-#endif
+	public sealed partial class Thread {
 #pragma warning disable 414		
 		#region Sync with metadata/object-internals.h
 		private InternalThread internal_thread;
-		object start_obj;
+		object m_ThreadStartArg;
 		private ExecutionContext ec_to_set;
 		#endregion
 #pragma warning restore 414
@@ -142,10 +127,8 @@ namespace System.Threading {
 		CultureInfo current_culture;
 		CultureInfo current_ui_culture;
 
-		// the name of local_slots, current_thread and _ec is
+		// the name of current_thread and _ec is
 		// important because they are used by the runtime.
-		[ThreadStatic]
-		static object[] local_slots;
 
 		[ThreadStatic]
 		static Thread current_thread;
@@ -156,13 +139,11 @@ namespace System.Threading {
 		[ThreadStatic]
 		static ExecutionContext _ec;
 
-		static NamedDataSlot namedDataSlot;		
-
 		static internal CultureInfo default_culture;
 		static internal CultureInfo default_ui_culture;
 
 		// can be both a ThreadStart and a ParameterizedThreadStart
-		private MulticastDelegate threadstart;
+		private MulticastDelegate m_Delegate;
 		//private string thread_name=null;
 
 		[MethodImplAttribute(MethodImplOptions.InternalCall)]
@@ -312,12 +293,6 @@ namespace System.Threading {
 		[MethodImplAttribute(MethodImplOptions.InternalCall)]
 		private extern static InternalThread CurrentInternalThread_internal();
 
-		[MethodImplAttribute(MethodImplOptions.InternalCall)]
-		internal extern static uint AllocTlsData (Type type);
-
-		[MethodImplAttribute(MethodImplOptions.InternalCall)]
-		internal extern static void DestroyTlsData (uint offset);
-
 		public static Thread CurrentThread {
 			[ReliabilityContract (Consistency.WillNotCorruptState, Cer.MayFail)]
 			get {
@@ -332,64 +307,7 @@ namespace System.Threading {
 				return (int)(CurrentThread.internal_thread.thread_id);
 			}
 		}
-		
-		static NamedDataSlot NamedDataSlot {
-			get {
-				if (namedDataSlot == null)
-					Interlocked.CompareExchange (ref namedDataSlot, new NamedDataSlot (), null);
 
-				return namedDataSlot;
-			}
-		}
-		
-		public static LocalDataStoreSlot AllocateNamedDataSlot (string name)
-		{
-			return NamedDataSlot.Allocate (name);
-		}
-
-		public static void FreeNamedDataSlot (string name)
-		{
-			NamedDataSlot.Free (name);
-		}
-
-		public static LocalDataStoreSlot AllocateDataSlot ()
-		{
-			return new LocalDataStoreSlot (true);
-		}
-
-		public static object GetData (LocalDataStoreSlot slot) {
-			object[] slots = local_slots;
-			if (slot == null)
-				throw new ArgumentNullException ("slot");
-			if (slots != null && slot.slot < slots.Length)
-				return slots [slot.slot];
-			return null;
-		}
-
-		public static void SetData (LocalDataStoreSlot slot, object data) {
-			object[] slots = local_slots;
-			if (slot == null)
-				throw new ArgumentNullException ("slot");
-			if (slots == null) {
-				slots = new object [slot.slot + 2];
-				local_slots = slots;
-			} else if (slot.slot >= slots.Length) {
-				object[] nslots = new object [slot.slot + 2];
-				slots.CopyTo (nslots, 0);
-				slots = nslots;
-				local_slots = slots;
-			}
-			slots [slot.slot] = data;
-		}
-
-		[MethodImplAttribute (MethodImplOptions.InternalCall)]
-		internal extern static void FreeLocalSlotValues (int slot, bool thread_local);
-
-		public static LocalDataStoreSlot GetNamedDataSlot(string name)
-	 	{
-	 		return NamedDataSlot.Get (name);
-		}
-		
 		public static AppDomain GetDomain() {
 			return AppDomain.CurrentDomain;
 		}
@@ -440,7 +358,7 @@ namespace System.Threading {
 			if(start==null) {
 				throw new ArgumentNullException("Null ThreadStart");
 			}
-			threadstart=start;
+			m_Delegate=start;
 		}
 
 		private Thread (InternalThread it) {
@@ -622,7 +540,13 @@ namespace System.Threading {
 		}
 
 		[MethodImplAttribute(MethodImplOptions.InternalCall)]
-		internal extern object GetAbortExceptionState ();
+		extern object GetAbortExceptionState ();
+
+		internal object AbortReason {
+			get {
+				return GetAbortExceptionState ();
+			}
+		}
 
 		[MethodImplAttribute (MethodImplOptions.InternalCall)]
 		private extern static void Interrupt_internal (InternalThread thread);
@@ -692,10 +616,10 @@ namespace System.Threading {
 		{
 			current_thread = this;
 
-			if (threadstart is ThreadStart) {
-				((ThreadStart) threadstart) ();
+			if (m_Delegate is ThreadStart) {
+				((ThreadStart) m_Delegate) ();
 			} else {
-				((ParameterizedThreadStart) threadstart) (start_obj);
+				((ParameterizedThreadStart) m_Delegate) (m_ThreadStartArg);
 			}
 		}
 
@@ -819,11 +743,8 @@ namespace System.Threading {
 		[MethodImplAttribute (MethodImplOptions.InternalCall)]
 		extern static int SystemMaxStackStize ();
 
-		static int CheckStackSize (int maxStackSize)
+		static int GetProcessDefaultStackSize (int maxStackSize)
 		{
-			if (maxStackSize < 0)
-				throw new ArgumentOutOfRangeException ("less than zero", "maxStackSize");
-
 			if (maxStackSize < 131072) // make sure stack is at least 128k big
 				return 131072;
 
@@ -836,30 +757,10 @@ namespace System.Threading {
 			return Math.Min (maxStackSize, SystemMaxStackStize ());
 		}
 
-		public Thread (ThreadStart start, int maxStackSize)
+		void SetStart (MulticastDelegate start, int maxStackSize)
 		{
-			if (start == null)
-				throw new ArgumentNullException ("start");
-
-			threadstart = start;
-			Internal.stack_size = CheckStackSize (maxStackSize);;
-		}
-
-		public Thread (ParameterizedThreadStart start)
-		{
-			if (start == null)
-				throw new ArgumentNullException ("start");
-
-			threadstart = start;
-		}
-
-		public Thread (ParameterizedThreadStart start, int maxStackSize)
-		{
-			if (start == null)
-				throw new ArgumentNullException ("start");
-
-			threadstart = start;
-			Internal.stack_size = CheckStackSize (maxStackSize);
+			m_Delegate = start;
+			Internal.stack_size = maxStackSize;
 		}
 
 		public ExecutionContext ExecutionContext {
@@ -878,26 +779,6 @@ namespace System.Threading {
 			get {
 				return _ec != null;
 			}
-		}
-
-		internal void BranchExecutionContext (out ExecutionContext.Switcher switcher)
-		{
-			if (_ec == null) {
-				switcher =  new ExecutionContext.Switcher ();
-			} else {
-				switcher = new ExecutionContext.Switcher (_ec);
-				_ec.CopyOnWrite = true;
-			}
-		}
-
-		internal void RestoreExecutionContext (ref ExecutionContext.Switcher switcher)
-		{
-			if (switcher.IsEmpty) {
-				_ec = null;
-				return;
-			}
-
-			switcher.Restore (_ec);
 		}
 
 		public int ManagedThreadId {
@@ -964,65 +845,13 @@ namespace System.Threading {
 
 		public void Start (object parameter)
 		{
-			start_obj = parameter;
+			m_ThreadStartArg = parameter;
 			Start ();
 		}
 
-		// NOTE: This method doesn't show in the class library status page because
-		// it cannot be "found" with the StrongNameIdentityPermission for ECMA key.
-		// But it's there!
-		[SecurityPermission (SecurityAction.LinkDemand, UnmanagedCode = true)]
-		[StrongNameIdentityPermission (SecurityAction.LinkDemand, PublicKey="00000000000000000400000000000000")]
-		[Obsolete ("see CompressedStack class")]
-		public CompressedStack GetCompressedStack ()
+		internal CultureInfo GetCurrentUICultureNoAppX ()
 		{
-#if MOBILE
-			throw new NotSupportedException ();
-#else			
-			// Note: returns null if no CompressedStack has been set.
-			// However CompressedStack.GetCompressedStack returns an 
-			// (empty?) CompressedStack instance.
-			CompressedStack cs = ExecutionContext.SecurityContext.CompressedStack;
-			return ((cs == null) || cs.IsEmpty ()) ? null : cs.CreateCopy ();
-#endif
+			return CultureInfo.CurrentUICulture;
 		}
-
-		// NOTE: This method doesn't show in the class library status page because
-		// it cannot be "found" with the StrongNameIdentityPermission for ECMA key.
-		// But it's there!
-		[SecurityPermission (SecurityAction.LinkDemand, UnmanagedCode = true)]
-		[StrongNameIdentityPermission (SecurityAction.LinkDemand, PublicKey="00000000000000000400000000000000")]
-		[Obsolete ("see CompressedStack class")]
-		public void SetCompressedStack (CompressedStack stack)
-		{
-#if MOBILE
-			throw new NotSupportedException ();
-#else
-			ExecutionContext.SecurityContext.CompressedStack = stack;
-#endif
-		}
-
-#if !MOBILE
-		void _Thread.GetIDsOfNames ([In] ref Guid riid, IntPtr rgszNames, uint cNames, uint lcid, IntPtr rgDispId)
-		{
-			throw new NotImplementedException ();
-		}
-
-		void _Thread.GetTypeInfo (uint iTInfo, uint lcid, IntPtr ppTInfo)
-		{
-			throw new NotImplementedException ();
-		}
-
-		void _Thread.GetTypeInfoCount (out uint pcTInfo)
-		{
-			throw new NotImplementedException ();
-		}
-
-		void _Thread.Invoke (uint dispIdMember, [In] ref Guid riid, uint lcid, short wFlags, IntPtr pDispParams,
-			IntPtr pVarResult, IntPtr pExcepInfo, IntPtr puArgErr)
-		{
-			throw new NotImplementedException ();
-		}
-#endif
 	}
 }

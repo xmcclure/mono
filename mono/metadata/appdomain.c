@@ -73,12 +73,12 @@
  * of classes the runtime knows about, changing icall signature or
  * semantics etc), increment this variable. Also increment the
  * pair of this variable in mscorlib in:
- *       mcs/class/mscorlib/System/Environment.cs
+ *       mcs/class/corlib/System/Environment.cs
  *
  * Changes which are already detected at runtime, like the addition
  * of icalls, do not require an increment.
  */
-#define MONO_CORLIB_VERSION 117
+#define MONO_CORLIB_VERSION 132
 
 typedef struct
 {
@@ -89,8 +89,6 @@ typedef struct
 } RuntimeConfig;
 
 mono_mutex_t mono_delegate_section;
-
-mono_mutex_t mono_strtod_mutex;
 
 static gunichar2 process_guid [36];
 static gboolean process_guid_set = FALSE;
@@ -163,11 +161,22 @@ create_domain_objects (MonoDomain *domain)
 {
 	MonoDomain *old_domain = mono_domain_get ();
 	MonoString *arg;
+	MonoVTable *string_vt;
+	MonoClassField *string_empty_fld;
 
 	if (domain != old_domain) {
 		mono_thread_push_appdomain_ref (domain);
 		mono_domain_set_internal_with_options (domain, FALSE);
 	}
+
+	/*
+	 * Initialize String.Empty. This enables the removal of
+	 * the static cctor of the String class.
+	 */
+	string_vt = mono_class_vtable (domain, mono_defaults.string_class);
+	string_empty_fld = mono_class_get_field_from_name (mono_defaults.string_class, "Empty");
+	g_assert (string_empty_fld);
+	mono_field_static_set_value (string_vt, string_empty_fld, mono_string_intern (mono_string_new (domain, "")));
 
 	/*
 	 * Create an instance early since we can't do it when there is no memory.
@@ -247,12 +256,8 @@ mono_runtime_init (MonoDomain *domain, MonoThreadStartCB start_cb,
 	domain->setup = setup;
 
 	mono_mutex_init_recursive (&mono_delegate_section);
-
-	mono_mutex_init_recursive (&mono_strtod_mutex);
 	
 	mono_thread_attach (domain);
-	mono_context_init (domain);
-	mono_context_set (domain->default_context);
 
 	mono_type_initialization_init ();
 
@@ -261,6 +266,10 @@ mono_runtime_init (MonoDomain *domain, MonoThreadStartCB start_cb,
 
 	/* GC init has to happen after thread init */
 	mono_gc_init ();
+
+	/* contexts use GC handles, so they must be initialized after the GC */
+	mono_context_init (domain);
+	mono_context_set (domain->default_context);
 
 #ifndef DISABLE_SOCKETS
 	mono_network_init ();
@@ -329,6 +338,7 @@ mono_context_init (MonoDomain *domain)
 	context = (MonoAppContext *) mono_object_new_pinned (domain, class);
 	context->domain_id = domain->domain_id;
 	context->context_id = 0;
+	ves_icall_System_Runtime_Remoting_Contexts_Context_RegisterContext (context);
 	domain->default_context = context;
 }
 
@@ -610,12 +620,11 @@ ves_icall_System_AppDomain_GetData (MonoAppDomain *ad, MonoString *name)
 	MonoObject *o;
 	char *str;
 
+	MONO_CHECK_ARG_NULL (name, NULL);
+
 	g_assert (ad != NULL);
 	add = ad->data;
 	g_assert (add != NULL);
-
-	if (name == NULL)
-		mono_raise_exception (mono_get_exception_argument_null ("name"));
 
 	str = mono_string_to_utf8 (name);
 
@@ -656,12 +665,11 @@ ves_icall_System_AppDomain_SetData (MonoAppDomain *ad, MonoString *name, MonoObj
 {
 	MonoDomain *add;
 
+	MONO_CHECK_ARG_NULL (name,);
+
 	g_assert (ad != NULL);
 	add = ad->data;
 	g_assert (add != NULL);
-
-	if (name == NULL)
-		mono_raise_exception (mono_get_exception_argument_null ("name"));
 
 	mono_domain_lock (add);
 
@@ -837,7 +845,7 @@ MonoAppDomain *
 ves_icall_System_AppDomain_createDomain (MonoString *friendly_name, MonoAppDomainSetup *setup)
 {
 #ifdef DISABLE_APPDOMAINS
-	mono_raise_exception (mono_get_exception_not_supported ("AppDomain creation is not supported on this runtime."));
+	mono_set_pending_exception (mono_get_exception_not_supported ("AppDomain creation is not supported on this runtime."));
 	return NULL;
 #else
 	char *fname = mono_string_to_utf8 (friendly_name);
@@ -1881,14 +1889,15 @@ ves_icall_System_Reflection_Assembly_LoadFrom (MonoString *fname, MonoBoolean re
 
 	if (fname == NULL) {
 		MonoException *exc = mono_get_exception_argument_null ("assemblyFile");
-		mono_raise_exception (exc);
+		mono_set_pending_exception (exc);
+		return NULL;
 	}
 		
 	name = filename = mono_string_to_utf8 (fname);
 	
 	ass = mono_assembly_open_full (filename, &status, refOnly);
 	
-	if (!ass){
+	if (!ass) {
 		MonoException *exc;
 
 		if (status == MONO_IMAGE_IMAGE_INVALID)
@@ -1896,7 +1905,8 @@ ves_icall_System_Reflection_Assembly_LoadFrom (MonoString *fname, MonoBoolean re
 		else
 			exc = mono_get_exception_file_not_found2 (NULL, fname);
 		g_free (name);
-		mono_raise_exception (exc);
+		mono_set_pending_exception (exc);
+		return NULL;
 	}
 
 	g_free (name);
@@ -1918,7 +1928,7 @@ ves_icall_System_AppDomain_LoadAssemblyRaw (MonoAppDomain *ad,
 	MonoImage *image = mono_image_open_from_data_full (mono_array_addr (raw_assembly, gchar, 0), raw_assembly_len, TRUE, NULL, refonly);
 
 	if (!image) {
-		mono_raise_exception (mono_get_exception_bad_image_format (""));
+		mono_set_pending_exception (mono_get_exception_bad_image_format (""));
 		return NULL;
 	}
 
@@ -1930,7 +1940,7 @@ ves_icall_System_AppDomain_LoadAssemblyRaw (MonoAppDomain *ad,
 
 	if (!ass) {
 		mono_image_close (image);
-		mono_raise_exception (mono_get_exception_bad_image_format (""));
+		mono_set_pending_exception (mono_get_exception_bad_image_format (""));
 		return NULL; 
 	}
 
@@ -1991,11 +2001,12 @@ ves_icall_System_AppDomain_InternalUnload (gint32 domain_id)
 
 	if (NULL == domain) {
 		MonoException *exc = mono_get_exception_execution_engine ("Failed to unload domain, domain id not found");
-		mono_raise_exception (exc);
+		mono_set_pending_exception (exc);
+		return;
 	}
 	
 	if (domain == mono_get_root_domain ()) {
-		mono_raise_exception (mono_get_exception_cannot_unload_appdomain ("The default appdomain can not be unloaded."));
+		mono_set_pending_exception (mono_get_exception_cannot_unload_appdomain ("The default appdomain can not be unloaded."));
 		return;
 	}
 
@@ -2057,8 +2068,10 @@ ves_icall_System_AppDomain_InternalSetDomain (MonoAppDomain *ad)
 {
 	MonoDomain *old_domain = mono_domain_get();
 
-	if (!mono_domain_set (ad->data, FALSE))
-		mono_raise_exception (mono_get_exception_appdomain_unloaded ());
+	if (!mono_domain_set (ad->data, FALSE)) {
+		mono_set_pending_exception (mono_get_exception_appdomain_unloaded ());
+		return NULL;
+	}
 
 	return old_domain->domain;
 }
@@ -2069,8 +2082,10 @@ ves_icall_System_AppDomain_InternalSetDomainByID (gint32 domainid)
 	MonoDomain *current_domain = mono_domain_get ();
 	MonoDomain *domain = mono_domain_get_by_id (domainid);
 
-	if (!domain || !mono_domain_set (domain, FALSE))	
-		mono_raise_exception (mono_get_exception_appdomain_unloaded ());
+	if (!domain || !mono_domain_set (domain, FALSE)) {
+		mono_set_pending_exception (mono_get_exception_appdomain_unloaded ());
+		return NULL;
+	}
 
 	return current_domain->domain;
 }
@@ -2086,12 +2101,14 @@ ves_icall_System_AppDomain_InternalPushDomainRefByID (gint32 domain_id)
 {
 	MonoDomain *domain = mono_domain_get_by_id (domain_id);
 
-	if (!domain)
+	if (!domain) {
 		/* 
 		 * Raise an exception to prevent the managed code from executing a pop
 		 * later.
 		 */
-		mono_raise_exception (mono_get_exception_appdomain_unloaded ());
+		mono_set_pending_exception (mono_get_exception_appdomain_unloaded ());
+		return;
+	}
 
 	mono_thread_push_appdomain_ref (domain);
 }
@@ -2342,6 +2359,18 @@ mono_domain_unload (MonoDomain *domain)
 		mono_raise_exception ((MonoException*)exc);
 }
 
+static guint32
+guarded_wait (HANDLE handle, guint32 timeout, gboolean alertable)
+{
+	guint32 result;
+
+	MONO_PREPARE_BLOCKING
+	result = WaitForSingleObjectEx (handle, timeout, alertable);
+	MONO_FINISH_BLOCKING
+
+	return result;
+}
+
 /*
  * mono_domain_unload:
  * @domain: The domain to unload
@@ -2428,7 +2457,7 @@ mono_domain_try_unload (MonoDomain *domain, MonoObject **exc)
 	g_free (name);
 
 	/* Wait for the thread */	
-	while (!thread_data->done && WaitForSingleObjectEx (thread_handle, INFINITE, TRUE) == WAIT_IO_COMPLETION) {
+	while (!thread_data->done && guarded_wait (thread_handle, INFINITE, TRUE) == WAIT_IO_COMPLETION) {
 		if (mono_thread_internal_has_appdomain_ref (mono_thread_internal_current (), domain) && (mono_thread_interruption_requested ())) {
 			/* The unload thread tries to abort us */
 			/* The icall wrapper will execute the abort */

@@ -34,7 +34,7 @@ else
 build_profiles = 
 
 if INSTALL_4_5
-build_profiles += net_4_0 net_4_5 xbuild_12 xbuild_14
+build_profiles += binary_reference_assemblies net_4_5 xbuild_12 xbuild_14
 al_profile = net_4_5
 endif
 
@@ -79,11 +79,9 @@ install-data:
 uninstall:
 	cd $(mcs_topdir) && $(MAKE) NO_DIR_CHECK=1 PROFILES='$(build_profiles)' RUNTIME_HAS_CONSISTENT_GACDIR=yes prefix=$(prefix) uninstall-profiles
 
-## mono --wapi=semdel will probably not delete the semaphore if someone is crazy enough to do a 'make -j distclean' :-)
 clean-local:
 	cd $(mcs_topdir) && $(MAKE) NO_DIR_CHECK=1 PROFILES='$(build_profiles)' clean-profiles
-	-./mono-wrapper --wapi=semdel
-	-rm -fr $(etctmp) $(tmpinst) .wapi
+	-rm -fr $(etctmp) $(tmpinst)
 
 endif BUILD_MCS
 
@@ -110,11 +108,11 @@ endif
 
 # Compile all assemblies with the verifier turned on. Code must be valid but not verifiable.
 # TODO it would be nice to split assemblies without unsafe code to use the verifier with verifiable mode.
-# Skip net 4.0 assemblies because they contain metadata only
+# Skip binary_reference_assemblies because they contain metadata only
 mcs-compileall: mono-wrapper etc/mono/config
 	save_MONO_PATH=$$MONO_PATH; mcs_topdir=`cd $(mcs_topdir) && $(cur_dir_cmd)`; ok=:; \
 	for profile in $(test_profiles); do \
-	  if [ "net_4_0" = "$$profile" ]; then \
+	  if [ "binary_reference_assemblies" = "$$profile" ]; then \
           continue; \
       fi; \
 	  if [ "xbuild_12" = "$$profile" ]; then \

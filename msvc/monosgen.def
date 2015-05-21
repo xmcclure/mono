@@ -201,6 +201,7 @@ mono_debug_find_method
 mono_debug_free_method_jit_info
 mono_debug_free_source_location
 mono_debug_il_offset_from_address
+mono_debug_image_has_debug_info
 mono_debug_init
 mono_debug_lookup_locals
 mono_debug_lookup_method
@@ -223,6 +224,9 @@ mono_debugger_agent_register_transport
 mono_debugger_insert_breakpoint
 mono_debugger_method_has_breakpoint
 mono_debugger_run_finally
+mono_decimal_addsub
+mono_decimal_divide
+mono_decimal_from_number
 mono_declsec_flags_from_assembly
 mono_declsec_flags_from_class
 mono_declsec_flags_from_method
@@ -325,15 +329,11 @@ mono_g_hash_table_replace
 mono_g_hash_table_size
 mono_gc_collect
 mono_gc_collection_count
-mono_gc_enable_events
 mono_gc_get_generation
 mono_gc_get_heap_size
 mono_gc_get_used_size
 mono_gc_invoke_finalizers
-mono_gc_is_finalizer_thread
-mono_gc_make_root_descr_user
 mono_gc_max_generation
-mono_gc_out_of_memory
 mono_gc_reference_queue_add
 mono_gc_reference_queue_free
 mono_gc_reference_queue_new
@@ -634,6 +634,7 @@ mono_mlist_set_next
 mono_module_file_get_object
 mono_module_get_object
 mono_monitor_enter
+mono_monitor_enter_v4
 mono_monitor_exit
 mono_monitor_try_enter
 mono_mprotect
@@ -648,7 +649,6 @@ mono_object_get_domain
 mono_object_get_size
 mono_object_get_virtual_method
 mono_object_hash
-mono_object_is_alive
 mono_object_isinst
 mono_object_isinst_mbyref
 mono_object_isinst_with_cache
@@ -759,6 +759,7 @@ mono_runtime_resource_set_callback
 mono_runtime_run_main
 mono_runtime_set_main_args
 mono_runtime_set_shutting_down
+mono_save_seq_point_info
 mono_security_core_clr_get_options
 mono_security_core_clr_require_elevated_permissions
 mono_security_core_clr_set_options

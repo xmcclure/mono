@@ -70,16 +70,12 @@ namespace System {
 			IntPtr data = monotouch_timezone_get_data (name, ref size);
 			if (size <= 0) {
 				if (throw_on_error)
-					throw new TimeZoneNotFoundException ();
+					throw new TimeZoneNotFoundException (name);
 				return null;
 			}
 
 			unsafe {
-				var s = new UnmanagedMemoryStream ((byte*) data, size);
-				s.Closed += delegate {
-					Marshal.FreeHGlobal (data);
-				};
-				return s;
+				return new HGlobalUnmanagedMemoryStream ((byte*) data, size, data);
 			}
 		}
 	}

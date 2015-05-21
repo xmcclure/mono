@@ -45,8 +45,10 @@ ves_icall_System_String_InternalIntern (MonoString *str)
 	MonoString *res;
 
 	res = mono_string_intern(str);
-	if (!res)
-		mono_raise_exception (mono_domain_get ()->out_of_memory_ex);
+	if (!res) {
+		mono_set_pending_exception (mono_domain_get ()->out_of_memory_ex);
+		return NULL;
+	}
 	return res;
 }
 
@@ -62,11 +64,5 @@ ves_icall_System_String_GetLOSLimit (void)
 	int limit = mono_gc_get_los_limit ();
 
 	return (limit - 2 - G_STRUCT_OFFSET (MonoString, chars)) / 2;
-}
-
-void
-ves_icall_System_String_InternalSetLength (MonoString *str, gint32 new_length)
-{
-	mono_gc_set_string_length (str, new_length);
 }
 

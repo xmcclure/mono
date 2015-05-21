@@ -983,6 +983,9 @@ namespace Mono.CSharp {
 					if (!TypeSpecComparer.Override.IsEqual (candidate.Parameters, method.Parameters))
 						continue;
 
+					if (!AParametersCollection.HasSameParameterDefaults (candidate.Parameters, method.Parameters))
+						continue;
+
 					if (!copied) {
 						copied = true;
 						members = new List<MemberSpec> (members);
@@ -1023,6 +1026,11 @@ namespace Mono.CSharp {
 		protected void Error_NullShortCircuitInsideExpressionTree (ResolveContext rc)
 		{
 			rc.Report.Error (8072, loc, "An expression tree cannot contain a null propagating operator");
+		}
+
+		protected void Error_NullPropagatingLValue (ResolveContext rc)
+		{
+			rc.Report.Error (-1030, loc, "The left-hand side of an assignment cannot contain a null propagating operator");
 		}
 
 		public virtual void FlowAnalysis (FlowAnalysisContext fc)
@@ -2770,6 +2778,11 @@ namespace Mono.CSharp {
 			return mc.LookupNamespaceOrType (Name, Arity, LookupMode.Probing, loc) != null;
 		}
 
+		public bool IsPossibleType (IMemberContext mc)
+		{
+			return mc.LookupNamespaceOrType (Name, Arity, LookupMode.Probing, loc) is TypeExpr;
+		}
+
 		public override Expression LookupNameExpression (ResolveContext rc, MemberLookupRestrictions restrictions)
 		{
 			int lookup_arity = Arity;
@@ -2851,8 +2864,16 @@ namespace Mono.CSharp {
 
 								pe.Getter = pe.PropertyInfo.Get;
 							} else {
-								if (!pe.PropertyInfo.HasSet || !pe.PropertyInfo.Set.IsAccessible (rc))
+								if (rc.HasSet (ResolveContext.Options.ConstructorScope) && pe.IsAutoPropertyAccess &&
+									pe.PropertyInfo.DeclaringType == rc.CurrentType && pe.IsStatic == rc.IsStatic) {
+									var p = (Property) pe.PropertyInfo.MemberDefinition;
+									return new FieldExpr (p.BackingField, loc);
+								}
+
+								if (!pe.PropertyInfo.HasSet || !pe.PropertyInfo.Set.IsAccessible (rc)) {
+									variable_found = true;
 									break;
+								}
 
 								pe.Setter = pe.PropertyInfo.Set;
 							}
@@ -4714,6 +4735,9 @@ namespace Mono.CSharp {
 				var cand_param = candidate_pd.FixedParameters [j];
 				var best_param = best_pd.FixedParameters [j];
 
+				if (cand_param.HasDefaultValue != best_param.HasDefaultValue)
+					return cand_param.HasDefaultValue;
+
 				if (candidate_pd.Count == best_pd.Count) {
 					//
 					// LAMESPEC:
@@ -4721,8 +4745,6 @@ namespace Mono.CSharp {
 					// void Foo (int i = 0) is better than void Foo (params int[]) for Foo ()
 					// void Foo (string[] s, string value = null) is better than Foo (string s, params string[]) for Foo (null) or Foo ()
 					//
-					if (cand_param.HasDefaultValue != best_param.HasDefaultValue)
-						return cand_param.HasDefaultValue;
 
 					if (cand_param.HasDefaultValue) {
 						++j;
@@ -4736,8 +4758,7 @@ namespace Mono.CSharp {
 					// void Foo (string s, int i = 0) <-> Foo (string s, byte i = 0)
 					// void Foo (string s, params int[]) <-> Foo (string s, params byte[])
 					//
-					if (cand_param.HasDefaultValue && best_param.HasDefaultValue)
-						return false;
+					return false;
 				}
 
 				break;
@@ -5194,7 +5215,7 @@ namespace Mono.CSharp {
 			//
 			// LAMESPEC: No idea what the exact rules are for System.Reflection.Missing.Value instead of null
 			//
-			if (e == EmptyExpression.MissingValue && ptype.BuiltinType == BuiltinTypeSpec.Type.Object || ptype.BuiltinType == BuiltinTypeSpec.Type.Dynamic) {
+			if (e == EmptyExpression.MissingValue && (ptype.BuiltinType == BuiltinTypeSpec.Type.Object || ptype.BuiltinType == BuiltinTypeSpec.Type.Dynamic)) {
 				e = new MemberAccess (new MemberAccess (new MemberAccess (
 					new QualifiedAliasMember (QualifiedAliasMember.GlobalAlias, "System", loc), "Reflection", loc), "Missing", loc), "Value", loc);
 			} else if (e is Constant) {
@@ -5333,6 +5354,7 @@ namespace Mono.CSharp {
 			Arguments candidate_args = args;
 			bool error_mode = false;
 			MemberSpec invocable_member = null;
+			int applicable_candidates = 0;
 
 			while (true) {
 				best_candidate = null;
@@ -5405,6 +5427,7 @@ namespace Mono.CSharp {
 							if (candidate_rate < 0)
 								return null;
 
+							applicable_candidates = 1;
 							if ((restrictions & Restrictions.GetEnumeratorLookup) != 0 && candidate_args.Count != 0) {
 								// Only parameterless methods are considered
 							} else {
@@ -5427,6 +5450,7 @@ namespace Mono.CSharp {
 									continue;
 							}
 
+							++applicable_candidates;
 							bool is_better;
 							if (best_candidate.DeclaringType.IsInterface && member.DeclaringType.ImplementsInterface (best_candidate.DeclaringType, false)) {
 								//
@@ -5532,7 +5556,7 @@ namespace Mono.CSharp {
 				//
 				// Check type constraints only when explicit type arguments are used
 				//
-				if (best_candidate.IsGeneric && type_arguments != null) {
+				if (applicable_candidates == 1 && best_candidate.IsGeneric && type_arguments != null) {
 					MethodSpec bc = best_candidate as MethodSpec;
 					if (bc != null && TypeParameterSpec.HasAnyTypeParameterConstrained (bc.GenericDefinition)) {
 						ConstraintChecker cc = new ConstraintChecker (rc);
@@ -6362,7 +6386,7 @@ namespace Mono.CSharp {
 		public override Expression DoResolveLValue (ResolveContext ec, Expression right_side)
 		{
 			if (ConditionalAccess)
-				throw new NotSupportedException ("null propagating operator assignment");
+				Error_NullPropagatingLValue (ec);
 
 			if (spec is FixedFieldSpec) {
 				// It could be much better error message but we want to be error compatible
@@ -6423,14 +6447,37 @@ namespace Mono.CSharp {
 					return;
 				}
 
-				if (TypeSpec.IsValueType (InstanceExpression.Type) && InstanceExpression is VariableReference)
+				if (TypeSpec.IsValueType (InstanceExpression.Type)) {
+					var le = SkipLeftValueTypeAccess (InstanceExpression);
+					if (le != null)
+						le.FlowAnalysis (fc);
+
 					return;
+				}
 			}
 
 			base.FlowAnalysis (fc);
 
 			if (conditional_access_receiver)
 				fc.ConditionalAccessEnd ();
+		}
+
+		static Expression SkipLeftValueTypeAccess (Expression expr)
+		{
+			if (!TypeSpec.IsValueType (expr.Type))
+				return expr;
+
+			if (expr is VariableReference)
+				return null;
+
+			var fe = expr as FieldExpr;
+			if (fe == null)
+				return expr;
+
+			if (fe.InstanceExpression == null)
+				return expr;
+
+			return SkipLeftValueTypeAccess (fe.InstanceExpression);
 		}
 
 		public override int GetHashCode ()
@@ -7098,7 +7145,7 @@ namespace Mono.CSharp {
 		public override Expression DoResolveLValue (ResolveContext rc, Expression right_side)
 		{
 			if (ConditionalAccess)
-				throw new NotSupportedException ("null propagating operator assignment");
+				Error_NullPropagatingLValue (rc);
 
 			if (right_side == EmptyExpression.OutAccess) {
 				// TODO: best_candidate can be null at this point
@@ -7343,6 +7390,9 @@ namespace Mono.CSharp {
 				return null;
 			}
 
+			if (ConditionalAccess)
+				Error_NullPropagatingLValue (ec);
+
 			op = CandidateToBaseOverride (ec, op);
 			return this;
 		}
@@ -7581,6 +7631,7 @@ namespace Mono.CSharp {
 				ec.Report.Error (815, loc,
 					"An implicitly typed local variable declaration cannot be initialized with `{0}'",
 					type.GetSignatureForError ());
+				type = InternalType.ErrorType;
 				return false;
 			}
 

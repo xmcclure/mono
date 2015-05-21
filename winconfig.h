@@ -16,9 +16,9 @@
 #error Unknown architecture
 #endif
 
-#if _WIN32_WINNT < 0x0502
-#error "Mono requires WinXP SP2 or later"
-#endif /* _WIN32_WINNT < 0x0502 */
+#if _WIN32_WINNT < 0x0600
+#error "Mono requires Windows Vista or later"
+#endif /* _WIN32_WINNT < 0x0600 */
 
 /*
  * Features that are not required in the Windows port
@@ -167,18 +167,6 @@
 /* Define to 1 if you have the `fstatvfs' function. */
 /* #undef HAVE_FSTATVFS */
 
-/* Have GC_enable */
-/* #define HAVE_GC_ENABLE 1 */
-
-/* Have GC_gcj_malloc */
-/* #define HAVE_GC_GCJ_MALLOC 1 */
-
-/* Define to 1 if you have the <gc/gc.h> header file. */
-/* #undef HAVE_GC_GC_H */
-
-/* Have gc.h */
-/* #define HAVE_GC_H 1 */
-
 /* Define to 1 if you have the `getaddrinfo' function. */
 #define HAVE_GETADDRINFO 1
 
@@ -231,7 +219,7 @@
 /* #undef HAVE_INET_ATON */
 
 /* Define to 1 if you have the `inet_pton' function. */
-/* #undef HAVE_INET_PTON */
+#define HAVE_INET_PTON 1
 
 /* Define to 1 if you have the <inttypes.h> header file. */
 #define HAVE_INTTYPES_H 1
@@ -642,5 +630,5 @@
 /* #undef USE_MONO_MUTEX */
 
 /* Version number of package */
-#define VERSION "3.12.1"
+#define VERSION "4.1.0"
 #endif

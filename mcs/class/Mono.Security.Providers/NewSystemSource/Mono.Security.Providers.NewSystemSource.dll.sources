@@ -1,6 +1,6 @@
 ./Properties/AssemblyInfo.cs
-../common/Consts.cs
 ../../../build/common/SR.cs
+../../../build/common/Consts.cs
 ../../../build/common/Locale.cs
 
 ../../../../external/referencesource/System/net/System/Net/Logging.cs

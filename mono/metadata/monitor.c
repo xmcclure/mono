@@ -153,7 +153,19 @@ mono_monitor_cleanup (void)
 	for (mon = monitor_freelist; mon; mon = mon->data)
 		mon->wait_list = (gpointer)-1;
 
-	/* FIXME: This still crashes with sgen (async_read.exe) */
+	/*
+	 * FIXME: This still crashes with sgen (async_read.exe)
+	 *
+	 * In mini_cleanup() we first call mono_runtime_cleanup(), which calls
+	 * mono_monitor_cleanup(), which is supposed to free all monitor memory.
+	 *
+	 * Later in mini_cleanup(), we call mono_domain_free(), which calls
+	 * mono_gc_clear_domain(), which frees all weak links associated with objects.
+	 * Those weak links reside in the monitor structures, which we've freed earlier.
+	 *
+	 * Unless we fix this dependency in the shutdown sequence this code has to remain
+	 * disabled, or at least the call to g_free().
+	 */
 	/*
 	for (marray = monitor_allocated; marray; marray = next) {
 		int i;
@@ -662,7 +674,9 @@ retry_contended:
 	 * We pass TRUE instead of allow_interruption since we have to check for the
 	 * StopRequested case below.
 	 */
+	MONO_PREPARE_BLOCKING
 	ret = WaitForSingleObjectEx (mon->entry_sem, waitms, TRUE);
+	MONO_FINISH_BLOCKING
 
 	mono_thread_clr_state (thread, ThreadState_WaitSleepJoin);
 	
@@ -957,7 +971,7 @@ ves_icall_System_Threading_Monitor_Monitor_pulse (MonoObject *obj)
 		LockWord lw;
 		lw.sync = mon;
 		if (lw.lock_word & LOCK_WORD_THIN_HASH) {
-			mono_raise_exception (mono_get_exception_synchronization_lock ("Not locked"));
+			mono_set_pending_exception (mono_get_exception_synchronization_lock ("Not locked"));
 			return;
 		}
 		lw.lock_word &= ~LOCK_WORD_BITS_MASK;
@@ -965,11 +979,11 @@ ves_icall_System_Threading_Monitor_Monitor_pulse (MonoObject *obj)
 	}
 #endif
 	if (mon == NULL) {
-		mono_raise_exception (mono_get_exception_synchronization_lock ("Not locked"));
+		mono_set_pending_exception (mono_get_exception_synchronization_lock ("Not locked"));
 		return;
 	}
 	if (mon_status_get_owner (mon->status) != mono_thread_info_get_small_id ()) {
-		mono_raise_exception (mono_get_exception_synchronization_lock ("Not locked by this thread"));
+		mono_set_pending_exception (mono_get_exception_synchronization_lock ("Not locked by this thread"));
 		return;
 	}
 
@@ -996,7 +1010,7 @@ ves_icall_System_Threading_Monitor_Monitor_pulse_all (MonoObject *obj)
 		LockWord lw;
 		lw.sync = mon;
 		if (lw.lock_word & LOCK_WORD_THIN_HASH) {
-			mono_raise_exception (mono_get_exception_synchronization_lock ("Not locked"));
+			mono_set_pending_exception (mono_get_exception_synchronization_lock ("Not locked"));
 			return;
 		}
 		lw.lock_word &= ~LOCK_WORD_BITS_MASK;
@@ -1004,11 +1018,11 @@ ves_icall_System_Threading_Monitor_Monitor_pulse_all (MonoObject *obj)
 	}
 #endif
 	if (mon == NULL) {
-		mono_raise_exception (mono_get_exception_synchronization_lock ("Not locked"));
+		mono_set_pending_exception (mono_get_exception_synchronization_lock ("Not locked"));
 		return;
 	}
 	if (mon_status_get_owner (mon->status) != mono_thread_info_get_small_id ()) {
-		mono_raise_exception (mono_get_exception_synchronization_lock ("Not locked by this thread"));
+		mono_set_pending_exception (mono_get_exception_synchronization_lock ("Not locked by this thread"));
 		return;
 	}
 
@@ -1041,7 +1055,7 @@ ves_icall_System_Threading_Monitor_Monitor_wait (MonoObject *obj, guint32 ms)
 		LockWord lw;
 		lw.sync = mon;
 		if (lw.lock_word & LOCK_WORD_THIN_HASH) {
-			mono_raise_exception (mono_get_exception_synchronization_lock ("Not locked"));
+			mono_set_pending_exception (mono_get_exception_synchronization_lock ("Not locked"));
 			return FALSE;
 		}
 		lw.lock_word &= ~LOCK_WORD_BITS_MASK;
@@ -1049,11 +1063,11 @@ ves_icall_System_Threading_Monitor_Monitor_wait (MonoObject *obj, guint32 ms)
 	}
 #endif
 	if (mon == NULL) {
-		mono_raise_exception (mono_get_exception_synchronization_lock ("Not locked"));
+		mono_set_pending_exception (mono_get_exception_synchronization_lock ("Not locked"));
 		return FALSE;
 	}
 	if (mon_status_get_owner (mon->status) != mono_thread_info_get_small_id ()) {
-		mono_raise_exception (mono_get_exception_synchronization_lock ("Not locked by this thread"));
+		mono_set_pending_exception (mono_get_exception_synchronization_lock ("Not locked by this thread"));
 		return FALSE;
 	}
 
@@ -1062,7 +1076,7 @@ ves_icall_System_Threading_Monitor_Monitor_wait (MonoObject *obj, guint32 ms)
 	
 	event = CreateEvent (NULL, FALSE, FALSE, NULL);
 	if (event == NULL) {
-		mono_raise_exception (mono_get_exception_synchronization_lock ("Failed to set up wait event"));
+		mono_set_pending_exception (mono_get_exception_synchronization_lock ("Failed to set up wait event"));
 		return FALSE;
 	}
 	
@@ -1086,7 +1100,9 @@ ves_icall_System_Threading_Monitor_Monitor_wait (MonoObject *obj, guint32 ms)
 	 * is private to this thread.  Therefore even if the event was
 	 * signalled before we wait, we still succeed.
 	 */
+	MONO_PREPARE_BLOCKING
 	ret = WaitForSingleObjectEx (event, ms, TRUE);
+	MONO_FINISH_BLOCKING
 
 	/* Reset the thread state fairly early, so we don't have to worry
 	 * about the monitor error checking
@@ -1117,7 +1133,7 @@ ves_icall_System_Threading_Monitor_Monitor_wait (MonoObject *obj, guint32 ms)
 		 * SynchronizationLockException
 		 */
 		CloseHandle (event);
-		mono_raise_exception (mono_get_exception_synchronization_lock ("Failed to regain lock"));
+		mono_set_pending_exception (mono_get_exception_synchronization_lock ("Failed to regain lock"));
 		return FALSE;
 	}
 
@@ -1129,7 +1145,9 @@ ves_icall_System_Threading_Monitor_Monitor_wait (MonoObject *obj, guint32 ms)
 		/* Poll the event again, just in case it was signalled
 		 * while we were trying to regain the monitor lock
 		 */
+		MONO_PREPARE_BLOCKING
 		ret = WaitForSingleObjectEx (event, 0, FALSE);
+		MONO_FINISH_BLOCKING
 	}
 
 	/* Pulse will have popped our event from the queue if it signalled
