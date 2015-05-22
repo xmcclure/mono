@@ -327,8 +327,7 @@ namespace System.Net
 
 		public override int Read (byte [] buffer, int offset, int size)
 		{
-			AsyncCallback cb = cb_wrapper;
-			WebAsyncResult res = (WebAsyncResult) BeginRead (buffer, offset, size, cb, null);
+			WebAsyncResult res = (WebAsyncResult) BeginRead (buffer, offset, size, null, null);
 			if (!res.IsCompleted && !res.WaitUntilComplete (ReadTimeout, false)) {
 				nextReadCalled = true;
 				cnc.Close (true);
