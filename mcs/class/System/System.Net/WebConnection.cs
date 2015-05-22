@@ -960,10 +960,16 @@ namespace System.Net
 				return false;
 			}
 
-			if ((done || nbytes == 0) && chunkStream.ChunkLeft != 0) {
-				result.SetCompleted (synch, new WebException ("Read error", null, WebExceptionStatus.ReceiveFailure, null));
-				result.DoCallback ();
-				return false;
+			if (done || nbytes == 0) {
+				if (chunkStream.ChunkLeft != 0) {
+					result.SetCompleted (synch, new WebException ("Read error", null, WebExceptionStatus.ConnectionClosed, null));
+					result.DoCallback ();
+					return false;
+				} else if (chunkStream.WantMore) {
+					result.SetCompleted (synch, new IOException ("Connection closed"));
+					result.DoCallback ();
+					return false;
+				}
 			}
 
 			result.SetCompleted (synch, nbytes);
