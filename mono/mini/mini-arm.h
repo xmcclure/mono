@@ -124,6 +124,9 @@
  * reproduceable results for benchmarks */
 #define MONO_ARCH_CODE_ALIGNMENT 32
 
+/* This needs to hold both a 32 bit int and a 64 bit double */
+#define mono_unwind_reg_t guint64
+
 /* Argument marshallings for calls between gsharedvt and normal code */
 typedef enum {
 	GSHAREDVT_ARG_NONE = 0,
@@ -291,6 +294,7 @@ typedef struct MonoCompileArch {
 #define MONO_ARCH_HAVE_DUMMY_INIT 1
 #define MONO_ARCH_HAVE_SDB_TRAMPOLINES 1
 #define MONO_ARCH_HAVE_PATCH_CODE_NEW 1
+#define MONO_ARCH_HAVE_OP_GENERIC_CLASS_INIT 1
 
 #if defined(__native_client__)
 #undef MONO_ARCH_SOFT_DEBUG_SUPPORTED

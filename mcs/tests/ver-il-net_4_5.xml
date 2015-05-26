@@ -24024,7 +24024,7 @@
         <size>57</size>
       </method>
       <method name="Void Foo(Point ByRef)" attrs="145">
-        <size>39</size>
+        <size>33</size>
       </method>
       <method name="Void .ctor()" attrs="6278">
         <size>7</size>
@@ -24193,10 +24193,20 @@
         <size>42</size>
       </method>
       <method name="Void Main()" attrs="150">
-        <size>68</size>
+        <size>66</size>
       </method>
       <method name="Void &lt;Main&gt;m__0()" attrs="145">
         <size>2</size>
+      </method>
+    </type>
+  </test>
+  <test name="gtest-initialize-14.cs">
+    <type name="X">
+      <method name="Int32 Main()" attrs="150">
+        <size>154</size>
+      </method>
+      <method name="Void .ctor()" attrs="6278">
+        <size>7</size>
       </method>
     </type>
   </test>
@@ -51513,6 +51523,27 @@
       </method>
     </type>
   </test>
+  <test name="test-924.cs">
+    <type name="MainClass">
+      <method name="Int32 Main()" attrs="150">
+        <size>42</size>
+      </method>
+      <method name="Void .ctor()" attrs="6278">
+        <size>7</size>
+      </method>
+    </type>
+    <type name="MainClass+DataFrame">
+      <method name="Boolean op_Equality(DataFrame, DataFrame)" attrs="2198">
+        <size>16</size>
+      </method>
+      <method name="Boolean op_Inequality(DataFrame, DataFrame)" attrs="2198">
+        <size>19</size>
+      </method>
+      <method name="Void .ctor()" attrs="6278">
+        <size>7</size>
+      </method>
+    </type>
+  </test>
   <test name="test-93.cs">
     <type name="N1.C">
       <method name="Void .ctor()" attrs="6278">
@@ -61278,7 +61309,7 @@
     </type>
     <type name="Tester+&lt;NewInitTest_1&gt;c__async34">
       <method name="Void MoveNext()" attrs="486">
-        <size>1026</size>
+        <size>1030</size>
       </method>
       <method name="Void SetStateMachine(System.Runtime.CompilerServices.IAsyncStateMachine)" attrs="486">
         <size>13</size>
@@ -62053,7 +62084,7 @@
     </type>
     <type name="Tester+&lt;NewInitTestGen&gt;c__async0`1[T]">
       <method name="Void MoveNext()" attrs="486">
-        <size>305</size>
+        <size>308</size>
       </method>
       <method name="Void SetStateMachine(System.Runtime.CompilerServices.IAsyncStateMachine)" attrs="486">
         <size>13</size>

@@ -3688,20 +3688,21 @@ process_bb (EmitContext *ctx, MonoBasicBlock *bb)
 			const char *icall_name;
 			LLVMValueRef callee;
 			LLVMBasicBlockRef init_bb, noinit_bb;
+			LLVMValueRef args [16];
 
 			if (byte_offset < 0)
 				mono_marshal_find_bitfield_offset (MonoVTable, initialized, &byte_offset, &bitmask);
 
 			flags_load = emit_load (ctx, bb, &builder, 1, convert (ctx, lhs, LLVMPointerType (LLVMInt8Type(), 0)), "", FALSE);
 			set_metadata_flag (flags_load, "mono.nofail.load");
-			cmp = LLVMBuildICmp (builder, LLVMIntEQ, LLVMBuildAnd (builder, flags_load, LLVMConstInt (LLVMInt8Type (), bitmask, 0), ""), LLVMConstInt (LLVMInt1Type (), 1, FALSE), "");
+			cmp = LLVMBuildICmp (builder, LLVMIntEQ, LLVMBuildAnd (builder, flags_load, LLVMConstInt (LLVMInt8Type (), bitmask, 0), ""), LLVMConstInt (LLVMInt8Type (), 1, FALSE), "");
 
 			callee = ctx->lmodule->generic_class_init_tramp;
 			if (!callee) {
 				icall_name = "specific_trampoline_generic_class_init";
 				sig = mono_metadata_signature_alloc (mono_get_corlib (), 1);
 				sig->ret = &mono_get_void_class ()->byval_arg;
-				sig->params [0] = &mono_get_int64_class ()->byval_arg;
+				sig->params [0] = &mono_get_intptr_class ()->byval_arg;
 				if (cfg->compile_aot) {
 					callee = get_plt_entry (ctx, sig_to_llvm_sig (ctx, sig), MONO_PATCH_INFO_INTERNAL_METHOD, icall_name);
 				} else {
@@ -3720,12 +3721,15 @@ process_bb (EmitContext *ctx, MonoBasicBlock *bb)
 			builder = create_builder (ctx);
 			ctx->builder = builder;
 			LLVMPositionBuilderAtEnd (builder, init_bb);
-			emit_call (ctx, bb, &builder, callee, &lhs, 1);
+			args [0] = convert (ctx, lhs, IntPtrType ());
+			emit_call (ctx, bb, &builder, callee, args, 1);
 			LLVMBuildBr (builder, noinit_bb);
 
 			builder = create_builder (ctx);
 			ctx->builder = builder;
 			LLVMPositionBuilderAtEnd (builder, noinit_bb);
+
+			ctx->bblocks [bb->block_num].end_bblock = noinit_bb;
 			break;
 		}
 		case OP_AOTCONST: {
@@ -5285,6 +5289,7 @@ mono_llvm_emit_method (MonoCompile *cfg)
 
 		//LLVMVerifyFunction(method, 0);
 	} else {
+		//LLVMVerifyFunction(method, 0);
 		mono_llvm_optimize_method (ctx->lmodule->mono_ee, method);
 
 		if (cfg->verbose_level > 1)
