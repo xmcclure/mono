@@ -327,8 +327,8 @@ namespace System.Net
 
 		public override int Read (byte [] buffer, int offset, int size)
 		{
-			WebAsyncResult res = (WebAsyncResult) BeginRead (buffer, offset, size, null, null);
-			if (!res.IsCompleted && !res.WaitUntilComplete (ReadTimeout, false)) {
+			var res = BeginRead (buffer, offset, size, null, null);
+			if (!res.IsCompleted && !res.AsyncWaitHandle.WaitOne (ReadTimeout, false)) {
 				nextReadCalled = true;
 				cnc.Close (true);
 				throw new WebException ("The operation has timed out.", WebExceptionStatus.Timeout);
@@ -398,6 +398,11 @@ namespace System.Net
 
 		public override int EndRead (IAsyncResult r)
 		{
+			if (!r.IsCompleted) {
+				if (!r.AsyncWaitHandle.WaitOne ())
+					throw new WebException ("The operation has timed out.", WebExceptionStatus.Timeout);
+			}
+
 			WebAsyncResult result = (WebAsyncResult) r;
 			int nb = result.NBytes;
 
