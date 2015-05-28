@@ -301,10 +301,7 @@ namespace Mono.Net.Security
 					errors |= SslPolicyErrors.RemoteCertificateNameMismatch;
 					status11 = -2146762481; // CERT_E_CN_NO_MATCH 0x800B010F
 				}
-			}
-#endif
-
-			if (!skipSystemValidators && is_macosx) {
+			} else if (!skipSystemValidators) {
 				// Attempt to use OSX certificates
 				// Ideally we should return the SecTrustResult
 				OSX509Certificates.SecTrustResult trustResult = OSX509Certificates.SecTrustResult.Deny;
@@ -328,6 +325,7 @@ namespace Mono.Net.Security
 					errors |= SslPolicyErrors.RemoteCertificateChainErrors;
 				}
 			}
+#endif
 
 
 #if MONODROID && SECURITY_DEP
