@@ -73,7 +73,7 @@ using System.Security.Principal;
 using System.Security.Cryptography;
 
 using System.Threading.Tasks;
-using Mono.Net.Security;
+using MNS = Mono.Net.Security;
 
 namespace System.Net.Security 
 {
@@ -418,55 +418,13 @@ namespace System.Net.Security
 				return null;
 			};
 
-#if MONOTOUCH || MONODROID
 			// Even if validation_callback is null this allows us to verify requests where the user
 			// does not provide a verification callback but attempts to authenticate with the website
 			// as a client (see https://bugzilla.xamarin.com/show_bug.cgi?id=18962 for an example)
-			var helper = new ChainValidationHelper (validation_callback);
+			var settings = new MonoTlsSettings ();
+			settings.ServerCertificateValidationCallback = MNS.Private.CallbackHelpers.PublicToMono (validation_callback);
+			var helper = new MNS.ChainValidationHelper (settings, null);
 			s.ServerCertValidation2 += (certs) => helper.ValidateChain (targetHost, certs);
-#else
-			if (validation_callback != null) {
-				s.ServerCertValidationDelegate = delegate (X509Certificate cert, int [] certErrors) {
-					X509Chain chain = new X509Chain ();
-					X509Certificate2 x2 = (cert as X509Certificate2);
-					if (x2 == null)
-						x2 = new X509Certificate2 (cert);
-
-					if (!ServicePointManager.CheckCertificateRevocationList)
-						chain.ChainPolicy.RevocationMode = X509RevocationMode.NoCheck;
-
-					// SSL specific checks (done by Mono.Security.dll SSL/TLS implementation) 
-					SslPolicyErrors errors = SslPolicyErrors.None;
-					foreach (int i in certErrors) {
-						switch (i) {
-						case -2146762490: // CERT_E_PURPOSE
-							errors |= SslPolicyErrors.RemoteCertificateNotAvailable;
-							break;
-						case -2146762481: // CERT_E_CN_NO_MATCH
-							errors |= SslPolicyErrors.RemoteCertificateNameMismatch;
-							break;
-						default:
-							errors |= SslPolicyErrors.RemoteCertificateChainErrors;
-							break;
-						}
-					}
-
-					chain.Build (x2);
-
-					// non-SSL specific X509 checks (i.e. RFC3280 related checks)
-					foreach (X509ChainStatus status in chain.ChainStatus) {
-						if (status.Status == X509ChainStatusFlags.NoError)
-							continue;
-						if ((status.Status & X509ChainStatusFlags.PartialChain) != 0)
-							errors |= SslPolicyErrors.RemoteCertificateNotAvailable;
-						else
-							errors |= SslPolicyErrors.RemoteCertificateChainErrors;
-					}
-
-					return validation_callback (this, cert, chain, errors);
-				};
-			}
-#endif
 			if (selection_callback != null)
 				s.ClientCertSelectionDelegate = OnCertificateSelection;
 
