@@ -72,8 +72,9 @@ namespace System.Net.Security
 		public readonly int KeyExchangeAlg;
 		public readonly int KeyExchKeySize;
 
-		private SslConnectionInfo ()
+		internal SslConnectionInfo (int protocol)
 		{
+			Protocol = protocol;
 		}
 	}
 }

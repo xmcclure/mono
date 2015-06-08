@@ -246,6 +246,15 @@ namespace System.Net.Security
 			return safeContext.Context.VerifyRemoteCertificate ();
 		}
 
+		internal static SslConnectionInfo GetConnectionInfo (SSPIInterface SecModule, SafeDeleteContext securityContext)
+		{
+			var info = securityContext.Context.GetConnectionInfo ();
+			if (info == null)
+				return null;
+
+			return new SslConnectionInfo ((int)info.ProtocolVersion);
+		}
+
 		class InputBuffer : IBufferOffsetSize
 		{
 			public byte[] Buffer {

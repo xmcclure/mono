@@ -1,5 +1,5 @@
 //
-// IMonoTlsContext.cs
+// MonoTlsConnectionInfo.cs
 //
 // Author:
 //       Martin Baulig <martin.baulig@xamarin.com>
@@ -29,45 +29,15 @@ using System.Security.Cryptography.X509Certificates;
 
 namespace Mono.Security.Interface
 {
-	public interface IMonoTlsContext : IDisposable
+	public class MonoTlsConnectionInfo
 	{
-		bool IsServer {
-			get;
+		public short CipherSuiteCode {
+			get; set;
 		}
 
-		bool IsValid {
-			get;
+		public TlsProtocols ProtocolVersion {
+			get; set;
 		}
-
-		void Initialize ();
-
-		bool HasCredentials {
-			get;
-		}
-
-		void SetCertificate (X509Certificate certificate, AsymmetricAlgorithm privateKey);
-
-		Exception LastError {
-			get;
-		}
-
-		int GenerateNextToken (IBufferOffsetSize incoming, out IBufferOffsetSize outgoing);
-
-		int EncryptMessage (ref IBufferOffsetSize incoming);
-
-		int DecryptMessage (ref IBufferOffsetSize incoming);
-
-		bool ReceivedCloseNotify {
-			get;
-		}
-
-		byte[] CreateCloseNotify ();
-
-		X509Certificate GetRemoteCertificate (out X509CertificateCollection remoteCertificateStore);
-
-		bool VerifyRemoteCertificate ();
-
-		MonoTlsConnectionInfo GetConnectionInfo ();
 	}
 }
 
