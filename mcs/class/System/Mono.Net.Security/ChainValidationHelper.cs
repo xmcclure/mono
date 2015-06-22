@@ -82,12 +82,23 @@ namespace Mono.Net.Security
 		readonly MonoTlsStream tlsStream;
 		readonly HttpWebRequest request;
 
+		static bool is_macosx;
+		static bool is_mobile;
 #if !MONOTOUCH
-		static bool is_macosx = System.IO.File.Exists (OSX509Certificates.SecurityLibrary);
 		static X509RevocationMode revocation_mode;
+#endif
 
 		static ChainValidationHelper ()
 		{
+#if MONOTOUCH || MONODROID
+			is_macosx = false;
+			is_mobile = true;
+#else
+			is_macosx = System.IO.File.Exists (OSX509Certificates.SecurityLibrary);
+			is_mobile = false;
+#endif
+
+#if !MONOTOUCH
 			revocation_mode = X509RevocationMode.NoCheck;
 			try {
 				string str = Environment.GetEnvironmentVariable ("MONO_X509_REVOCATION_MODE");
@@ -96,8 +107,8 @@ namespace Mono.Net.Security
 				revocation_mode = (X509RevocationMode)Enum.Parse (typeof(X509RevocationMode), str, true);
 			} catch {
 			}
-		}
 #endif
+		}
 	
 		internal static ICertificateValidator Create (MonoTlsSettings settings)
 		{
@@ -240,23 +251,13 @@ namespace Mono.Net.Security
 
 			bool needsChain;
 			bool skipSystemValidators = false;
-#if MONOTOUCH
-			// The X509Chain is not really usable with MonoTouch (since the decision is not based on this data)
-			// However if someone wants to override the results (good or bad) from iOS then they will want all
-			// the certificates that the server provided (which generally does not include the root) so, only  
-			// if there's a user callback, we'll create the X509Chain but won't build it
-			// ref: https://bugzilla.xamarin.com/show_bug.cgi?id=7245
-			needsChain = hasCallback;
-#else
-			needsChain = true;
-#endif
-			if (settings != null) {
+			if (is_mobile || is_macosx) {
+				needsChain = false;
+			} else if (settings != null) {
 				skipSystemValidators = settings.SkipSystemValidators;
-#if MONOTOUCH || MONODROID
-				needsChain = settings.CallbackNeedsCertificateChain;
-#else
 				needsChain = !settings.SkipSystemValidators || settings.CallbackNeedsCertificateChain;
-#endif
+			} else {
+				needsChain = true;
 			}
 
 			ICertificatePolicy policy = ServicePointManager.GetLegacyCertificatePolicy ();
