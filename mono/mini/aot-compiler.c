@@ -1167,24 +1167,25 @@ arch_emit_specific_trampoline_pages (MonoAotCompile *acfg)
 	guint8 *code;
 	guint8 *loop_start, *loop_branch_back, *loop_end_check, *imt_found_check;
 	int i;
+	int pagesize = MONO_AOT_TRAMP_PAGE_SIZE;
 #define COMMON_TRAMP_SIZE 16
-	int count = (mono_pagesize () - COMMON_TRAMP_SIZE) / 8;
+	int count = (pagesize - COMMON_TRAMP_SIZE) / 8;
 	int imm8, rot_amount;
 	char symbol [128];
 
 	if (!acfg->aot_opts.use_trampolines_page)
 		return;
 
-	acfg->tramp_page_size = mono_pagesize ();
+	acfg->tramp_page_size = pagesize;
 
 	sprintf (symbol, "%sspecific_trampolines_page", acfg->user_symbol_prefix);
-	emit_alignment (acfg, mono_pagesize ());
+	emit_alignment (acfg, pagesize);
 	emit_global (acfg, symbol, TRUE);
 	emit_label (acfg, symbol);
 
 	/* emit the generic code first, the trampoline address + 8 is in the lr register */
 	code = buf;
-	imm8 = mono_arm_is_rotated_imm8 (mono_pagesize (), &rot_amount);
+	imm8 = mono_arm_is_rotated_imm8 (pagesize, &rot_amount);
 	ARM_SUB_REG_IMM (code, ARMREG_LR, ARMREG_LR, imm8, rot_amount);
 	ARM_LDR_IMM (code, ARMREG_R1, ARMREG_LR, -8);
 	ARM_LDR_IMM (code, ARMREG_PC, ARMREG_LR, -4);
@@ -1212,7 +1213,7 @@ arch_emit_specific_trampoline_pages (MonoAotCompile *acfg)
 	emit_global (acfg, symbol, TRUE);
 	emit_label (acfg, symbol);
 	code = buf;
-	imm8 = mono_arm_is_rotated_imm8 (mono_pagesize (), &rot_amount);
+	imm8 = mono_arm_is_rotated_imm8 (pagesize, &rot_amount);
 	ARM_SUB_REG_IMM (code, ARMREG_IP, ARMREG_IP, imm8, rot_amount);
 	ARM_LDR_IMM (code, MONO_ARCH_RGCTX_REG, ARMREG_IP, -8);
 	ARM_LDR_IMM (code, ARMREG_PC, ARMREG_IP, -4);
@@ -1239,7 +1240,7 @@ arch_emit_specific_trampoline_pages (MonoAotCompile *acfg)
 	emit_label (acfg, symbol);
 	code = buf;
 	ARM_PUSH (code, (1 << ARMREG_R0) | (1 << ARMREG_R1) | (1 << ARMREG_R2) | (1 << ARMREG_R3));
-	imm8 = mono_arm_is_rotated_imm8 (mono_pagesize (), &rot_amount);
+	imm8 = mono_arm_is_rotated_imm8 (pagesize, &rot_amount);
 	ARM_SUB_REG_IMM (code, ARMREG_IP, ARMREG_IP, imm8, rot_amount);
 	ARM_LDR_IMM (code, ARMREG_R0, ARMREG_IP, -8);
 	ARM_LDR_IMM (code, ARMREG_PC, ARMREG_IP, -4);
@@ -1269,7 +1270,7 @@ arch_emit_specific_trampoline_pages (MonoAotCompile *acfg)
 	/* Need at least two free registers, plus a slot for storing the pc */
 	ARM_PUSH (code, (1 << ARMREG_R0)|(1 << ARMREG_R1)|(1 << ARMREG_R2));
 
-	imm8 = mono_arm_is_rotated_imm8 (mono_pagesize (), &rot_amount);
+	imm8 = mono_arm_is_rotated_imm8 (pagesize, &rot_amount);
 	ARM_SUB_REG_IMM (code, ARMREG_IP, ARMREG_IP, imm8, rot_amount);
 	ARM_LDR_IMM (code, ARMREG_R0, ARMREG_IP, -8);
 
@@ -7292,8 +7293,10 @@ execute_system (const char * command)
 	g_free (wstr);
 
 	g_free (command);
-#else
+#elif defined (HAVE_SYSTEM)
 	status = system (command);
+#else
+	g_assert_not_reached ();
 #endif
 
 	return status;
@@ -8520,11 +8523,6 @@ emit_file_info (MonoAotCompile *acfg)
 		emit_pointer (acfg, NULL);
 		emit_pointer (acfg, NULL);
 	}
-	if (acfg->thumb_mixed) {
-		emit_pointer (acfg, "thumb_end");
-	} else {
-		emit_pointer (acfg, NULL);
-	}
 	if (acfg->aot_opts.static_link) {
 		emit_pointer (acfg, "globals");
 	} else {
@@ -9288,6 +9286,7 @@ mono_compile_assembly (MonoAssembly *ass, guint32 opts, const char *aot_options)
 	acfg->aot_opts.nrgctx_fetch_trampolines = 128;
 	acfg->aot_opts.ngsharedvt_arg_trampolines = 128;
 	acfg->aot_opts.llvm_path = g_strdup ("");
+	acfg->aot_opts.temp_path = g_strdup ("");
 #ifdef MONOTOUCH
 	acfg->aot_opts.use_trampolines_page = TRUE;
 #endif
@@ -9361,8 +9360,14 @@ mono_compile_assembly (MonoAssembly *ass, guint32 opts, const char *aot_options)
 		 * Emit all LLVM code into a separate assembly/object file and link with it
 		 * normally.
 		 */
-		if (!acfg->aot_opts.asm_only)
+		if (!acfg->aot_opts.asm_only) {
 			acfg->llvm_owriter = TRUE;
+		} else if (acfg->aot_opts.llvm_outfile) {
+			int len = strlen (acfg->aot_opts.llvm_outfile);
+
+			if (len >= 2 && acfg->aot_opts.llvm_outfile [len - 2] == '.' && acfg->aot_opts.llvm_outfile [len - 1] == 'o')
+				acfg->llvm_owriter = TRUE;
+		}
 	}
 
 	if (mono_aot_mode_is_full (&acfg->aot_opts))
@@ -9391,6 +9396,9 @@ mono_compile_assembly (MonoAssembly *ass, guint32 opts, const char *aot_options)
 	acfg->temp_prefix = mono_img_writer_get_temp_label_prefix (NULL);
 
 	arch_init (acfg);
+
+	if (acfg->llvm && acfg->thumb_mixed)
+		acfg->flags |= MONO_AOT_FILE_FLAG_LLVM_THUMB;
 
 	acfg->assembly_name_sym = g_strdup (acfg->image->assembly->aname.name);
 	/* Get rid of characters which cannot occur in symbols */
@@ -9489,11 +9497,18 @@ mono_compile_assembly (MonoAssembly *ass, guint32 opts, const char *aot_options)
 			}
 			g_assert (acfg->aot_opts.llvm_outfile);
 			acfg->llvm_sfile = g_strdup (acfg->aot_opts.llvm_outfile);
+			if (acfg->llvm_owriter)
+				acfg->llvm_ofile = g_strdup (acfg->aot_opts.llvm_outfile);
+			else
+				acfg->llvm_sfile = g_strdup (acfg->aot_opts.llvm_outfile);
 		} else {
-			acfg->tmpbasename = g_strdup_printf ("%s", "temp");
+			acfg->tmpbasename = (strcmp (acfg->aot_opts.temp_path, "") == 0) ?
+				g_strdup_printf ("%s", "temp") :
+				g_build_filename (acfg->aot_opts.temp_path, "temp", NULL);
+				
 			acfg->tmpfname = g_strdup_printf ("%s.s", acfg->tmpbasename);
-			acfg->llvm_sfile = g_strdup ("temp-llvm.s");
-			acfg->llvm_ofile = g_strdup ("temp-llvm.o");
+			acfg->llvm_sfile = g_strdup_printf ("%s-llvm.s", acfg->tmpbasename);
+			acfg->llvm_ofile = g_strdup_printf ("%s-llvm.o", acfg->tmpbasename);
 		}
 
 		res = emit_llvm_file (acfg);
@@ -9580,21 +9595,6 @@ mono_compile_assembly (MonoAssembly *ass, guint32 opts, const char *aot_options)
 
 	if (acfg->dwarf)
 		mono_dwarf_writer_emit_base_info (acfg->dwarf, g_path_get_basename (acfg->image->name), mono_unwind_get_cie_program ());
-
-	if (acfg->thumb_mixed) {
-		char symbol [256];
-		/*
-		 * This global symbol marks the end of THUMB code, and the beginning of ARM
-		 * code generated by our JIT.
-		 */
-		sprintf (symbol, "thumb_end");
-		emit_section_change (acfg, ".text", 0);
-		emit_alignment_code (acfg, 8);
-		emit_label (acfg, symbol);
-		emit_zero_bytes (acfg, 16);
-
-		fprintf (acfg->fp, ".arm\n");
-	}
 
 	emit_code (acfg);
 

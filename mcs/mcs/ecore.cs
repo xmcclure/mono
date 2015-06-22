@@ -6385,7 +6385,7 @@ namespace Mono.CSharp {
 
 		public override Expression DoResolveLValue (ResolveContext ec, Expression right_side)
 		{
-			if (ConditionalAccess)
+			if (HasConditionalAccess ())
 				Error_NullPropagatingLValue (ec);
 
 			if (spec is FixedFieldSpec) {
@@ -7036,6 +7036,14 @@ namespace Mono.CSharp {
 			if (!rc.HasSet (ResolveContext.Options.ConstructorScope))
 				return false;
 
+			if (prop.Parent.PartialContainer != rc.CurrentMemberDefinition.Parent.PartialContainer) {
+				var ps = MemberCache.FindMember (rc.CurrentType, MemberFilter.Property (prop.ShortName, prop.MemberType), BindingRestriction.DeclaredOnly) as PropertySpec;
+				if (ps == null)
+					return false;
+
+				prop = (Property) ps.MemberDefinition;
+			}
+
 			var spec = prop.BackingField;
 			if (spec == null)
 				return false;
@@ -7144,7 +7152,7 @@ namespace Mono.CSharp {
 
 		public override Expression DoResolveLValue (ResolveContext rc, Expression right_side)
 		{
-			if (ConditionalAccess)
+			if (HasConditionalAccess ())
 				Error_NullPropagatingLValue (rc);
 
 			if (right_side == EmptyExpression.OutAccess) {
@@ -7390,7 +7398,7 @@ namespace Mono.CSharp {
 				return null;
 			}
 
-			if (ConditionalAccess)
+			if (HasConditionalAccess ())
 				Error_NullPropagatingLValue (ec);
 
 			op = CandidateToBaseOverride (ec, op);

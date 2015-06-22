@@ -9665,9 +9665,18 @@ namespace Mono.CSharp
 					expr = null;
 				}
 			} else {
-				using (rc.Set (ResolveContext.Options.ConditionalAccessReceiver)) {
-					expr = expr.Resolve (rc, flags);
+				bool resolved = false;
+				if (!rc.HasSet (ResolveContext.Options.ConditionalAccessReceiver)) {
+					if (expr.HasConditionalAccess ()) {
+						resolved = true;
+						using (rc.Set (ResolveContext.Options.ConditionalAccessReceiver)) {
+							expr = expr.Resolve (rc, flags);
+						}
+					}
 				}
+
+				if (!resolved)
+					expr = expr.Resolve (rc, flags);
 			}
 
 			if (expr == null)
@@ -10374,7 +10383,7 @@ namespace Mono.CSharp
 
 		public override Expression DoResolveLValue (ResolveContext ec, Expression right_side)
 		{
-			if (ConditionalAccess)
+			if (HasConditionalAccess ())
 				Error_NullPropagatingLValue (ec);
 
 			return DoResolve (ec);
