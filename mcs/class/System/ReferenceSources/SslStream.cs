@@ -105,9 +105,9 @@ namespace System.Net.Security
 
 		#endregion
 
-		internal IAsyncResult BeginShutdown (bool waitForReply, AsyncCallback asyncCallback, object asyncState)
+		internal IAsyncResult BeginShutdown (AsyncCallback asyncCallback, object asyncState)
 		{
-			return _SslState.BeginShutdown (waitForReply, asyncCallback, asyncState);
+			return _SslState.BeginShutdown (asyncCallback, asyncState);
 		}
 
 		internal void EndShutdown (IAsyncResult asyncResult)
