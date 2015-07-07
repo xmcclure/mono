@@ -78,6 +78,7 @@ MonoTouch/MonoPInvokeCallbackAttribute.cs
 
 ../Mono.Security/Mono.Security.Interface/CertificateValidationHelper.cs
 ../Mono.Security/Mono.Security.Interface/IBufferOffsetSize.cs
+../Mono.Security/Mono.Security.Interface/IMonoTlsEventSink.cs
 ../Mono.Security/Mono.Security.Interface/IMonoTlsContext.cs
 ../Mono.Security/Mono.Security.Interface/MonoSslStream.cs
 ../Mono.Security/Mono.Security.Interface/MonoTlsConnectionInfo.cs

@@ -1,5 +1,5 @@
 //
-// IMonoTlsContext.cs
+// IMonoTlsEventSink.cs
 //
 // Author:
 //       Martin Baulig <martin.baulig@xamarin.com>
@@ -24,50 +24,14 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 using System;
-using System.Security.Cryptography;
-using System.Security.Cryptography.X509Certificates;
 
 namespace Mono.Security.Interface
 {
-	public interface IMonoTlsContext : IDisposable
+	public interface IMonoTlsEventSink
 	{
-		bool IsServer {
-			get;
-		}
+		void Error (Exception exception);
 
-		bool IsValid {
-			get;
-		}
-
-		void Initialize (IMonoTlsEventSink eventSink);
-
-		bool HasCredentials {
-			get;
-		}
-
-		void SetCertificate (X509Certificate certificate, AsymmetricAlgorithm privateKey);
-
-		Exception LastError {
-			get;
-		}
-
-		int GenerateNextToken (IBufferOffsetSize incoming, out IBufferOffsetSize outgoing);
-
-		int EncryptMessage (ref IBufferOffsetSize incoming);
-
-		int DecryptMessage (ref IBufferOffsetSize incoming);
-
-		bool ReceivedCloseNotify {
-			get;
-		}
-
-		byte[] CreateCloseNotify ();
-
-		X509Certificate GetRemoteCertificate (out X509CertificateCollection remoteCertificateStore);
-
-		bool VerifyRemoteCertificate ();
-
-		MonoTlsConnectionInfo GetConnectionInfo ();
+		void ReceivedCloseNotify ();
 	}
 }
 

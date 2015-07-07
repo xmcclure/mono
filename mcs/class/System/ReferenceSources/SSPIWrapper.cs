@@ -59,9 +59,15 @@ namespace System.Net.Security
 			private set;
 		}
 
-		public SSPIInterface (IMonoTlsContext context)
+		public IMonoTlsEventSink EventSink {
+			get;
+			private set;
+		}
+
+		public SSPIInterface (IMonoTlsContext context, IMonoTlsEventSink eventSink)
 		{
 			Context = context;
+			EventSink = eventSink;
 		}
 	}
 
@@ -74,13 +80,14 @@ namespace System.Net.Security
 			var provider = MNS.MonoTlsProviderFactory.GetProviderInternal ();
 			var settings = userConfig != null ? userConfig.Settings : null;
 			var certValidator = userConfig != null ? userConfig.CertificateValidator : null;
+			var eventSink = userConfig != null ? userConfig.EventSink : null;
 			if (certValidator != null && (certSelectionDelegate != null || remoteValidationCallback != null))
 				throw new InvalidOperationException ();
 			var context = provider.CreateTlsContext (
 				hostname, serverMode, (TlsProtocols)protocolFlags, serverCertificate, clientCertificates,
 				remoteCertRequired, checkCertName, checkCertRevocationStatus,
 				(MonoEncryptionPolicy)encryptionPolicy, certValidator, settings);
-			return new SSPIInterface (context);
+			return new SSPIInterface (context, eventSink);
 		}
 	}
 
@@ -131,7 +138,7 @@ namespace System.Net.Security
 				if (credentials == null || credentials.IsInvalid)
 					return (int)SecurityStatus.CredentialsNeeded;
 
-				secModule.Context.Initialize ();
+				secModule.Context.Initialize (secModule.EventSink);
 				safeContext = new SafeDeleteContext (secModule.Context);
 			}
 
@@ -151,7 +158,7 @@ namespace System.Net.Security
 				throw new InvalidOperationException ();
 
 			if (safeContext == null) {
-				secModule.Context.Initialize ();
+				secModule.Context.Initialize (secModule.EventSink);
 				safeContext = new SafeDeleteContext (secModule.Context);
 			}
 

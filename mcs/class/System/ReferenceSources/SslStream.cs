@@ -16,7 +16,7 @@ namespace System.Net.Security
 	using System.Net.Sockets;
 	using System.IO;
 
-	partial class SslStream
+	partial class SslStream : IMonoTlsEventSink
 	{
 		#if SECURITY_DEP
 		SSPIConfiguration _Configuration;
@@ -31,7 +31,7 @@ namespace System.Net.Security
 				certificateValidator = ChainValidationHelper.Create (settings);
 			certificateValidator = ChainValidationHelper.CloneWithCallbackWrapper (certificateValidator, myUserCertValidationCallbackWrapper);
 
-			_Configuration = new MyConfiguration (certificateValidator, settings);
+			_Configuration = new MyConfiguration (certificateValidator, settings, this);
 			_SslState = new SslState (innerStream, null, null, encryptionPolicy, _Configuration);
 		}
 
@@ -58,11 +58,13 @@ namespace System.Net.Security
 		{
 			ICertificateValidator validator;
 			MonoTlsSettings settings;
+			IMonoTlsEventSink eventSink;
 
-			public MyConfiguration (ICertificateValidator validator, MonoTlsSettings settings)
+			public MyConfiguration (ICertificateValidator validator, MonoTlsSettings settings, IMonoTlsEventSink eventSink)
 			{
 				this.validator = validator;
 				this.settings = settings;
+				this.eventSink = eventSink;
 			}
 
 			public ICertificateValidator CertificateValidator {
@@ -71,6 +73,10 @@ namespace System.Net.Security
 
 			public MonoTlsSettings Settings {
 				get { return settings; }
+			}
+
+			public IMonoTlsEventSink EventSink {
+				get { return eventSink; }
 			}
 		}
 		#endif
@@ -82,6 +88,18 @@ namespace System.Net.Security
 		internal Exception LastError {
 			get { return _SslState.LastError; }
 		}
+
+		#region IMonoTlsEventSink
+
+		void IMonoTlsEventSink.Error (Exception exception)
+		{
+		}
+
+		void IMonoTlsEventSink.ReceivedCloseNotify ()
+		{
+		}
+
+		#endregion
 
 		internal IAsyncResult BeginShutdown (bool waitForReply, AsyncCallback asyncCallback, object asyncState)
 		{

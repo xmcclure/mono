@@ -43,6 +43,10 @@ namespace System.Net.Security
 		MonoTlsSettings Settings {
 			get;
 		}
+
+		IMonoTlsEventSink EventSink {
+			get;
+		}
 	}
 }
 #endif
