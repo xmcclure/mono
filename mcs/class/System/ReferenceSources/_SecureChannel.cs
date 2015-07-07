@@ -20,14 +20,6 @@ namespace System.Net.Security
 				return SSPIWrapper.IsClosed (m_SecModule, m_SecurityContext);
 			}
 		}
-
-		internal Exception LastError {
-			get {
-				if (m_SecModule == null || m_SecurityContext == null)
-					return null;
-				return SSPIWrapper.GetLastError (m_SecModule, m_SecurityContext);
-			}
-		}
 	}
 }
 #endif

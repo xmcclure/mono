@@ -16,10 +16,6 @@ namespace System.Net.Security
 			get { return Context.IsClosed; }
 		}
 
-		internal Exception LastError {
-			get { return Context.LastError; }
-		}
-
 		internal IAsyncResult BeginShutdown (bool waitForReply, AsyncCallback asyncCallback, object asyncState)
 		{
 			LazyAsyncResult lazyResult = new LazyAsyncResult (this, asyncState, asyncCallback);

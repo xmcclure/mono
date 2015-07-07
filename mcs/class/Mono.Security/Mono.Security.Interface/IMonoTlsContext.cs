@@ -47,10 +47,6 @@ namespace Mono.Security.Interface
 
 		void SetCertificate (X509Certificate certificate, AsymmetricAlgorithm privateKey);
 
-		Exception LastError {
-			get;
-		}
-
 		int GenerateNextToken (IBufferOffsetSize incoming, out IBufferOffsetSize outgoing);
 
 		int EncryptMessage (ref IBufferOffsetSize incoming);

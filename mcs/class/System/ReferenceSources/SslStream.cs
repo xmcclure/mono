@@ -8,6 +8,7 @@ using MonoSecurity::Mono.Security.Interface;
 #else
 using Mono.Security.Interface;
 #endif
+using System.Threading;
 using System.Security.Cryptography.X509Certificates;
 using Mono.Net.Security;
 
@@ -86,13 +87,16 @@ namespace System.Net.Security
 		}
 
 		internal Exception LastError {
-			get { return _SslState.LastError; }
+			get { return lastError; }
 		}
 
 		#region IMonoTlsEventSink
 
+		Exception lastError;
+
 		void IMonoTlsEventSink.Error (Exception exception)
 		{
+			Interlocked.CompareExchange<Exception> (ref lastError, exception, null);
 		}
 
 		void IMonoTlsEventSink.ReceivedCloseNotify ()

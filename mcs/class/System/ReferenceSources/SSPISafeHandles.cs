@@ -101,14 +101,6 @@ namespace System.Net.Security
 			}
 		}
 
-		public Exception LastError {
-			get {
-				if (context != null)
-					return (Exception)context.LastError;
-				return null;
-			}
-		}
-
 		public SafeDeleteContext (IMonoTlsContext context)
 		{
 			this.context = context;

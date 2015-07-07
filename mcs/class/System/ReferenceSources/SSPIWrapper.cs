@@ -213,11 +213,6 @@ namespace System.Net.Security
 			return safeContext.Context.ReceivedCloseNotify;
 		}
 
-		internal static Exception GetLastError (SSPIInterface secModule, SafeDeleteContext safeContext)
-		{
-			return safeContext.LastError;
-		}
-
 		internal static SafeFreeCredentials AcquireCredentialsHandle (SSPIInterface SecModule, string package, CredentialUse intent, SecureCredential scc)
 		{
 			return new SafeFreeCredentials (scc);
