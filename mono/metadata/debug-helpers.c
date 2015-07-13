@@ -82,9 +82,11 @@ append_class_name (GString *res, MonoClass *class, gboolean include_namespace)
 		append_class_name (res, class->nested_in, include_namespace);
 		g_string_append_c (res, '/');
 	}
-	if (include_namespace && *(class->name_space))
-		g_string_append_printf (res, "%s.", class->name_space);
-	g_string_append_printf (res, "%s", class->name);
+	if (include_namespace && *(class->name_space)) {
+		g_string_append (res, class->name_space);
+		g_string_append_c (res, '.');
+	}
+	g_string_append (res, class->name);
 }
 
 static MonoClass*
@@ -752,8 +754,13 @@ mono_method_get_name_full (MonoMethod *method, gboolean signature, MonoTypeNameF
 {
 	char *res;
 	char wrapper [64];
-	char *klass_desc = mono_type_get_name_full (&method->klass->byval_arg, format);
+	char *klass_desc;
 	char *inst_desc = NULL;
+
+	if (format == MONO_TYPE_NAME_FORMAT_IL)
+		klass_desc = mono_type_full_name (&method->klass->byval_arg);
+	else
+		klass_desc = mono_type_get_name_full (&method->klass->byval_arg, format);
 
 	if (method->is_inflated && ((MonoMethodInflated*)method)->context.method_inst) {
 		GString *str = g_string_new ("");

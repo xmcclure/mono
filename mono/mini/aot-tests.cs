@@ -106,6 +106,7 @@ class Tests
 		return 0;
 	}
 
+	[Category ("DYNCALL")]
 	[Category ("GSHAREDVT")]
 	static int test_0_arm64_dyncall_gsharedvt_out_hfa_double () {
 		/* gsharedvt out trampoline with double hfa argument */
@@ -124,6 +125,7 @@ class Tests
 		return 0;
 	}
 
+	[Category ("DYNCALL")]
 	[Category ("GSHAREDVT")]
 	static int test_0_arm64_dyncall_gsharedvt_out_hfa_float () {
 		/* gsharedvt out trampoline with double hfa argument */
@@ -239,5 +241,20 @@ class Tests
 		if (res != 42)
 			return 3;
 		return 0;
+	}
+
+	enum AnEnum {
+		A = 0,
+		B = 1
+	}
+
+	public static int test_0_enum_eq_comparer () {
+		var c = EqualityComparer<AnEnum>.Default;
+		return (!c.Equals (AnEnum.A, AnEnum.B) && c.Equals (AnEnum.A, AnEnum.A)) ? 0 : 1;
+	}
+
+	public static int test_0_enum_comparer () {
+		var c = Comparer<AnEnum>.Default;
+		return c.Compare (AnEnum.A, AnEnum.A);
 	}
 }
