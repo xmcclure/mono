@@ -107,12 +107,12 @@ namespace System.Net.Security
 
 		internal IAsyncResult BeginShutdown (AsyncCallback asyncCallback, object asyncState)
 		{
-			return _SslState.BeginShutdown (asyncCallback, asyncState);
+			return _SslState.SecureStream.BeginShutdown (asyncCallback, asyncState);
 		}
 
 		internal void EndShutdown (IAsyncResult asyncResult)
 		{
-			_SslState.EndShutdown (asyncResult);
+			_SslState.SecureStream.EndShutdown (asyncResult);
 		}
 
 		internal X509Certificate InternalLocalCertificate {

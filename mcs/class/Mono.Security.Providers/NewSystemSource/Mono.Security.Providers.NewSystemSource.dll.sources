@@ -23,6 +23,7 @@
 ../../System/ReferenceSources/SSPISafeHandles.cs
 ../../System/ReferenceSources/SslStream.cs
 ../../System/ReferenceSources/_SslState.cs
+../../System/ReferenceSources/_SslStream.cs
 ../../System/ReferenceSources/_SecureChannel.cs
 ../../System/ReferenceSources/SSPIConfiguration.cs
 ../../System/Mono.Net.Security/CallbackHelpers.cs

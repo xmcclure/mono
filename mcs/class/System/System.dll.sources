@@ -646,6 +646,7 @@ ReferenceSources/SSPIWrapper.cs
 ReferenceSources/SslStream.cs
 ReferenceSources/_SecureChannel.cs
 ReferenceSources/_SslState.cs
+ReferenceSources/_SslStream.cs
 
 ../../../external/referencesource/System/misc/PrivilegedConfigurationManager.cs
 ../../../external/referencesource/System/regex/system/text/regularexpressions/Regex.cs
