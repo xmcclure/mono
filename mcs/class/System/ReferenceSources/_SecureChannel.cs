@@ -13,6 +13,12 @@ namespace System.Net.Security
 			return new ProtocolToken (buffer, SecurityStatus.ContinueNeeded);
 		}
 
+		internal ProtocolToken CreateHelloRequestMessage ()
+		{
+			var buffer = SSPIWrapper.CreateHelloRequestMessage (m_SecModule, m_SecurityContext);
+			return new ProtocolToken (buffer, SecurityStatus.ContinueNeeded);
+		}
+
 		internal bool IsClosed {
 			get {
 				if (m_SecModule == null || m_SecurityContext == null || m_SecurityContext.IsClosed)

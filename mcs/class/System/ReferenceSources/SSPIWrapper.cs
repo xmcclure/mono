@@ -208,6 +208,11 @@ namespace System.Net.Security
 			return safeContext.Context.CreateCloseNotify ();
 		}
 
+		internal static byte[] CreateHelloRequestMessage (SSPIInterface secModule, SafeDeleteContext safeContext)
+		{
+			return safeContext.Context.CreateHelloRequest ();
+		}
+
 		internal static bool IsClosed (SSPIInterface secModule, SafeDeleteContext safeContext)
 		{
 			return safeContext.Context.ReceivedCloseNotify;

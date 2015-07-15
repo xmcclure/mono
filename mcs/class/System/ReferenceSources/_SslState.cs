@@ -18,6 +18,11 @@ namespace System.Net.Security
 		{
 			return Context.CreateShutdownMessage ();
 		}
+
+		internal ProtocolToken CreateHelloRequestMessage ()
+		{
+			return Context.CreateHelloRequestMessage ();
+		}
 	}
 }
 #endif

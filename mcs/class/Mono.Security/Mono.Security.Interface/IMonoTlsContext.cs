@@ -59,6 +59,8 @@ namespace Mono.Security.Interface
 
 		byte[] CreateCloseNotify ();
 
+		byte[] CreateHelloRequest ();
+
 		X509Certificate GetRemoteCertificate (out X509CertificateCollection remoteCertificateStore);
 
 		bool VerifyRemoteCertificate ();

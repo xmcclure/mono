@@ -115,6 +115,16 @@ namespace System.Net.Security
 			_SslState.SecureStream.EndShutdown (asyncResult);
 		}
 
+		internal IAsyncResult BeginRenegotiate (AsyncCallback asyncCallback, object asyncState)
+		{
+			return _SslState.SecureStream.BeginRenegotiate (asyncCallback, asyncState);
+		}
+
+		internal void EndRenegotiate (IAsyncResult asyncResult)
+		{
+			_SslState.SecureStream.EndRenegotiate (asyncResult);
+		}
+
 		internal X509Certificate InternalLocalCertificate {
 			get { return _SslState.InternalLocalCertificate; }
 		}

@@ -88,6 +88,80 @@ namespace System.Net.Security
 			}
 		}
 
+		internal IAsyncResult BeginRenegotiate (AsyncCallback asyncCallback, object asyncState)
+		{
+			if (!_SslState.IsServer)
+				throw new NotImplementedException ();
+
+			LazyAsyncResult lazyResult = new LazyAsyncResult (this, asyncState, asyncCallback);
+			AsyncProtocolRequest asyncRequest = new AsyncProtocolRequest (lazyResult);
+
+			if (Interlocked.Exchange (ref _NestedWrite, 1) == 1)
+			{
+				throw new NotSupportedException (SR.GetString (SR.net_io_invalidnestedcall, (asyncRequest != null ? "BeginRenegotiate" : "Renegotiate"), "renegotiate"));
+			}
+
+			bool failed = false;
+			try
+			{
+				ProtocolToken message = _SslState.CreateHelloRequestMessage ();
+				if (asyncRequest != null)
+					asyncRequest.SetNextRequest (message.Payload, 0, message.Size, _ResumeAsyncWriteCallback);
+
+				StartHandshakeWrite (message, asyncRequest);
+			}
+			catch (Exception e)
+			{
+				_SslState.FinishWrite ();
+
+				failed = true;
+				if (e is IOException) {
+					throw;
+				}
+				throw new IOException (SR.GetString (SR.mono_net_io_renegotiate), e);
+			}
+			finally
+			{
+				if (asyncRequest == null || failed)
+				{
+					_NestedWrite = 0;
+				}
+			}
+
+			return lazyResult;
+		}
+
+		internal void EndRenegotiate (IAsyncResult asyncResult)
+		{
+			if (asyncResult == null)
+			{
+				throw new ArgumentNullException("asyncResult");
+			}
+
+			LazyAsyncResult lazyResult = asyncResult as LazyAsyncResult;
+			if (lazyResult == null)
+			{
+				throw new ArgumentException (SR.GetString (SR.net_io_async_result, asyncResult.GetType ().FullName), "asyncResult");
+			}
+
+			if (Interlocked.Exchange (ref _NestedWrite, 0) == 0)
+			{
+				throw new InvalidOperationException (SR.GetString (SR.net_io_invalidendcall, "EndRenegotiate"));
+			}
+
+			// No "artificial" timeouts implemented so far, InnerStream controls timeout.
+			lazyResult.InternalWaitForCompletion();
+
+			if (lazyResult.Result is Exception)
+			{
+				if (lazyResult.Result is IOException)
+				{
+					throw (Exception)lazyResult.Result;
+				}
+				throw new IOException(SR.GetString(SR.mono_net_io_renegotiate), (Exception)lazyResult.Result);
+			}
+		}
+
 		void StartHandshakeWrite (ProtocolToken message, AsyncProtocolRequest asyncRequest)
 		{
 			// request a write IO slot
