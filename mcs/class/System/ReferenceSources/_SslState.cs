@@ -95,18 +95,22 @@ namespace System.Net.Security
 			SecureStream.EndRenegotiate (lazyResult);
 		}
 
-		internal bool StartReHandshake (byte[] buffer, AsyncProtocolRequest asyncRequest)
+		internal bool CheckEnqueueHandshakeWrite (byte[] buffer, AsyncProtocolRequest asyncRequest)
 		{
 			return CheckEnqueueHandshake (buffer, asyncRequest);
 		}
 
-		internal void StartReHandshakeRead (AsyncProtocolRequest asyncRequest)
+		internal void StartReHandshake (AsyncProtocolRequest asyncRequest)
 		{
-			byte[] buffer = null;
-			if (CheckEnqueueHandshakeRead (ref buffer, asyncRequest))
-				return;
+			if (IsServer) {
+				byte[] buffer = null;
+				if (CheckEnqueueHandshakeRead (ref buffer, asyncRequest))
+					return;
 
-			StartReceiveBlob (buffer, asyncRequest);
+				StartReceiveBlob (buffer, asyncRequest);
+			}
+
+			ForceAuthentication (false, null, asyncRequest);
 		}
 	}
 }

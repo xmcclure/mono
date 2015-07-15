@@ -15,7 +15,7 @@ namespace System.Net.Security
 
 		internal void BeginShutdown (LazyAsyncResult lazyResult)
 		{
-			HandshakeProtocolRequest asyncRequest = new HandshakeProtocolRequest (false, lazyResult);
+			HandshakeProtocolRequest asyncRequest = new HandshakeProtocolRequest (lazyResult);
 
 			if (Interlocked.Exchange (ref _NestedWrite, 1) == 1)
 				throw new NotSupportedException (SR.GetString (SR.net_io_invalidnestedcall, (asyncRequest != null ? "BeginShutdown" : "Shutdown"), "shutdown"));
@@ -24,7 +24,7 @@ namespace System.Net.Security
 			try
 			{
 				ProtocolToken message = _SslState.CreateShutdownMessage ();
-				asyncRequest.SetNextRequest (message, false, _ResumeHandshakeWriteCallback);
+				asyncRequest.SetNextRequest (HandshakeProtocolState.Shutdown, message, _ResumeHandshakeWriteCallback);
 
 				StartHandshakeWrite (asyncRequest);
 			} catch (Exception e) {
@@ -54,10 +54,7 @@ namespace System.Net.Security
 
 		internal void BeginRenegotiate (LazyAsyncResult lazyResult)
 		{
-			if (!_SslState.IsServer)
-				throw new NotImplementedException ();
-
-			HandshakeProtocolRequest asyncRequest = new HandshakeProtocolRequest (true, lazyResult);
+			HandshakeProtocolRequest asyncRequest = new HandshakeProtocolRequest (lazyResult);
 
 			if (Interlocked.Exchange (ref _NestedWrite, 1) == 1)
 				throw new NotSupportedException (SR.GetString (SR.net_io_invalidnestedcall, (asyncRequest != null ? "BeginRenegotiate" : "Renegotiate"), "renegotiate"));
@@ -65,8 +62,12 @@ namespace System.Net.Security
 			bool failed = false;
 			try
 			{
-				ProtocolToken message = _SslState.CreateHelloRequestMessage ();
-				asyncRequest.SetNextRequest (message, false, _ResumeHandshakeWriteCallback);
+				if (_SslState.IsServer) {
+					ProtocolToken message = _SslState.CreateHelloRequestMessage ();
+					asyncRequest.SetNextRequest (HandshakeProtocolState.SendHelloRequest, message, _ResumeHandshakeWriteCallback);
+				} else {
+					asyncRequest.SetNextRequest (HandshakeProtocolState.ClientRenegotiation, null, _ResumeHandshakeWriteCallback);
+				}
 
 				StartHandshakeWrite (asyncRequest);
 			} catch (Exception e) {
@@ -96,32 +97,41 @@ namespace System.Net.Security
 
 		void StartHandshakeWrite (HandshakeProtocolRequest asyncRequest)
 		{
-			if (asyncRequest.IsStarted) {
-				_SslState.StartReHandshakeRead (asyncRequest);
+			byte[] buffer = null;
+			if (asyncRequest.Message != null) {
+				buffer = asyncRequest.Message.Payload;
+				if (buffer.Length != asyncRequest.Message.Size) {
+					buffer = new byte [asyncRequest.Message.Size];
+					Buffer.BlockCopy (asyncRequest.Message.Payload, 0, buffer, 0, buffer.Length);
+				}
+			}
+
+			switch (asyncRequest.State) {
+			case HandshakeProtocolState.ClientRenegotiation:
+			case HandshakeProtocolState.ServerRenegotiation:
+				_SslState.StartReHandshake (asyncRequest);
 				return;
-			}
 
-			byte[] buffer = asyncRequest.Message.Payload;
-			if (buffer.Length != asyncRequest.Message.Size) {
-				buffer = new byte [asyncRequest.Message.Size];
-				Buffer.BlockCopy (asyncRequest.Message.Payload, 0, buffer, 0, buffer.Length);
-			}
-
-			// request a write IO slot
-			if (asyncRequest.IsHandshake) {
-				if (_SslState.StartReHandshake (buffer, asyncRequest)) {
+			case HandshakeProtocolState.SendHelloRequest:
+				if (_SslState.CheckEnqueueHandshakeWrite (buffer, asyncRequest)) {
 					// operation is async and has been queued, return.
 					return;
 				}
-			} else {
+				break;
+
+			case HandshakeProtocolState.Shutdown:
 				if (_SslState.CheckEnqueueWrite (asyncRequest)) {
 					// operation is async and has been queued, return.
 					return;
 				}
+				break;
+
+			default:
+				throw new InvalidOperationException ();
 			}
 
 			if (_SslState.LastPayload != null)
-				throw new NotImplementedException ();
+				throw new InvalidOperationException ();
 
 			// prepare for the next request
 			IAsyncResult ar = ((NetworkStream)_SslState.InnerStream).BeginWrite (buffer, 0, buffer.Length, _HandshakeWriteCallback, asyncRequest);
@@ -155,8 +165,8 @@ namespace System.Net.Security
 				throw;
 			}
 
-			if (asyncRequest.IsHandshake) {
-				asyncRequest.SetNextRequest (null, true, _ResumeHandshakeWriteCallback);
+			if (asyncRequest.State == HandshakeProtocolState.SendHelloRequest) {
+				asyncRequest.SetNextRequest (HandshakeProtocolState.ServerRenegotiation, null, _ResumeHandshakeWriteCallback);
 				StartHandshakeWrite (asyncRequest);
 				return;
 			}
@@ -189,22 +199,29 @@ namespace System.Net.Security
 
 		delegate void HandshakeProtocolCallback (HandshakeProtocolRequest asyncRequest);
 
+		enum HandshakeProtocolState {
+			None,
+			Shutdown,
+			SendHelloRequest,
+			ServerRenegotiation,
+			ClientRenegotiation
+		}
+
 		class HandshakeProtocolRequest : AsyncProtocolRequest
 		{
-			public readonly bool IsHandshake;
 			public ProtocolToken Message;
-			public bool IsStarted;
+			public HandshakeProtocolState State;
 
-			public HandshakeProtocolRequest (bool isHandshake, LazyAsyncResult userAsyncResult)
+			public HandshakeProtocolRequest (LazyAsyncResult userAsyncResult)
 				: base (userAsyncResult)
 			{
-				IsHandshake = isHandshake;
+				State = HandshakeProtocolState.None;
 			}
 
-			public void SetNextRequest (ProtocolToken message, bool isStarted, HandshakeProtocolCallback callback)
+			public void SetNextRequest (HandshakeProtocolState state, ProtocolToken message, HandshakeProtocolCallback callback)
 			{
+				State = state;
 				Message = message;
-				IsStarted = isStarted;
 				SetNextRequest (null, 0, 0, (r) => callback ((HandshakeProtocolRequest)r));
 			}
 		}
