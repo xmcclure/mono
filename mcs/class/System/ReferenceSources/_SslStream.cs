@@ -10,185 +10,125 @@ namespace System.Net.Security
 
 	partial class _SslStream
 	{
-		int _SentShutdown;
+		static readonly AsyncCallback _HandshakeWriteCallback = new AsyncCallback (HandshakeWriteCallback);
+		static readonly HandshakeProtocolCallback _ResumeHandshakeWriteCallback = new HandshakeProtocolCallback (ResumeHandshakeWriteCallback);
 
-		internal IAsyncResult BeginShutdown (AsyncCallback asyncCallback, object asyncState)
+		internal void BeginShutdown (LazyAsyncResult lazyResult)
 		{
-			LazyAsyncResult lazyResult = new LazyAsyncResult (this, asyncState, asyncCallback);
-			AsyncProtocolRequest asyncRequest = new AsyncProtocolRequest (lazyResult);
+			HandshakeProtocolRequest asyncRequest = new HandshakeProtocolRequest (false, lazyResult);
 
 			if (Interlocked.Exchange (ref _NestedWrite, 1) == 1)
-			{
 				throw new NotSupportedException (SR.GetString (SR.net_io_invalidnestedcall, (asyncRequest != null ? "BeginShutdown" : "Shutdown"), "shutdown"));
-			}
-
-			if (Interlocked.CompareExchange (ref _SentShutdown, 1, 0) == 1) {
-				asyncRequest.CompleteUser ();
-				return lazyResult;
-			}
 
 			bool failed = false;
 			try
 			{
 				ProtocolToken message = _SslState.CreateShutdownMessage ();
-				if (asyncRequest != null)
-					asyncRequest.SetNextRequest (message.Payload, 0, message.Size, _ResumeAsyncWriteCallback);
+				asyncRequest.SetNextRequest (message, false, _ResumeHandshakeWriteCallback);
 
-				StartHandshakeWrite (message, asyncRequest);
-			}
-			catch (Exception e)
-			{
+				StartHandshakeWrite (asyncRequest);
+			} catch (Exception e) {
 				_SslState.FinishWrite ();
-
 				failed = true;
-				if (e is IOException) {
-					throw;
-				}
-				throw new IOException (SR.GetString (SR.mono_net_io_shutdown), e);
-			}
-			finally
-			{
-				if (asyncRequest == null || failed)
-				{
+				throw;
+			} finally {
+				if (failed)
 					_NestedWrite = 0;
-				}
 			}
-
-			return lazyResult;
 		}
 
-		internal void EndShutdown (IAsyncResult asyncResult)
+		internal void EndShutdown (LazyAsyncResult lazyResult)
 		{
-			if (asyncResult == null)
-			{
-				throw new ArgumentNullException("asyncResult");
-			}
-
-			LazyAsyncResult lazyResult = asyncResult as LazyAsyncResult;
-			if (lazyResult == null)
-			{
-				throw new ArgumentException (SR.GetString (SR.net_io_async_result, asyncResult.GetType ().FullName), "asyncResult");
-			}
-
 			if (Interlocked.Exchange (ref _NestedWrite, 0) == 0)
-			{
 				throw new InvalidOperationException (SR.GetString (SR.net_io_invalidendcall, "EndShutdown"));
-			}
 
 			// No "artificial" timeouts implemented so far, InnerStream controls timeout.
-			lazyResult.InternalWaitForCompletion();
+			lazyResult.InternalWaitForCompletion ();
 
-			if (lazyResult.Result is Exception)
-			{
+			if (lazyResult.Result is Exception) {
 				if (lazyResult.Result is IOException)
-				{
 					throw (Exception)lazyResult.Result;
-				}
-				throw new IOException(SR.GetString(SR.mono_net_io_shutdown), (Exception)lazyResult.Result);
+				throw new IOException (SR.GetString (SR.mono_net_io_shutdown), (Exception)lazyResult.Result);
 			}
 		}
 
-		internal IAsyncResult BeginRenegotiate (AsyncCallback asyncCallback, object asyncState)
+		internal void BeginRenegotiate (LazyAsyncResult lazyResult)
 		{
 			if (!_SslState.IsServer)
 				throw new NotImplementedException ();
 
-			LazyAsyncResult lazyResult = new LazyAsyncResult (this, asyncState, asyncCallback);
-			AsyncProtocolRequest asyncRequest = new AsyncProtocolRequest (lazyResult);
+			HandshakeProtocolRequest asyncRequest = new HandshakeProtocolRequest (true, lazyResult);
 
 			if (Interlocked.Exchange (ref _NestedWrite, 1) == 1)
-			{
 				throw new NotSupportedException (SR.GetString (SR.net_io_invalidnestedcall, (asyncRequest != null ? "BeginRenegotiate" : "Renegotiate"), "renegotiate"));
-			}
 
 			bool failed = false;
 			try
 			{
 				ProtocolToken message = _SslState.CreateHelloRequestMessage ();
-				if (asyncRequest != null)
-					asyncRequest.SetNextRequest (message.Payload, 0, message.Size, _ResumeAsyncWriteCallback);
+				asyncRequest.SetNextRequest (message, false, _ResumeHandshakeWriteCallback);
 
-				StartHandshakeWrite (message, asyncRequest);
-			}
-			catch (Exception e)
-			{
+				StartHandshakeWrite (asyncRequest);
+			} catch (Exception e) {
 				_SslState.FinishWrite ();
-
 				failed = true;
-				if (e is IOException) {
-					throw;
-				}
-				throw new IOException (SR.GetString (SR.mono_net_io_renegotiate), e);
-			}
-			finally
-			{
-				if (asyncRequest == null || failed)
-				{
+				throw;
+			} finally {
+				if (failed)
 					_NestedWrite = 0;
-				}
 			}
-
-			return lazyResult;
 		}
 
-		internal void EndRenegotiate (IAsyncResult asyncResult)
+		internal void EndRenegotiate (LazyAsyncResult lazyResult)
 		{
-			if (asyncResult == null)
-			{
-				throw new ArgumentNullException("asyncResult");
-			}
-
-			LazyAsyncResult lazyResult = asyncResult as LazyAsyncResult;
-			if (lazyResult == null)
-			{
-				throw new ArgumentException (SR.GetString (SR.net_io_async_result, asyncResult.GetType ().FullName), "asyncResult");
-			}
-
 			if (Interlocked.Exchange (ref _NestedWrite, 0) == 0)
-			{
 				throw new InvalidOperationException (SR.GetString (SR.net_io_invalidendcall, "EndRenegotiate"));
-			}
 
 			// No "artificial" timeouts implemented so far, InnerStream controls timeout.
 			lazyResult.InternalWaitForCompletion();
 
-			if (lazyResult.Result is Exception)
-			{
+			if (lazyResult.Result is Exception) {
 				if (lazyResult.Result is IOException)
-				{
 					throw (Exception)lazyResult.Result;
-				}
-				throw new IOException(SR.GetString(SR.mono_net_io_renegotiate), (Exception)lazyResult.Result);
+				throw new IOException (SR.GetString (SR.mono_net_io_renegotiate), (Exception)lazyResult.Result);
 			}
 		}
 
-		void StartHandshakeWrite (ProtocolToken message, AsyncProtocolRequest asyncRequest)
+		void StartHandshakeWrite (HandshakeProtocolRequest asyncRequest)
 		{
-			// request a write IO slot
-			if (_SslState.CheckEnqueueWrite (asyncRequest)) {
-				// operation is async and has been queued, return.
+			if (asyncRequest.IsStarted) {
+				_SslState.StartReHandshakeRead (asyncRequest);
 				return;
+			}
+
+			byte[] buffer = asyncRequest.Message.Payload;
+			if (buffer.Length != asyncRequest.Message.Size) {
+				buffer = new byte [asyncRequest.Message.Size];
+				Buffer.BlockCopy (asyncRequest.Message.Payload, 0, buffer, 0, buffer.Length);
+			}
+
+			// request a write IO slot
+			if (asyncRequest.IsHandshake) {
+				if (_SslState.StartReHandshake (buffer, asyncRequest)) {
+					// operation is async and has been queued, return.
+					return;
+				}
+			} else {
+				if (_SslState.CheckEnqueueWrite (asyncRequest)) {
+					// operation is async and has been queued, return.
+					return;
+				}
 			}
 
 			if (_SslState.LastPayload != null)
 				throw new NotImplementedException ();
 
-			if (asyncRequest != null) {
-				// prepare for the next request
-				IAsyncResult ar = ((NetworkStream)_SslState.InnerStream).BeginWrite (message.Payload, 0, message.Size, HandshakeWriteCallback, asyncRequest);
-				if (!ar.CompletedSynchronously)
-					return;
+			// prepare for the next request
+			IAsyncResult ar = ((NetworkStream)_SslState.InnerStream).BeginWrite (buffer, 0, buffer.Length, _HandshakeWriteCallback, asyncRequest);
+			if (!ar.CompletedSynchronously)
+				return;
 
-				((NetworkStream)_SslState.InnerStream).EndWrite (ar);
-			} else {
-				((NetworkStream)_SslState.InnerStream).Write (message.Payload, 0, message.Size);
-			}
-
-			// release write IO slot
-			_SslState.FinishWrite ();
-
-			if (asyncRequest != null)
-				asyncRequest.CompleteUser ();
+			HandshakeWriteCallback (asyncRequest, ar);
 		}
 
 		static void HandshakeWriteCallback (IAsyncResult transportResult)
@@ -196,20 +136,76 @@ namespace System.Net.Security
 			if (transportResult.CompletedSynchronously)
 				return;
 
-			AsyncProtocolRequest asyncRequest = (AsyncProtocolRequest)transportResult.AsyncState;
+			HandshakeProtocolRequest asyncRequest = (HandshakeProtocolRequest)transportResult.AsyncState;
 
-			_SslStream sslStream = (_SslStream)asyncRequest.AsyncObject;
+			SslState sslState = (SslState)asyncRequest.AsyncObject;
+			sslState.SecureStream.HandshakeWriteCallback (asyncRequest, transportResult);
+		}
+
+		void HandshakeWriteCallback (HandshakeProtocolRequest asyncRequest, IAsyncResult transportResult)
+		{
 			try {
-				sslStream._SslState.InnerStream.EndWrite (transportResult);
-				sslStream._SslState.FinishWrite ();
+				_SslState.InnerStream.EndWrite (transportResult);
+			} catch (Exception e) {
+				_SslState.FinishWrite ();
+				if (!asyncRequest.IsUserCompleted) {
+					asyncRequest.CompleteWithError (e);
+					return;
+				}
+				throw;
+			}
+
+			if (asyncRequest.IsHandshake) {
+				asyncRequest.SetNextRequest (null, true, _ResumeHandshakeWriteCallback);
+				StartHandshakeWrite (asyncRequest);
+				return;
+			}
+
+			try {
+				_SslState.FinishWrite ();
 				asyncRequest.CompleteUser ();
+			} catch (Exception e) {
+				if (!asyncRequest.IsUserCompleted) {
+					asyncRequest.CompleteWithError (e);
+					return;
+				}
+				throw;
+			}
+		}
+
+		static void ResumeHandshakeWriteCallback (HandshakeProtocolRequest asyncRequest)
+		{
+			try {
+				((_SslStream)asyncRequest.AsyncObject).StartHandshakeWrite (asyncRequest);
 			} catch (Exception e) {
 				if (asyncRequest.IsUserCompleted) {
 					// This will throw on a worker thread.
 					throw;
 				}
-				sslStream._SslState.FinishWrite ();
+				((_SslStream)asyncRequest.AsyncObject)._SslState.FinishWrite ();
 				asyncRequest.CompleteWithError (e);
+			}
+		}
+
+		delegate void HandshakeProtocolCallback (HandshakeProtocolRequest asyncRequest);
+
+		class HandshakeProtocolRequest : AsyncProtocolRequest
+		{
+			public readonly bool IsHandshake;
+			public ProtocolToken Message;
+			public bool IsStarted;
+
+			public HandshakeProtocolRequest (bool isHandshake, LazyAsyncResult userAsyncResult)
+				: base (userAsyncResult)
+			{
+				IsHandshake = isHandshake;
+			}
+
+			public void SetNextRequest (ProtocolToken message, bool isStarted, HandshakeProtocolCallback callback)
+			{
+				Message = message;
+				IsStarted = isStarted;
+				SetNextRequest (null, 0, 0, (r) => callback ((HandshakeProtocolRequest)r));
 			}
 		}
 	}
