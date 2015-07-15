@@ -65,6 +65,8 @@ namespace System.Net.Security
 
 			if (Interlocked.Exchange (ref _NestedAuth, 1) == 1)
 				throw new InvalidOperationException (SR.GetString (SR.net_io_invalidnestedcall, "BeginRenegotiate", "renegotiate"));
+			if (Interlocked.CompareExchange (ref _PendingReHandshake, 1, 0) == 1)
+				throw new InvalidOperationException (SR.GetString (SR.net_io_invalidnestedcall, "BeginRenegotiate", "renegotiate"));
 
 			try {
 				CheckThrow (false);
@@ -100,10 +102,6 @@ namespace System.Net.Security
 
 		internal void StartReHandshakeRead (AsyncProtocolRequest asyncRequest)
 		{
-			if (Interlocked.CompareExchange (ref _PendingReHandshake, 1, 0) == 1) {
-				throw new NotImplementedException ();
-			}
-
 			byte[] buffer = null;
 			if (CheckEnqueueHandshakeRead (ref buffer, asyncRequest))
 				return;
