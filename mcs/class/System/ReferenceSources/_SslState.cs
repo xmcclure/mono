@@ -108,6 +108,7 @@ namespace System.Net.Security
 					return;
 
 				StartReceiveBlob (buffer, asyncRequest);
+				return;
 			}
 
 			ForceAuthentication (false, null, asyncRequest);
