@@ -28,18 +28,19 @@ namespace System.Net.Security
 
 		internal IAsyncResult BeginShutdown (AsyncCallback asyncCallback, object asyncState)
 		{
-			LazyAsyncResult lazyResult = new LazyAsyncResult (this, asyncState, asyncCallback);
+			var shutdownResult = new ShutdownAsyncResult (this, asyncState, asyncCallback);
 
 			if (Interlocked.CompareExchange (ref _SentShutdown, 1, 0) == 1) {
-				lazyResult.InvokeCallback ();
-				return lazyResult;
+				shutdownResult.InvokeCallback ();
+				return shutdownResult;
 			}
 
 			try
 			{
 				CheckThrow (false);
-				SecureStream.BeginShutdown (lazyResult);
-				return lazyResult;
+				shutdownResult.SentShutdown = true;
+				SecureStream.BeginShutdown (shutdownResult);
+				return shutdownResult;
 			} catch (Exception e) {
 				if (e is IOException)
 					throw;
@@ -52,11 +53,12 @@ namespace System.Net.Security
 			if (asyncResult == null)
 				throw new ArgumentNullException ("asyncResult");
 
-			LazyAsyncResult lazyResult = asyncResult as LazyAsyncResult;
-			if (lazyResult == null)
+			var shutdownResult = asyncResult as ShutdownAsyncResult;
+			if (shutdownResult == null)
 				throw new ArgumentException (SR.GetString (SR.net_io_async_result, asyncResult.GetType ().FullName), "asyncResult");
 
-			SecureStream.EndShutdown (lazyResult);
+			if (shutdownResult.SentShutdown)
+				SecureStream.EndShutdown (shutdownResult);
 		}
 
 		internal IAsyncResult BeginRenegotiate (AsyncCallback asyncCallback, object asyncState)
@@ -112,6 +114,16 @@ namespace System.Net.Security
 			}
 
 			ForceAuthentication (false, null, asyncRequest);
+		}
+
+		class ShutdownAsyncResult : LazyAsyncResult
+		{
+			public bool SentShutdown;
+
+			internal ShutdownAsyncResult (SslState instance, object userState, AsyncCallback callback)
+				: base (instance, userState, callback)
+			{
+			}
 		}
 	}
 }
