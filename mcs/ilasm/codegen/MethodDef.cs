@@ -707,15 +707,12 @@ namespace Mono.ILASM {
                         if (IsVararg)
                                 signature = CreateVarargSignature (RetType, name, param_list);
                         else
-                                signature = CreateSignature (RetType, name, param_list, GenParamCount, Attributes);
+                                signature = CreateSignature (RetType, name, param_list, GenParamCount);
                 }
 
-				static string CreateSignature (BaseTypeRef RetType, string name, IList param_list, int gen_param_count, PEAPI.MethAttr attrs)
+                static string CreateSignature (BaseTypeRef RetType, string name, IList param_list, int gen_param_count)
                 {
                         StringBuilder builder = new StringBuilder ();
-
-						if ((attrs & PEAPI.MethAttr.Static) == 0)
-							builder.Append ("instance ");
 
 			builder.Append (RetType.FullName);
 			builder.Append (" ");
@@ -780,10 +777,10 @@ namespace Mono.ILASM {
                         if ((call_conv & PEAPI.CallConv.Vararg) != 0)
                                 return CreateVarargSignature (RetType, name, param_list, include_optional);
                         else
-                                return CreateSignature (RetType, name, param_list, gen_param_count, include_optional, call_conv);
+                                return CreateSignature (RetType, name, param_list, gen_param_count, include_optional);
                 }
 
-				static string CreateVarargSignature (BaseTypeRef RetType, string name, BaseTypeRef [] param_list, bool include_optional)
+                static string CreateVarargSignature (BaseTypeRef RetType, string name, BaseTypeRef [] param_list, bool include_optional)
                 {
                         StringBuilder builder = new StringBuilder ();
                         BaseTypeRef last = null;
@@ -818,13 +815,9 @@ namespace Mono.ILASM {
                         return builder.ToString ();
                 }
 
-				static string CreateSignature (BaseTypeRef RetType, string name, BaseTypeRef[] param_list, int gen_param_count, bool include_optional, PEAPI.CallConv call_conv)
+                static string CreateSignature (BaseTypeRef RetType, string name, BaseTypeRef[] param_list, int gen_param_count, bool include_optional)
                 {
                         StringBuilder builder = new StringBuilder ();
-
-						if ((call_conv & PEAPI.CallConv.Instance) != 0)
-							builder.Append ("instance ");
-
 
 			builder.Append (RetType.FullName);
 			builder.Append (" ");

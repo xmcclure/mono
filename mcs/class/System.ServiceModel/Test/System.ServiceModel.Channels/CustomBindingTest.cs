@@ -40,8 +40,6 @@ using System.Text;
 using System.Xml;
 using NUnit.Framework;
 
-using MonoTests.Helpers;
-
 namespace MonoTests.System.ServiceModel.Channels
 {
 	[TestFixture]
@@ -213,7 +211,7 @@ namespace MonoTests.System.ServiceModel.Channels
 				new HandlerTransportBindingElement (sender));
 
 			EndpointAddress address = new EndpointAddress (
-				new Uri ("http://localhost:" + NetworkHelpers.FindFreePort ()),
+				new Uri ("http://localhost:37564"),
 				new X509CertificateEndpointIdentity (new X509Certificate2 ("Test/Resources/test.pfx", "mono")));
 
 			ChannelFactory<IRequestChannel> cf =
@@ -261,7 +259,7 @@ namespace MonoTests.System.ServiceModel.Channels
 				new HandlerTransportBindingElement (sender));
 
 			EndpointAddress address = new EndpointAddress (
-				new Uri ("http://localhost:" + NetworkHelpers.FindFreePort ()),
+				new Uri ("http://localhost:37564"),
 				new X509CertificateEndpointIdentity (new X509Certificate2 ("Test/Resources/test.pfx", "mono")));
 
 			ChannelProtectionRequirements reqs =
@@ -324,7 +322,7 @@ namespace MonoTests.System.ServiceModel.Channels
 				new HttpTransportBindingElement ());
 			BindingContext ctx = new BindingContext (
 				cb, new BindingParameterCollection (),
-				new Uri ("http://localhost:" + NetworkHelpers.FindFreePort ()), String.Empty, ListenUriMode.Unique);
+				new Uri ("http://localhost:37564"), String.Empty, ListenUriMode.Unique);
 			new TextMessageEncodingBindingElement ().BuildChannelListener<IReplyChannel> (ctx);
 		}
 
@@ -338,7 +336,7 @@ namespace MonoTests.System.ServiceModel.Channels
 			ServiceHost host = new ServiceHost (typeof (FooService));
 			host.AddServiceEndpoint (typeof (IFooService),
 				new CustomBinding (new MyBindingElement (false), new HttpTransportBindingElement ()),
-				"http://localhost:" + NetworkHelpers.FindFreePort ());
+				"http://localhost:37564");
 			host.Open ();
 		}
 
@@ -351,7 +349,7 @@ namespace MonoTests.System.ServiceModel.Channels
 			ServiceHost host = new ServiceHost (typeof (FooService));
 			host.AddServiceEndpoint (typeof (IFooService),
 				new CustomBinding (new MyBindingElement (true), new HttpTransportBindingElement ()),
-				"http://localhost:" + NetworkHelpers.FindFreePort ());
+				"http://localhost:37564");
 			host.Open ();
 			host.Close ();
 		}
@@ -365,7 +363,7 @@ namespace MonoTests.System.ServiceModel.Channels
 			ServiceHost host = new ServiceHost (typeof (FooService));
 			host.AddServiceEndpoint (typeof (IFooService),
 				new CustomBinding (new MyBindingElement (true), new HttpTransportBindingElement ()),
-				"http://localhost:" + NetworkHelpers.FindFreePort (), new Uri ("foobar", UriKind.Relative));
+				"http://localhost:37564", new Uri ("foobar", UriKind.Relative));
 		}
 
 		[Test]
@@ -374,10 +372,10 @@ namespace MonoTests.System.ServiceModel.Channels
 		{
 			// MyBindingElement overrides GetProperty<T>() to call GetInnerProperty<T>() (default implementation).
 			// HttpTransportBindingElement should return Soap11.
-			ServiceHost host = new ServiceHost (typeof (FooService), new Uri ("http://localhost:" + NetworkHelpers.FindFreePort ()));
+			ServiceHost host = new ServiceHost (typeof (FooService), new Uri ("http://localhost:37564"));
 			host.AddServiceEndpoint (typeof (IFooService),
 				new CustomBinding (new MyBindingElement (true), new HttpTransportBindingElement ()),
-				"http://localhost:" + NetworkHelpers.FindFreePort (), new Uri ("foobar", UriKind.Relative));
+				"http://localhost:37564", new Uri ("foobar", UriKind.Relative));
 			host.Open ();
 			host.Close ();
 		}

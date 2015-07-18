@@ -384,52 +384,6 @@ public class DebuggerTests
 	}
 
 	[Test]
-	public void ClassLocalReflection () {
-		MethodMirror m = entry_point.DeclaringType.Assembly.GetType ("LocalReflectClass").GetMethod ("RunMe");
-
-		Assert.IsNotNull (m);
-		//Console.WriteLine ("X: " + name + " " + m.ILOffsets.Count + " " + m.Locations.Count);
-		var offset = -1;
-		int method_base_linum = m.Locations [0].LineNumber;
-		foreach (var location in m.Locations)
-			if (location.LineNumber == method_base_linum + 2) {
-				offset = location.ILOffset;
-				break;
-			}
-
-		var req = vm.SetBreakpoint (m, offset);
-
-		Event e = null;
-
-		while (true) {
-			vm.Resume ();
-			e = GetNextEvent ();
-			if (e is BreakpointEvent)
-				break;
-		}
-
-		req.Disable ();
-
-		Assert.IsInstanceOfType (typeof (BreakpointEvent), e);
-		Assert.AreEqual (m.Name, (e as BreakpointEvent).Method.Name);
-
-		e = single_step (e.Thread);
-
-		var frame = e.Thread.GetFrames ()[0];
-		Value variable = frame.GetValue (frame.Method.GetLocal ("reflectMe"));
-
-		ObjectMirror thisObj = (ObjectMirror)variable;
-		TypeMirror thisType = thisObj.Type;
-		FieldInfoMirror thisFi = null;
-		foreach (var fi in thisType.GetFields ())
-			if (fi.Name == "someField")
-				thisFi = fi;
-
-		var gotVal = thisObj.GetValue (thisFi);
-		// If we got this far, we're good.
-	}
-
-	[Test]
 	public void SingleStepping () {
 		Event e = run_until ("single_stepping");
 
@@ -2286,12 +2240,6 @@ public class DebuggerTests
 		v = s.InvokeMethod (e.Thread, m, null);
 		AssertValue (42, v);
 
-		// Pass boxed struct as this
-		var boxed_this = t.NewInstance () as ObjectMirror;
-		m = t.GetMethod ("invoke_return_int");
-		v = boxed_this.InvokeMethod (e.Thread, m, null);
-		AssertValue (0, v);
-
 		// Pass struct as this, receive intptr
 		m = t.GetMethod ("invoke_return_intptr");
 		v = s.InvokeMethod (e.Thread, m, null);
@@ -2308,13 +2256,6 @@ public class DebuggerTests
 		m = t.GetMethod ("invoke_return_int");
 		v = s.InvokeMethod (e.Thread, m, null);
 		AssertValue (42, v);
-
-		// .ctor
-		s = frame.GetArgument (1) as StructMirror;
-		t = s.Type;
-		m = t.GetMethods ().First (method => method.Name == ".ctor" && method.GetParameters ().Length == 1);
-		v = t.InvokeMethod (e.Thread, m, new Value [] { vm.CreateValue (1) });
-		AssertValue (1, (v as StructMirror)["i"]);
 
 #if NET_4_5
 		// Invoke a method which changes state

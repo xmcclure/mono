@@ -2,7 +2,6 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Text;
 using SharpCompress.Common;
 using SharpCompress.Common.Zip;
 using SharpCompress.Common.Zip.Headers;
@@ -206,13 +205,13 @@ namespace SharpCompress.Archive.Zip
                     }
                 }
             }
-        }     
+        }
 
-        protected override void SaveTo(Stream stream, CompressionInfo compressionInfo, Encoding encoding,
+        protected override void SaveTo(Stream stream, CompressionInfo compressionInfo,
                                        IEnumerable<ZipArchiveEntry> oldEntries,
                                        IEnumerable<ZipArchiveEntry> newEntries)
         {
-            using (var writer = new ZipWriter(stream, compressionInfo, string.Empty, encoding))
+            using (var writer = new ZipWriter(stream, compressionInfo, string.Empty))
             {
                 foreach (var entry in oldEntries.Concat(newEntries)
                                                 .Where(x => !x.IsDirectory))

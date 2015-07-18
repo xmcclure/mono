@@ -7544,9 +7544,9 @@ namespace Mono.CSharp {
 		    }
 		}
 
-		public static TemporaryVariableReference Create (TypeSpec type, Block block, Location loc, bool writeToSymbolFile = false)
+		public static TemporaryVariableReference Create (TypeSpec type, Block block, Location loc)
 		{
-			var li = LocalVariable.CreateCompilerGenerated (type, block, loc, writeToSymbolFile);
+			var li = LocalVariable.CreateCompilerGenerated (type, block, loc);
 			return new TemporaryVariableReference (li, loc);
 		}
 

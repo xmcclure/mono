@@ -1,9 +1,8 @@
 /*
  * proflog.c: mono log profiler
  *
- * Authors:
+ * Author:
  *   Paolo Molaro (lupus@ximian.com)
- *   Alex Rønne Petersen (alexrp@xamarin.com)
  *
  * Copyright 2010 Novell, Inc (http://www.novell.com)
  * Copyright 2011 Xamarin Inc (http://www.xamarin.com)
@@ -110,6 +109,20 @@ static int do_counters = 0;
 static int do_coverage = 0;
 static gboolean debug_coverage = FALSE;
 static MonoProfileSamplingMode sampling_mode = MONO_PROFILER_STAT_MODE_PROCESS;
+
+/* For linux compile with:
+ * gcc -fPIC -shared -o libmono-profiler-log.so proflog.c utils.c -Wall -g -lz `pkg-config --cflags --libs mono-2`
+ * gcc -o mprof-report decode.c utils.c -Wall -g -lz -lrt -lpthread `pkg-config --cflags mono-2`
+ *
+ * For osx compile with:
+ * gcc -m32 -Dmono_free=free shared -o libmono-profiler-log.dylib proflog.c utils.c -Wall -g -lz `pkg-config --cflags mono-2` -undefined suppress -flat_namespace
+ * gcc -m32 -o mprof-report decode.c utils.c -Wall -g -lz -lrt -lpthread `pkg-config --cflags mono-2`
+ *
+ * Install with:
+ * sudo cp mprof-report /usr/local/bin
+ * sudo cp libmono-profiler-log.so /usr/local/lib
+ * sudo ldconfig
+ */
 
 typedef struct _LogBuffer LogBuffer;
 
@@ -376,19 +389,6 @@ typedef struct _LogBuffer LogBuffer;
  *  [partially_covered: uleb128] the number of partially covered methods
  *    currently partially_covered will always be 0, and fully_covered is the
  *    number of methods that are fully and partially covered.
- */
-
-/*
- * Format oddities that we ought to fix:
- *
- * - Methods written in emit_bt () should be based on the buffer's base
- *   method instead of the base pointer.
- * - The TYPE_SAMPLE_HIT event contains (currently) pointless data like
- *   always-one unmanaged frame count and always-zero IL offsets.
- *
- * These are mostly small things and are not worth a format change by
- * themselves. They should be done when some other major change has to
- * be done to the format.
  */
 
 struct _LogBuffer {

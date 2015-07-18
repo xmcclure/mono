@@ -63,16 +63,6 @@ typedef struct {
 	gboolean external_symbols;
 	gboolean emit_dwarf;
 	int max_got_offset;
-
-	/* For AOT */
-	MonoAssembly *assembly;
-	char *global_prefix;
-	MonoAotFileInfo aot_info;
-	const char *jit_got_symbol;
-	const char *eh_frame_symbol;
-	LLVMValueRef code_start, code_end;
-	gboolean has_jitted_code;
-	gboolean static_link;
 } MonoLLVMModule;
 
 /*
@@ -2322,7 +2312,7 @@ process_call (EmitContext *ctx, MonoBasicBlock *bb, LLVMBuilderRef *builder_ref,
 						 */
 #ifndef TARGET_AMD64
 						if (abs_ji->type == MONO_PATCH_INFO_MONITOR_ENTER || abs_ji->type == MONO_PATCH_INFO_MONITOR_ENTER_V4 ||
-								abs_ji->type == MONO_PATCH_INFO_MONITOR_EXIT)
+								abs_ji->type == MONO_PATCH_INFO_MONITOR_EXIT || abs_ji->type == MONO_PATCH_INFO_GENERIC_CLASS_INIT)
 							LLVM_FAILURE (ctx, "trampoline with own cconv");
 #endif
 						target = mono_resolve_patch_target (cfg->method, cfg->domain, NULL, abs_ji, FALSE);
@@ -2697,7 +2687,9 @@ process_bb (EmitContext *ctx, MonoBasicBlock *bb)
 	if (bb->flags & BB_EXCEPTION_HANDLER) {
 		if (!bblocks [bb->block_num].invoke_target) {
 			/*
-			 * Some tests in exceptions.exe fail.
+			 * LLVM asserts if llvm.eh.selector is called from a bblock which
+			 * doesn't have an invoke pointing at it.
+			 * Update: LLVM no longer asserts, but some tests in exceptions.exe now fail.
 			 */
 			LLVM_FAILURE (ctx, "handler without invokes");
 		}
@@ -3686,6 +3678,58 @@ process_bb (EmitContext *ctx, MonoBasicBlock *bb)
 		case OP_VCALL_REG: {
 			process_call (ctx, bb, &builder, ins);
 			CHECK_FAILURE (ctx);
+			break;
+		}
+		case OP_GENERIC_CLASS_INIT: {
+			static int byte_offset = -1;
+			static guint8 bitmask;
+			LLVMValueRef flags_load, cmp;
+			MonoMethodSignature *sig;
+			const char *icall_name;
+			LLVMValueRef callee;
+			LLVMBasicBlockRef init_bb, noinit_bb;
+			LLVMValueRef args [16];
+
+			if (byte_offset < 0)
+				mono_marshal_find_bitfield_offset (MonoVTable, initialized, &byte_offset, &bitmask);
+
+			flags_load = emit_load (ctx, bb, &builder, 1, convert (ctx, lhs, LLVMPointerType (LLVMInt8Type(), 0)), "", FALSE);
+			set_metadata_flag (flags_load, "mono.nofail.load");
+			cmp = LLVMBuildICmp (builder, LLVMIntEQ, LLVMBuildAnd (builder, flags_load, LLVMConstInt (LLVMInt8Type (), bitmask, 0), ""), LLVMConstInt (LLVMInt8Type (), 1, FALSE), "");
+
+			callee = ctx->lmodule->generic_class_init_tramp;
+			if (!callee) {
+				icall_name = "specific_trampoline_generic_class_init";
+				sig = mono_metadata_signature_alloc (mono_get_corlib (), 1);
+				sig->ret = &mono_get_void_class ()->byval_arg;
+				sig->params [0] = &mono_get_intptr_class ()->byval_arg;
+				if (cfg->compile_aot) {
+					callee = get_plt_entry (ctx, sig_to_llvm_sig (ctx, sig), MONO_PATCH_INFO_INTERNAL_METHOD, icall_name);
+				} else {
+					callee = LLVMAddFunction (module, icall_name, sig_to_llvm_sig (ctx, sig));
+					LLVMAddGlobalMapping (ctx->lmodule->ee, callee, resolve_patch (cfg, MONO_PATCH_INFO_INTERNAL_METHOD, icall_name));
+				}
+				mono_memory_barrier ();
+				ctx->lmodule->generic_class_init_tramp = callee;
+			}
+
+			init_bb = gen_bb (ctx, "INIT_BB");
+			noinit_bb = gen_bb (ctx, "NOINIT_BB");
+
+			LLVMBuildCondBr (ctx->builder, cmp, noinit_bb, init_bb);
+
+			builder = create_builder (ctx);
+			ctx->builder = builder;
+			LLVMPositionBuilderAtEnd (builder, init_bb);
+			args [0] = convert (ctx, lhs, IntPtrType ());
+			emit_call (ctx, bb, &builder, callee, args, 1);
+			LLVMBuildBr (builder, noinit_bb);
+
+			builder = create_builder (ctx);
+			ctx->builder = builder;
+			LLVMPositionBuilderAtEnd (builder, noinit_bb);
+
+			ctx->bblocks [bb->block_num].end_bblock = noinit_bb;
 			break;
 		}
 		case OP_AOTCONST: {
@@ -5439,11 +5483,10 @@ exception_cb (void *data)
 	/* Count nested clauses */
 	nested_len = 0;
 	for (i = 0; i < ei_len; ++i) {
-		gint32 cindex1 = *(gint32*)type_info [i];
-		MonoExceptionClause *clause1 = &cfg->header->clauses [cindex1];
-
-		for (j = 0; j < cfg->header->num_clauses; ++j) {
-			int cindex2 = j;
+		for (j = 0; j < ei_len; ++j) {
+			gint32 cindex1 = *(gint32*)type_info [i];
+			MonoExceptionClause *clause1 = &cfg->header->clauses [cindex1];
+			gint32 cindex2 = *(gint32*)type_info [j];
 			MonoExceptionClause *clause2 = &cfg->header->clauses [cindex2];
 
 			if (cindex1 != cindex2 && clause1->try_offset >= clause2->try_offset && clause1->handler_offset <= clause2->handler_offset) {
@@ -5473,25 +5516,19 @@ exception_cb (void *data)
 	 */
 	nindex = ei_len;
 	for (i = 0; i < ei_len; ++i) {
-		gint32 cindex1 = *(gint32*)type_info [i];
-		MonoExceptionClause *clause1 = &cfg->header->clauses [cindex1];
-
-		for (j = 0; j < cfg->header->num_clauses; ++j) {
-			int cindex2 = j;
+		for (j = 0; j < ei_len; ++j) {
+			gint32 cindex1 = *(gint32*)type_info [i];
+			MonoExceptionClause *clause1 = &cfg->header->clauses [cindex1];
+			gint32 cindex2 = *(gint32*)type_info [j];
 			MonoExceptionClause *clause2 = &cfg->header->clauses [cindex2];
-			MonoJitExceptionInfo *nesting_ei, *nested_ei;
 
 			if (cindex1 != cindex2 && clause1->try_offset >= clause2->try_offset && clause1->handler_offset <= clause2->handler_offset) {
-				/* clause1 is the nested clause */
-				nested_ei = &cfg->llvm_ex_info [i];
-				nesting_ei = &cfg->llvm_ex_info [nindex];
+				memcpy (&cfg->llvm_ex_info [nindex], &cfg->llvm_ex_info [j], sizeof (MonoJitExceptionInfo));
+				cfg->llvm_ex_info [nindex].try_start = cfg->llvm_ex_info [i].try_start;
+				cfg->llvm_ex_info [nindex].try_end = cfg->llvm_ex_info [i].try_end;
+				cfg->llvm_ex_info [nindex].handler_start = cfg->llvm_ex_info [i].handler_start;
+				cfg->llvm_ex_info [nindex].exvar_offset = cfg->llvm_ex_info [i].exvar_offset;
 				nindex ++;
-
-				memcpy (nesting_ei, nested_ei, sizeof (MonoJitExceptionInfo));
-
-				nesting_ei->flags = clause2->flags;
-				nesting_ei->data.catch_class = clause2->data.catch_class;
-				nesting_ei->clause_index = cindex2;
 			}
 		}
 	}
@@ -5880,7 +5917,7 @@ mono_llvm_free_domain_info (MonoDomain *domain)
 }
 
 void
-mono_llvm_create_aot_module (MonoAssembly *assembly, const char *global_prefix, gboolean emit_dwarf, gboolean static_link)
+mono_llvm_create_aot_module (const char *got_symbol, gboolean external_symbols, gboolean emit_dwarf)
 {
 	/* Delete previous module */
 	if (aot_module.plt_entries)
@@ -5891,13 +5928,9 @@ mono_llvm_create_aot_module (MonoAssembly *assembly, const char *global_prefix, 
 	memset (&aot_module, 0, sizeof (aot_module));
 
 	aot_module.module = LLVMModuleCreateWithName ("aot");
-	aot_module.assembly = assembly;
-	aot_module.global_prefix = g_strdup (global_prefix);
-	aot_module.got_symbol = g_strdup_printf ("%s_llvm_got", global_prefix);
-	aot_module.eh_frame_symbol = g_strdup_printf ("%s_eh_frame", global_prefix);
-	aot_module.external_symbols = TRUE;
+	aot_module.got_symbol = got_symbol;
+	aot_module.external_symbols = external_symbols;
 	aot_module.emit_dwarf = emit_dwarf;
-	aot_module.static_link = static_link;
 	/* The first few entries are reserved */
 	aot_module.max_got_offset = 16;
 
@@ -5939,214 +5972,6 @@ mono_llvm_create_aot_module (MonoAssembly *assembly, const char *global_prefix, 
 	aot_module.method_to_lmethod = g_hash_table_new (NULL, NULL);
 }
 
-static LLVMValueRef
-llvm_array_from_uints (LLVMTypeRef el_type, guint32 *values, int nvalues)
-{
-	int i;
-	LLVMValueRef res, *vals;
-
-	vals = g_new0 (LLVMValueRef, nvalues);
-	for (i = 0; i < nvalues; ++i)
-		vals [i] = LLVMConstInt (LLVMInt32Type (), values [i], FALSE);
-	res = LLVMConstArray (LLVMInt32Type (), vals, nvalues);
-	g_free (vals);
-	return res;
-}
-
-/*
- * mono_llvm_emit_aot_file_info:
- *
- *   Emit the MonoAotFileInfo structure.
- * Same as emit_aot_file_info () in aot-compiler.c.
- */
-void
-mono_llvm_emit_aot_file_info (MonoAotFileInfo *info, gboolean has_jitted_code)
-{
-	/* Save these for later */
-	memcpy (&aot_module.aot_info, info, sizeof (MonoAotFileInfo));
-	aot_module.has_jitted_code = has_jitted_code;
-}
-
-/*
- * mono_llvm_emit_aot_data:
- *
- *   Emit the binary data DATA pointed to by symbol SYMBOL.
- */
-void
-mono_llvm_emit_aot_data (const char *symbol, guint8 *data, int data_len)
-{
-	MonoLLVMModule *lmodule = &aot_module;
-	LLVMTypeRef type;
-	LLVMValueRef d;
-
-	type = LLVMArrayType (LLVMInt8Type (), data_len);
-	d = LLVMAddGlobal (lmodule->module, type, symbol);
-	LLVMSetVisibility (d, LLVMHiddenVisibility);
-	LLVMSetLinkage (d, LLVMInternalLinkage);
-	LLVMSetInitializer (d, mono_llvm_create_constant_data_array (data, data_len));
-	mono_llvm_set_is_constant (d);
-}
-
-/* Add a reference to a global defined in JITted code */
-static LLVMValueRef
-AddJitGlobal (MonoLLVMModule *lmodule, LLVMTypeRef type, const char *name)
-{
-	char *s;
-	LLVMValueRef v;
-
-	s = g_strdup_printf ("%s%s", lmodule->global_prefix, name);
-	v = LLVMAddGlobal (lmodule->module, type, s);
-	g_free (s);
-	return v;
-}
-
-static void
-emit_aot_file_info (MonoLLVMModule *lmodule)
-{
-	LLVMTypeRef file_info_type;
-	LLVMTypeRef *eltypes, eltype;
-	LLVMValueRef info_var;
-	LLVMValueRef *fields;
-	int i, nfields, tindex;
-	MonoAotFileInfo *info;
-
-	info = &lmodule->aot_info;
-
-	/* Create an LLVM type to represent MonoAotFileInfo */
-	nfields = 50;
-	eltypes = g_new (LLVMTypeRef, nfields);
-	tindex = 0;
-	eltypes [tindex ++] = LLVMInt32Type ();
-	eltypes [tindex ++] = LLVMInt32Type ();
-	/* Symbols */
-	for (i = 0; i < MONO_AOT_FILE_INFO_NUM_SYMBOLS; ++i)
-		eltypes [tindex ++] = LLVMPointerType (LLVMInt8Type (), 0);
-	/* Scalars */
-	for (i = 0; i < 13; ++i)
-		eltypes [tindex ++] = LLVMInt32Type ();
-	/* Arrays */
-	for (i = 0; i < 4; ++i)
-		eltypes [tindex ++] = LLVMArrayType (LLVMInt32Type (), MONO_AOT_TRAMP_NUM);
-	g_assert (tindex == nfields);
-	file_info_type = LLVMStructCreateNamed (LLVMGetGlobalContext (), "MonoAotFileInfo");
-	LLVMStructSetBody (file_info_type, eltypes, nfields, FALSE);
-
-	info_var = LLVMAddGlobal (aot_module.module, file_info_type, "mono_aot_file_info");
-	if (lmodule->static_link) {
-		LLVMSetVisibility (info_var, LLVMHiddenVisibility);
-		LLVMSetLinkage (info_var, LLVMInternalLinkage);
-	}
-	fields = g_new (LLVMValueRef, nfields);
-	tindex = 0;
-	fields [tindex ++] = LLVMConstInt (LLVMInt32Type (), info->version, FALSE);
-	fields [tindex ++] = LLVMConstInt (LLVMInt32Type (), info->dummy, FALSE);
-
-	/* Symbols */
-	/*
-	 * We use LLVMGetNamedGlobal () for symbol which are defined in LLVM code, and LLVMAddGlobal ()
-	 * for symbols defined in the .s file emitted by the aot compiler.
-	 */
-	eltype = eltypes [tindex];
-	fields [tindex ++] = AddJitGlobal (lmodule, eltype, "jit_got");
-	fields [tindex ++] = lmodule->got_var;
-	/* llc defines this directly */
-	fields [tindex ++] = LLVMAddGlobal (lmodule->module, eltype, lmodule->eh_frame_symbol);
-	if (TRUE || lmodule->has_jitted_code) {
-		fields [tindex ++] = AddJitGlobal (lmodule, eltype, "jit_code_start");
-		fields [tindex ++] = AddJitGlobal (lmodule, eltype, "jit_code_end");
-		fields [tindex ++] = AddJitGlobal (lmodule, eltype, "method_addresses");
-	} else {
-		fields [tindex ++] = LLVMConstNull (eltype);
-		fields [tindex ++] = LLVMConstNull (eltype);
-		fields [tindex ++] = LLVMConstNull (eltype);
-	}
-	fields [tindex ++] = LLVMGetNamedGlobal (aot_module.module, "blob");
-	fields [tindex ++] = LLVMGetNamedGlobal (aot_module.module, "class_name_table");
-	fields [tindex ++] = LLVMGetNamedGlobal (aot_module.module, "class_info_offsets");
-	fields [tindex ++] = LLVMGetNamedGlobal (aot_module.module, "method_info_offsets");
-	fields [tindex ++] = LLVMGetNamedGlobal (aot_module.module, "ex_info_offsets");
-	fields [tindex ++] = LLVMGetNamedGlobal (aot_module.module, "extra_method_info_offsets");
-	fields [tindex ++] = LLVMGetNamedGlobal (aot_module.module, "extra_method_table");
-	fields [tindex ++] = LLVMGetNamedGlobal (aot_module.module, "got_info_offsets");
-	fields [tindex ++] = LLVMGetNamedGlobal (aot_module.module, "llvm_got_info_offsets");
-	/* Not needed (mem_end) */
-	fields [tindex ++] = LLVMConstNull (eltype);
-	fields [tindex ++] = LLVMGetNamedGlobal (aot_module.module, "image_table");
-	fields [tindex ++] = LLVMGetNamedGlobal (aot_module.module, "assembly_guid");
-	fields [tindex ++] = LLVMGetNamedGlobal (aot_module.module, "runtime_version");
-	if (info->trampoline_size [0]) {
-		fields [tindex ++] = AddJitGlobal (lmodule, eltype, "specific_trampolines");
-		fields [tindex ++] = AddJitGlobal (lmodule, eltype, "static_rgctx_trampolines");
-		fields [tindex ++] = AddJitGlobal (lmodule, eltype, "imt_thunks");
-		fields [tindex ++] = AddJitGlobal (lmodule, eltype, "gsharedvt_arg_trampolines");
-	} else {
-		fields [tindex ++] = LLVMConstNull (eltype);
-		fields [tindex ++] = LLVMConstNull (eltype);
-		fields [tindex ++] = LLVMConstNull (eltype);
-		fields [tindex ++] = LLVMConstNull (eltype);
-	}
-	if (lmodule->static_link)
-		fields [tindex ++] = AddJitGlobal (lmodule, eltype, "globals");
-	else
-		fields [tindex ++] = LLVMConstNull (eltype);
-	fields [tindex ++] = LLVMGetNamedGlobal (aot_module.module, "assembly_name");
-	if (TRUE || aot_module.has_jitted_code) {
-		fields [tindex ++] = AddJitGlobal (lmodule, eltype, "plt");
-		fields [tindex ++] = AddJitGlobal (lmodule, eltype, "plt_end");
-		fields [tindex ++] = AddJitGlobal (lmodule, eltype, "unwind_info");
-		fields [tindex ++] = AddJitGlobal (lmodule, eltype, "unbox_trampolines");
-		fields [tindex ++] = AddJitGlobal (lmodule, eltype, "unbox_trampolines_end");
-		fields [tindex ++] = AddJitGlobal (lmodule, eltype, "unbox_trampoline_addresses");
-	} else {
-		fields [tindex ++] = LLVMConstNull (eltype);
-		fields [tindex ++] = LLVMConstNull (eltype);
-		fields [tindex ++] = LLVMConstNull (eltype);
-		fields [tindex ++] = LLVMConstNull (eltype);
-		fields [tindex ++] = LLVMConstNull (eltype);
-		fields [tindex ++] = LLVMConstNull (eltype);
-	}
-
-	/* Scalars */
-	fields [tindex ++] = LLVMConstInt (LLVMInt32Type (), info->plt_got_offset_base, FALSE);
-	fields [tindex ++] = LLVMConstInt (LLVMInt32Type (), info->got_size, FALSE);
-	fields [tindex ++] = LLVMConstInt (LLVMInt32Type (), info->plt_size, FALSE);
-	fields [tindex ++] = LLVMConstInt (LLVMInt32Type (), info->nmethods, FALSE);
-	fields [tindex ++] = LLVMConstInt (LLVMInt32Type (), info->flags, FALSE);
-	fields [tindex ++] = LLVMConstInt (LLVMInt32Type (), info->opts, FALSE);
-	fields [tindex ++] = LLVMConstInt (LLVMInt32Type (), info->simd_opts, FALSE);
-	fields [tindex ++] = LLVMConstInt (LLVMInt32Type (), info->gc_name_index, FALSE);
-	fields [tindex ++] = LLVMConstInt (LLVMInt32Type (), info->num_rgctx_fetch_trampolines, FALSE);
-	fields [tindex ++] = LLVMConstInt (LLVMInt32Type (), info->double_align, FALSE);
-	fields [tindex ++] = LLVMConstInt (LLVMInt32Type (), info->long_align, FALSE);
-	fields [tindex ++] = LLVMConstInt (LLVMInt32Type (), info->generic_tramp_num, FALSE);
-	fields [tindex ++] = LLVMConstInt (LLVMInt32Type (), info->tramp_page_size, FALSE);
-	/* Arrays */
-	fields [tindex ++] = llvm_array_from_uints (LLVMInt32Type (), info->num_trampolines, MONO_AOT_TRAMP_NUM);
-	fields [tindex ++] = llvm_array_from_uints (LLVMInt32Type (), info->trampoline_got_offset_base, MONO_AOT_TRAMP_NUM);
-	fields [tindex ++] = llvm_array_from_uints (LLVMInt32Type (), info->trampoline_size, MONO_AOT_TRAMP_NUM);
-	fields [tindex ++] = llvm_array_from_uints (LLVMInt32Type (), info->tramp_page_code_offsets, MONO_AOT_TRAMP_NUM);
-	g_assert (tindex == nfields);
-
-	LLVMSetInitializer (info_var, LLVMConstNamedStruct (file_info_type, fields, nfields));
-
-	if (lmodule->static_link) {
-		char *s, *p;
-		LLVMValueRef var;
-
-		s = g_strdup_printf ("mono_aot_module_%s_info", lmodule->assembly->aname.name);
-		/* Get rid of characters which cannot occur in symbols */
-		p = s;
-		for (p = s; *p; ++p) {
-			if (!(isalnum (*p) || *p == '_'))
-				*p = '_';
-		}
-		var = LLVMAddGlobal (lmodule->module, LLVMPointerType (LLVMInt8Type (), 0), s);
-		g_free (s);
-		LLVMSetInitializer (var, LLVMConstBitCast (LLVMGetNamedGlobal (aot_module.module, "mono_aot_file_info"), LLVMPointerType (LLVMInt8Type (), 0)));
-		LLVMSetLinkage (var, LLVMExternalLinkage);
-	}
-}
-
 /*
  * Emit the aot module into the LLVM bitcode file FILENAME.
  */
@@ -6176,11 +6001,9 @@ mono_llvm_emit_aot_module (const char *filename, const char *cu_name)
 
 	/* Delete the dummy got so it doesn't become a global */
 	LLVMDeleteGlobal (aot_module.got_var);
-	aot_module.got_var = real_got;
 
 	emit_llvm_used (&aot_module);
 	emit_dbg_info (&aot_module, filename, cu_name);
-	emit_aot_file_info (&aot_module);
 
 	/* Replace PLT entries for directly callable methods with the methods themselves */
 	{

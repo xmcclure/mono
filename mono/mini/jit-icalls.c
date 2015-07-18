@@ -850,12 +850,6 @@ mono_fconv_u8 (double v)
 	return (guint64)v;
 }
 
-guint64
-mono_rconv_u8 (float v)
-{
-	return (guint64)v;
-}
-
 #ifdef MONO_ARCH_EMULATE_FCONV_TO_I8
 gint64
 mono_fconv_i8 (double v)
@@ -1028,7 +1022,7 @@ mono_helper_compile_generic_method (MonoObject *obj, MonoMethod *method, gpointe
 
 	addr = mono_compile_method (vmethod);
 
-	addr = mini_add_method_trampoline (vmethod, addr, mono_method_needs_static_rgctx_invoke (vmethod, FALSE), FALSE);
+	addr = mini_add_method_trampoline (NULL, vmethod, addr, mono_method_needs_static_rgctx_invoke (vmethod, FALSE), FALSE);
 
 	/* Since this is a virtual call, have to unbox vtypes */
 	if (obj->vtable->klass->valuetype)
@@ -1284,22 +1278,4 @@ mono_gsharedvt_value_copy (gpointer dest, gpointer src, MonoClass *klass)
 		mono_value_copy (dest, src, klass);
 	else
         mono_gc_wbarrier_generic_store (dest, *(MonoObject**)src);
-}
-
-void
-mono_generic_class_init (MonoVTable *vtable)
-{
-	mono_runtime_class_init (vtable);
-}
-
-gpointer
-mono_fill_class_rgctx (MonoVTable *vtable, int index)
-{
-	return mono_class_fill_runtime_generic_context (vtable, index);
-}
-
-gpointer
-mono_fill_method_rgctx (MonoMethodRuntimeGenericContext *mrgctx, int index)
-{
-	return mono_method_fill_runtime_generic_context (mrgctx, index);
 }

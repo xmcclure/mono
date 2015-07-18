@@ -343,36 +343,29 @@ namespace System.Net.Http.Headers
 			return true;
 		}
 
-		internal static string GetSingleHeaderString (string key, IEnumerable<string> values)
-		{
-			string separator = ",";
-			HeaderInfo headerInfo;
-			if (known_headers.TryGetValue (key, out headerInfo) && headerInfo.AllowsMany)
-				separator = headerInfo.Separator;
-
-			var sb = new StringBuilder ();
-			bool first = true;
-			foreach (var v in values) {
-				if (!first) {
-					sb.Append (separator);
-					if (separator != " ")
-						sb.Append (" ");
-				}
-
-				sb.Append (v);
-				first = false;
-			}
-
-			return sb.ToString ();
-		}
-
 		public override string ToString ()
 		{
 			var sb = new StringBuilder ();
 			foreach (var entry in this) {
 				sb.Append (entry.Key);
 				sb.Append (": ");
-				sb.Append (GetSingleHeaderString (entry.Key, entry.Value));
+
+				string separator = ",";
+				HeaderInfo headerInfo;
+				if (known_headers.TryGetValue (entry.Key, out headerInfo) && headerInfo.AllowsMany)
+					separator = headerInfo.Separator;
+
+				bool first = true;
+				foreach (var v in entry.Value) {
+					if (!first) {
+						sb.Append (separator);
+						sb.Append (" ");
+					}
+
+					sb.Append (v);
+					first = false;
+				}
+
 				sb.Append ("\r\n");
 			}
 

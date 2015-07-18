@@ -1,9 +1,8 @@
 /*
  * decode.c: mprof-report program source: decode and analyze the log profiler data
  *
- * Authors:
+ * Author:
  *   Paolo Molaro (lupus@ximian.com)
- *   Alex Rønne Petersen (alexrp@xamarin.com)
  *
  * Copyright 2010 Novell, Inc (http://www.novell.com)
  */

@@ -755,15 +755,6 @@ mono_atexit (void (*func)(void))
 #endif
 }
 
-/*
- * This function returns the cpu usage in percentage,
- * normalized on the number of cores.
- *
- * Warning : the percentage returned can be > 100%. This
- * might happens on systems like Android which, for
- * battery and performance reasons, shut down cores and
- * lie about the number of active cores.
- */
 gint32
 mono_cpu_usage (MonoCpuUsageState *prev)
 {
@@ -816,6 +807,9 @@ mono_cpu_usage (MonoCpuUsageState *prev)
 
 	if (cpu_total_time > 0 && cpu_busy_time > 0)
 		cpu_usage = (gint32)(cpu_busy_time * 100 / cpu_total_time);
+
+	g_assert (cpu_usage >= 0);
+	g_assert (cpu_usage <= 100);
 
 	return cpu_usage;
 }

@@ -57,10 +57,10 @@
 #include <mono/metadata/gc-internal.h>
 #include <mono/metadata/environment.h>
 #include <mono/metadata/threads-types.h>
-#include <mono/metadata/threadpool-ms.h>
 #include <mono/metadata/socket-io.h>
 #include <mono/metadata/assembly.h>
 #include <mono/metadata/runtime.h>
+#include <mono/metadata/threadpool.h>
 #include <mono/metadata/verify-internals.h>
 #include <mono/utils/mono-semaphore.h>
 #include <mono/utils/mono-error-internals.h>
@@ -2764,7 +2764,7 @@ suspend_vm (void)
 		/*
 		 * Suspend creation of new threadpool threads, since they cannot run
 		 */
-		mono_threadpool_ms_suspend ();
+		mono_thread_pool_suspend ();
 
 	mono_loader_unlock ();
 }
@@ -2807,7 +2807,7 @@ resume_vm (void)
 	//g_assert (err == 0);
 
 	if (suspend_count == 0)
-		mono_threadpool_ms_resume ();
+		mono_thread_pool_resume ();
 
 	mono_loader_unlock ();
 }
@@ -5956,8 +5956,7 @@ decode_value_internal (MonoType *t, int type, MonoDomain *domain, guint8 *addr, 
 		!(t->type == MONO_TYPE_I && type == MONO_TYPE_VALUETYPE) &&
 		!(t->type == MONO_TYPE_U && type == MONO_TYPE_VALUETYPE) &&
 		!(t->type == MONO_TYPE_PTR && type == MONO_TYPE_I8) &&
-		!(t->type == MONO_TYPE_GENERICINST && type == MONO_TYPE_VALUETYPE) &&
-		!(t->type == MONO_TYPE_VALUETYPE && type == MONO_TYPE_OBJECT)) {
+		!(t->type == MONO_TYPE_GENERICINST && type == MONO_TYPE_VALUETYPE)) {
 		char *name = mono_type_full_name (t);
 		DEBUG_PRINTF (1, "[%p] Expected value of type %s, got 0x%0x.\n", (gpointer)GetCurrentThreadId (), name, type);
 		g_free (name);
@@ -6021,27 +6020,9 @@ decode_value_internal (MonoType *t, int type, MonoDomain *domain, guint8 *addr, 
 		/* Fall through */
 		handle_vtype:
 	case MONO_TYPE_VALUETYPE:
-		if (type == MONO_TYPE_OBJECT) {
-			/* Boxed vtype */
-			int objid = decode_objid (buf, &buf, limit);
-			int err;
-			MonoObject *obj;
-
-			err = get_object (objid, (MonoObject**)&obj);
-			if (err)
-				return err;
-			if (!obj)
-				return ERR_INVALID_ARGUMENT;
-			if (obj->vtable->klass != mono_class_from_mono_type (t)) {
-				DEBUG_PRINTF (1, "Expected type '%s', got object '%s'\n", mono_type_full_name (t), obj->vtable->klass->name);
-				return ERR_INVALID_ARGUMENT;
-			}
-			memcpy (addr, mono_object_unbox (obj), mono_class_value_size (obj->vtable->klass, NULL));
-		} else {
-			err = decode_vtype (t, domain, addr, buf, &buf, limit);
-			if (err)
-				return err;
-		}
+		err = decode_vtype (t, domain, addr,buf, &buf, limit);
+		if (err)
+			return err;
 		break;
 	handle_ref:
 	default:
@@ -6537,19 +6518,6 @@ do_invoke_method (DebuggerTlsData *tls, Buffer *buf, InvokeData *invoke, guint8 
 			return ERR_INVALID_ARGUMENT;
 		}
 		memset (this_buf, 0, mono_class_instance_size (m->klass));
-	} else if (m->klass->valuetype && !strcmp (m->name, ".ctor")) {
-			/* Could be null */
-			guint8 *tmp_p;
-
-			int type = decode_byte (p, &tmp_p, end);
-			if (type == VALUE_TYPE_ID_NULL) {
-				memset (this_buf, 0, mono_class_instance_size (m->klass));
-				p = tmp_p;
-			} else {
-				err = decode_value (&m->klass->byval_arg, domain, this_buf, p, &p, end);
-				if (err)
-					return err;
-			}
 	} else {
 		err = decode_value (&m->klass->byval_arg, domain, this_buf, p, &p, end);
 		if (err)
@@ -6680,14 +6648,11 @@ do_invoke_method (DebuggerTlsData *tls, Buffer *buf, InvokeData *invoke, guint8 
 			out_args = TRUE;
 		buffer_add_byte (buf, 1 + (out_this ? 2 : 0) + (out_args ? 4 : 0));
 		if (sig->ret->type == MONO_TYPE_VOID) {
-			if (!strcmp (m->name, ".ctor")) {
-				if (!m->klass->valuetype)
-					buffer_add_value (buf, &mono_defaults.object_class->byval_arg, &this, domain);
-				else
-					buffer_add_value (buf, &m->klass->byval_arg, this_buf, domain);
-			} else {
-				buffer_add_value (buf, &mono_defaults.void_class->byval_arg, NULL, domain);
+			if (!strcmp (m->name, ".ctor") && !m->klass->valuetype) {
+				buffer_add_value (buf, &mono_defaults.object_class->byval_arg, &this, domain);
 			}
+			else
+				buffer_add_value (buf, &mono_defaults.void_class->byval_arg, NULL, domain);
 		} else if (MONO_TYPE_IS_REFERENCE (sig->ret)) {
 			buffer_add_value (buf, sig->ret, &res, domain);
 		} else if (mono_class_from_mono_type (sig->ret)->valuetype || sig->ret->type == MONO_TYPE_PTR || sig->ret->type == MONO_TYPE_FNPTR) {
@@ -9227,14 +9192,6 @@ object_commands (int command, guint8 *p, guint8 *end, Buffer *buf)
 	if (err)
 		return err;
 
-	MonoClass *obj_type;
-
-	obj_type = obj->vtable->klass;
-	if (mono_class_is_transparent_proxy (obj_type))
-		obj_type = ((MonoTransparentProxy *)obj)->remote_class->proxy_class;
-
-	g_assert (obj_type);
-
 	switch (command) {
 	case CMD_OBJECT_REF_GET_TYPE:
 		/* This handles transparent proxies too */
@@ -9250,7 +9207,7 @@ object_commands (int command, guint8 *p, guint8 *end, Buffer *buf)
 
 			/* Check that the field belongs to the object */
 			found = FALSE;
-			for (k = obj_type; k; k = k->parent) {
+			for (k = obj->vtable->klass; k; k = k->parent) {
 				if (k == f->parent) {
 					found = TRUE;
 					break;
@@ -9287,7 +9244,7 @@ object_commands (int command, guint8 *p, guint8 *end, Buffer *buf)
 
 			/* Check that the field belongs to the object */
 			found = FALSE;
-			for (k = obj_type; k; k = k->parent) {
+			for (k = obj->vtable->klass; k; k = k->parent) {
 				if (k == f->parent) {
 					found = TRUE;
 					break;

@@ -37,11 +37,11 @@ build_profiles += monodroid
 endif
 
 if INSTALL_MONOTOUCH
-build_profiles += monotouch monotouch_runtime monotouch_watch
+build_profiles += monotouch monotouch_runtime
 endif
 
 if INSTALL_XAMMAC
-build_profiles += xammac xammac_net_4_5
+build_profiles += xammac
 endif
 
 test_profiles = $(build_profiles)

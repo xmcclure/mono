@@ -21,7 +21,6 @@ monoutils_sources = \
 	dlmalloc.c      	\
 	mono-counters.c		\
 	mono-compiler.h		\
-	mono-complex.h		\
 	mono-dl.c		\
 	mono-dl-windows.c	\
 	mono-dl-darwin.c	\

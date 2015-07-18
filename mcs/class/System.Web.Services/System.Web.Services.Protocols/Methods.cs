@@ -487,7 +487,7 @@ namespace System.Web.Services.Protocols {
 			xmlImporter.IncludeTypes (Type);
 			soapImporter.IncludeTypes (Type);
 
-#if MOBILE || XAMMAC_4_5
+#if MOBILE
 			SoapExtensions = new SoapExtensionRuntimeConfig [2][];
 #else
 			SoapExtensions = SoapExtension.GetTypeExtensions (Type);

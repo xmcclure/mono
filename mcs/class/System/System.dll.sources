@@ -628,7 +628,6 @@ ReferenceSources/BinaryCompatibility.cs
 ReferenceSources/BootstrapHelper.cs
 ReferenceSources/ConfigurationManagerInternalFactory.cs
 ReferenceSources/Internal.cs
-ReferenceSources/HttpSysSettings.cs
 ReferenceSources/Logging.cs
 ReferenceSources/NativeMethods.cs
 ReferenceSources/SettingsSectionInternal.cs
@@ -1021,7 +1020,6 @@ ReferenceSources/_SslStream.cs
 ../../../external/referencesource/System/net/System/Net/cookiecollection.cs
 ../../../external/referencesource/System/net/System/Net/cookiecontainer.cs
 ../../../external/referencesource/System/net/System/Net/cookieexception.cs
-../../../external/referencesource/System/net/System/Net/HttpListenerRequestUriBuilder.cs
 ../../../external/referencesource/System/net/System/Net/Internal.cs
 ../../../external/referencesource/System/net/System/Net/UnicodeDecodingConformance.cs
 ../../../external/referencesource/System/net/System/Net/UnicodeEncodingConformance.cs
@@ -1031,10 +1029,6 @@ ReferenceSources/_SslStream.cs
 ../../../external/referencesource/System/net/System/Net/WriteStreamClosedEventArgs.cs
 
 ../../../external/referencesource/System/net/System/Net/Sockets/NetworkStream.cs
-../../../external/referencesource/System/net/System/Net/NetworkInformation/IPInterfaceStatistics.cs
-../../../external/referencesource/System/net/System/Net/NetworkInformation/ScopeLevel.cs
-../../../external/referencesource/System/net/System/Net/NetworkInformation/UnicastIPAddressInformation.cs
-
 ../../../external/referencesource/System/sys/system/runtime/versioning/FrameworkName.cs
 
 ../../../external/referencesource/System/sys/system/threading/Barrier.cs
@@ -1150,3 +1144,4 @@ ReferenceSources/_SslStream.cs
 ../../../external/referencesource/System/compmod/system/codedom/compiler/ICodeParser.cs
 ../../../external/referencesource/System/compmod/system/codedom/compiler/IndentTextWriter.cs
 ../../../external/referencesource/System/compmod/system/codedom/compiler/LanguageOptions.cs
+

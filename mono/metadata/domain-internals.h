@@ -100,7 +100,13 @@ typedef struct {
  * Contains information about the type arguments for generic shared methods.
  */
 typedef struct {
-	gboolean is_gsharedvt;
+	/*
+	 * If not NULL, determines whenever the class type arguments of the gshared method are references or vtypes.
+	 * The array length is equal to class_inst->type_argv.
+	 */
+	gboolean *var_is_vt;
+	/* Same for method type parameters */
+	gboolean *mvar_is_vt;
 } MonoGenericSharingContext;
 
 /* Simplified DWARF location list entry */

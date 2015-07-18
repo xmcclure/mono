@@ -841,7 +841,7 @@ namespace Mono.CSharp {
 					//
 					// Same name conflict in different namespace containers
 					//
-					var conflict = ns.GetAllTypes (mn.Name);
+					var conflict = ns.GetAllTypes (name);
 					if (conflict != null) {
 						foreach (var e in conflict) {
 							if (e.Arity == mn.Arity) {

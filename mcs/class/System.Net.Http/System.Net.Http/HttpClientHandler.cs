@@ -274,7 +274,9 @@ namespace System.Net.Http
 			// Add request headers
 			var headers = wr.Headers;
 			foreach (var header in request.Headers) {
-				headers.AddValue (header.Key, HttpRequestHeaders.GetSingleHeaderString (header.Key, header.Value));
+				foreach (var value in header.Value) {
+					headers.AddValue (header.Key, value);
+				}
 			}
 			
 			return wr;

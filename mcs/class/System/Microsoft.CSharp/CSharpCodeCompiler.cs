@@ -50,7 +50,6 @@ namespace Mono.CSharp
 	{
 		static string windowsMcsPath;
 		static string windowsMonoPath;
-		static string unixMcsCommand;
 
 		Mutex mcsOutMutex;
 		StringCollection mcsOutput;
@@ -86,13 +85,6 @@ namespace Mono.CSharp
 				
 				if (!File.Exists (windowsMcsPath))
 					throw new FileNotFoundException ("Windows mcs path not found: " + windowsMcsPath);
-			} else {
-				var mscorlibPath = new Uri (typeof (object).Assembly.CodeBase).LocalPath;
-				var unixMcsPath = Path.GetFullPath (Path.Combine (mscorlibPath, "..", "..", "..", "..", "bin", "mcs"));
-				if (File.Exists (unixMcsPath))
-					unixMcsCommand = unixMcsPath;
-				else
-					unixMcsCommand = "mcs";
 			}
 		}
 
@@ -181,7 +173,7 @@ namespace Mono.CSharp
 				mcs.StartInfo.Arguments = "\"" + windowsMcsPath + "\" " +
 					BuildArgs (options, fileNames, ProviderOptions);
 			} else {
-				mcs.StartInfo.FileName=unixMcsCommand;
+				mcs.StartInfo.FileName="mcs";
 				mcs.StartInfo.Arguments=BuildArgs(options, fileNames, ProviderOptions);
 			}
 

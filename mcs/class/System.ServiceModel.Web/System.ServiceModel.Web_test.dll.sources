@@ -1,4 +1,3 @@
-../../test-helpers/NetworkHelpers.cs
 System.Runtime.Serialization.Json/DataContractJsonSerializerTest.cs
 System.Runtime.Serialization.Json/JsonReaderTest.cs
 System.Runtime.Serialization.Json/JsonWriterTest.cs

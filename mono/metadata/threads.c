@@ -20,6 +20,7 @@
 #include <mono/metadata/domain-internals.h>
 #include <mono/metadata/profiler-private.h>
 #include <mono/metadata/threads.h>
+#include <mono/metadata/threadpool.h>
 #include <mono/metadata/threads-types.h>
 #include <mono/metadata/exception.h>
 #include <mono/metadata/environment.h>
@@ -3563,7 +3564,7 @@ mark_slots (void *addr, MonoBitSet **bitmaps, MonoGCMarkFunc mark_func, void *gc
 			void **p = ptr + idx;
 
 			if (*p)
-				mark_func ((MonoObject**)p, gc_data);
+				mark_func (p, gc_data);
 		});
 	}
 }
@@ -3593,14 +3594,14 @@ mono_alloc_static_data (gpointer **static_data_ptr, guint32 offset, gboolean thr
 
 	gpointer* static_data = *static_data_ptr;
 	if (!static_data) {
-		static MonoGCDescriptor tls_desc = MONO_GC_DESCRIPTOR_NULL;
-		static MonoGCDescriptor ctx_desc = MONO_GC_DESCRIPTOR_NULL;
+		static void *tls_desc = NULL;
+		static void *ctx_desc = NULL;
 
 		if (mono_gc_user_markers_supported ()) {
-			if (tls_desc == MONO_GC_DESCRIPTOR_NULL)
+			if (!tls_desc)
 				tls_desc = mono_gc_make_root_descr_user (mark_tls_slots);
 
-			if (ctx_desc == MONO_GC_DESCRIPTOR_NULL)
+			if (!ctx_desc)
 				ctx_desc = mono_gc_make_root_descr_user (mark_ctx_slots);
 		}
 
@@ -3616,7 +3617,7 @@ mono_alloc_static_data (gpointer **static_data_ptr, guint32 offset, gboolean thr
 		if (mono_gc_user_markers_supported ())
 			static_data [i] = g_malloc0 (static_data_size [i]);
 		else
-			static_data [i] = mono_gc_alloc_fixed (static_data_size [i], MONO_GC_DESCRIPTOR_NULL);
+			static_data [i] = mono_gc_alloc_fixed (static_data_size [i], NULL);
 	}
 }
 
@@ -3730,21 +3731,20 @@ alloc_thread_static_data_helper (gpointer key, gpointer value, gpointer user)
 /*
  * LOCKING: requires that threads_mutex is held
  */
-static gboolean
+static void
 alloc_context_static_data_helper (gpointer key, gpointer value, gpointer user)
 {
 	uint32_t gch = GPOINTER_TO_INT (key);
 	MonoAppContext *ctx = (MonoAppContext *) mono_gchandle_get_target (gch);
 
 	if (!ctx) {
+		g_hash_table_remove (contexts, key);
 		mono_gchandle_free (gch);
-		return TRUE; // Remove this key/value pair
+		return;
 	}
 
 	guint32 offset = GPOINTER_TO_UINT (user);
 	mono_alloc_static_data (&ctx->static_data, offset, FALSE);
-
-	return FALSE; // Don't remove it
 }
 
 static StaticDataFreeList*
@@ -3836,7 +3836,7 @@ mono_alloc_special_static_data (guint32 static_type, guint32 size, guint32 align
 			mono_g_hash_table_foreach (threads, alloc_thread_static_data_helper, GUINT_TO_POINTER (offset));
 	} else {
 		if (contexts != NULL)
-			g_hash_table_foreach_remove (contexts, alloc_context_static_data_helper, GUINT_TO_POINTER (offset));
+			g_hash_table_foreach (contexts, alloc_context_static_data_helper, GUINT_TO_POINTER (offset));
 
 		ACCESS_SPECIAL_STATIC_OFFSET (offset, type) = SPECIAL_STATIC_OFFSET_TYPE_CONTEXT;
 	}
@@ -3890,15 +3890,16 @@ free_thread_static_data_helper (gpointer key, gpointer value, gpointer user)
 /*
  * LOCKING: requires that threads_mutex is held
  */
-static gboolean
+static void
 free_context_static_data_helper (gpointer key, gpointer value, gpointer user)
 {
 	uint32_t gch = GPOINTER_TO_INT (key);
 	MonoAppContext *ctx = (MonoAppContext *) mono_gchandle_get_target (gch);
 
 	if (!ctx) {
+		g_hash_table_remove (contexts, key);
 		mono_gchandle_free (gch);
-		return TRUE; // Remove this key/value pair
+		return;
 	}
 
 	OffsetSize *data = user;
@@ -3907,12 +3908,10 @@ free_context_static_data_helper (gpointer key, gpointer value, gpointer user)
 	char *ptr;
 
 	if (!ctx->static_data || !ctx->static_data [idx])
-		return FALSE; // Don't remove this key/value pair
+		return;
 
 	ptr = ((char*) ctx->static_data [idx]) + off;
 	mono_gc_bzero_atomic (ptr, data->size);
-
-	return FALSE; // Don't remove this key/value pair
 }
 
 static void
@@ -3941,7 +3940,7 @@ do_free_special_slot (guint32 offset, guint32 size)
 			mono_g_hash_table_foreach (threads, free_thread_static_data_helper, &data);
 	} else {
 		if (contexts != NULL)
-			g_hash_table_foreach_remove (contexts, free_context_static_data_helper, &data);
+			g_hash_table_foreach (contexts, free_context_static_data_helper, &data);
 	}
 
 	if (!mono_runtime_is_shutting_down ()) {
@@ -4653,44 +4652,4 @@ mono_thread_join (gpointer tid)
 	thread = (pthread_t)tid;
 	pthread_join (thread, NULL);
 #endif
-}
-
-void
-mono_thread_internal_check_for_interruption_critical (MonoInternalThread *thread)
-{
-	if ((thread->state & (ThreadState_StopRequested | ThreadState_SuspendRequested)) != 0)
-		mono_thread_interruption_checkpoint ();
-}
-
-static inline gboolean
-is_appdomainunloaded_exception (MonoClass *klass)
-{
-	static MonoClass *app_domain_unloaded_exception_klass = NULL;
-
-	if (!app_domain_unloaded_exception_klass)
-		app_domain_unloaded_exception_klass = mono_class_from_name (mono_defaults.corlib, "System", "AppDomainUnloadedException");
-	g_assert (app_domain_unloaded_exception_klass);
-
-	return klass == app_domain_unloaded_exception_klass;
-}
-
-static inline gboolean
-is_threadabort_exception (MonoClass *klass)
-{
-	return klass == mono_defaults.threadabortexception_class;
-}
-
-void
-mono_thread_internal_unhandled_exception (MonoObject* exc)
-{
-	if (mono_runtime_unhandled_exception_policy_get () == MONO_UNHANDLED_POLICY_CURRENT) {
-		MonoClass *klass = exc->vtable->klass;
-		if (is_threadabort_exception (klass)) {
-			mono_thread_internal_reset_abort (mono_thread_internal_current ());
-		} else if (!is_appdomainunloaded_exception (klass)) {
-			mono_unhandled_exception (exc);
-			if (mono_environment_exitcode_get () == 1)
-				exit (255);
-		}
-	}
 }

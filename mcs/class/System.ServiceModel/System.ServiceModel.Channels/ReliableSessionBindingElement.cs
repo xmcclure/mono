@@ -99,7 +99,7 @@ namespace System.ServiceModel.Channels
 			throw new NotImplementedException ();
 		}
 		
-#if !MOBILE && !XAMMAC_4_5
+#if !MOBILE
 		void IPolicyExportExtension.ExportPolicy (MetadataExporter exporter, PolicyConversionContext context)
 		{
 			throw new NotImplementedException ();

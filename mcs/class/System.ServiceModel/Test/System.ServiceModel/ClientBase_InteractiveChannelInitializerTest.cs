@@ -37,8 +37,6 @@ using System.ServiceModel.Dispatcher;
 using System.Xml;
 using NUnit.Framework;
 
-using MonoTests.Helpers;
-
 namespace MonoTests.System.ServiceModel
 {
 	[TestFixture]
@@ -50,7 +48,7 @@ namespace MonoTests.System.ServiceModel
 		[ExpectedException (typeof (InvalidOperationException))]
 		public void NotAllowedInitializationUI ()
 		{
-			var f = new FooProxy (new BasicHttpBinding (), new EndpointAddress ("http://localhost:" + NetworkHelpers.FindFreePort ()));
+			var f = new FooProxy (new BasicHttpBinding (), new EndpointAddress ("http://localhost:37564"));
 			f.Endpoint.Contract.Behaviors.Add (new MyContractBehavior ());
 			f.InnerChannel.AllowInitializationUI = false;
 			f.DisplayInitializationUI ();
@@ -60,7 +58,7 @@ namespace MonoTests.System.ServiceModel
 		[ExpectedException (typeof (InvalidOperationException))]
 		public void OpenBeforeDisplayInitializationUI ()
 		{
-			var f = new FooProxy (new BasicHttpBinding (), new EndpointAddress ("http://localhost:" + NetworkHelpers.FindFreePort ()));
+			var f = new FooProxy (new BasicHttpBinding (), new EndpointAddress ("http://localhost:37564"));
 			f.Endpoint.Contract.Behaviors.Add (new MyContractBehavior ());
 			f.Open ();
 		}

@@ -526,7 +526,7 @@ namespace Mono.CSharp {
 				fexpr.EmitAssign (ec, source, false, false);
 				Instance = fexpr;
 			} else {
-				var local = TemporaryVariableReference.Create (source.Type, block, Location, writeToSymbolFile: true);
+				var local = TemporaryVariableReference.Create (source.Type, block, Location);
 				if (source.Type.IsStruct) {
 					local.LocalInfo.CreateBuilder (ec);
 				} else {

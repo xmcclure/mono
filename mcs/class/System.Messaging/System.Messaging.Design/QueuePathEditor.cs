@@ -28,7 +28,6 @@
 // WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 //
 
-#if !NO_SYSTEM_DRAWING_DEPENDENCY
 using System.ComponentModel;
 using System.Drawing.Design;
 
@@ -54,4 +53,3 @@ namespace System.Messaging.Design
 		}
 	}
 }
-#endif

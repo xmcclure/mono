@@ -37,8 +37,6 @@ using System.ServiceModel.Security;
 using System.Xml;
 using NUnit.Framework;
 
-using MonoTests.Helpers;
-
 namespace MonoTests.System.ServiceModel.Dispatcher
 {
 	[TestFixture]
@@ -90,12 +88,11 @@ namespace MonoTests.System.ServiceModel.Dispatcher
 		public void FaultContractInfos ()
 		{
 			var host = new ServiceHost (typeof (TestFaultContract));
-			int port = NetworkHelpers.FindFreePort ();
 			host.Description.Behaviors.Find<ServiceDebugBehavior> ().IncludeExceptionDetailInFaults = false;
-			host.AddServiceEndpoint (typeof (ITestFaultContract), new BasicHttpBinding (), new Uri ("http://localhost:" + port));
+			host.AddServiceEndpoint (typeof (ITestFaultContract), new BasicHttpBinding (), new Uri ("http://localhost:37564"));
 			host.Open ();
 			try {
-				var cf = new ChannelFactory<ITestFaultContract> (new BasicHttpBinding (), new EndpointAddress ("http://localhost:" + port));
+				var cf = new ChannelFactory<ITestFaultContract> (new BasicHttpBinding (), new EndpointAddress ("http://localhost:37564"));
 				var cli = cf.CreateChannel ();
 				try {
 					cli.Run ("default");

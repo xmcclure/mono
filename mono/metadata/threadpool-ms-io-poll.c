@@ -68,14 +68,14 @@ poll_mark_bad_fds (mono_pollfd *poll_fds, gint poll_fds_size)
 }
 
 static void
-poll_update_add (gint fd, gint events, gboolean is_new)
+poll_update_add (ThreadPoolIOUpdate *update)
 {
 	gboolean found = FALSE;
 	gint j, k;
 
 	for (j = 1; j < poll_fds_size; ++j) {
 		mono_pollfd *poll_fd = poll_fds + j;
-		if (poll_fd->fd == fd) {
+		if (poll_fd->fd == update->fd) {
 			found = TRUE;
 			break;
 		}
@@ -96,7 +96,7 @@ poll_update_add (gint fd, gint events, gboolean is_new)
 			POLL_INIT_FD (poll_fds + k, -1, 0);
 	}
 
-	POLL_INIT_FD (poll_fds + j, fd, events);
+	POLL_INIT_FD (poll_fds + j, update->fd, update->events);
 
 	if (j >= poll_fds_size)
 		poll_fds_size = j + 1;
@@ -133,7 +133,7 @@ poll_event_wait (void)
 #else
 		case WSAEINTR:
 #endif
-			mono_thread_internal_check_for_interruption_critical (mono_thread_internal_current ());
+			check_for_interruption_critical ();
 			ready = 0;
 			break;
 #if !defined(HOST_WIN32)
@@ -156,32 +156,50 @@ poll_event_wait (void)
 	return ready;
 }
 
-static gint
-poll_event_get_fd_at (gint i, gint *events)
+static inline gint
+poll_event_fd_at (guint i)
 {
-	g_assert (events);
-
-	*events = ((poll_fds [i].revents & (MONO_POLLIN | MONO_POLLERR | MONO_POLLHUP | MONO_POLLNVAL)) ? MONO_POLLIN : 0)
-	            | ((poll_fds [i].revents & (MONO_POLLOUT | MONO_POLLERR | MONO_POLLHUP | MONO_POLLNVAL)) ? MONO_POLLOUT : 0);
-
-	/* if nothing happened on the fd, then just return
-	 * an invalid fd number so it is discarded */
-	return poll_fds [i].revents == 0 ? -1 : poll_fds [i].fd;
+	return poll_fds [i].fd;
 }
 
 static gint
-poll_event_get_fd_max (void)
+poll_event_max (void)
 {
 	return poll_fds_size;
 }
 
-static void
-poll_event_reset_fd_at (gint i, gint events)
+static gboolean
+poll_event_create_sockares_at (guint i, gint fd, MonoMList **list)
 {
-	g_assert (poll_fds [i].fd != -1);
-	g_assert (poll_fds [i].revents != 0);
+	mono_pollfd *poll_fd;
 
-	POLL_INIT_FD (&poll_fds [i], events == 0 ? -1 : poll_fds [i].fd, events);
+	g_assert (list);
+
+	poll_fd = &poll_fds [i];
+	g_assert (poll_fd);
+
+	g_assert (fd == poll_fd->fd);
+
+	if (fd == -1 || poll_fd->revents == 0)
+		return FALSE;
+
+	if (*list && (poll_fd->revents & (MONO_POLLIN | MONO_POLLERR | MONO_POLLHUP | MONO_POLLNVAL)) != 0) {
+		MonoSocketAsyncResult *io_event = get_sockares_for_event (list, MONO_POLLIN);
+		if (io_event)
+			mono_threadpool_ms_enqueue_work_item (((MonoObject*) io_event)->vtable->domain, (MonoObject*) io_event);
+	}
+	if (*list && (poll_fd->revents & (MONO_POLLOUT | MONO_POLLERR | MONO_POLLHUP | MONO_POLLNVAL)) != 0) {
+		MonoSocketAsyncResult *io_event = get_sockares_for_event (list, MONO_POLLOUT);
+		if (io_event)
+			mono_threadpool_ms_enqueue_work_item (((MonoObject*) io_event)->vtable->domain, (MonoObject*) io_event);
+	}
+
+	if (*list)
+		poll_fd->events = get_events (*list);
+	else
+		POLL_INIT_FD (poll_fd, -1, 0);
+
+	return TRUE;
 }
 
 static ThreadPoolIOBackend backend_poll = {
@@ -189,7 +207,7 @@ static ThreadPoolIOBackend backend_poll = {
 	.cleanup = poll_cleanup,
 	.update_add = poll_update_add,
 	.event_wait = poll_event_wait,
-	.event_get_fd_max = poll_event_get_fd_max,
-	.event_get_fd_at = poll_event_get_fd_at,
-	.event_reset_fd_at = poll_event_reset_fd_at,
+	.event_max = poll_event_max,
+	.event_fd_at = poll_event_fd_at,
+	.event_create_sockares_at = poll_event_create_sockares_at,
 };

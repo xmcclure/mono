@@ -38,8 +38,6 @@ using System.Xml.Serialization;
 using MonoTests.System.ServiceModel.Channels;
 using NUnit.Framework;
 
-using MonoTests.Helpers;
-
 namespace MonoTests.System.ServiceModel
 {
 	[TestFixture]
@@ -65,14 +63,14 @@ namespace MonoTests.System.ServiceModel
 			//ChannelFactory<TestService> f =
 				new ChannelFactory<TestService> (
 					new BasicHttpBinding (),
-					new EndpointAddress ("http://localhost:" + NetworkHelpers.FindFreePort ()));
+					new EndpointAddress ("http://localhost:37564"));
 		}
 
 		[Test]
 		public void EndpointAddressAfterCreateChannel ()
 		{
 			var f = new ChannelFactory<ITestService> (new BasicHttpBinding ());
-			f.CreateChannel (new EndpointAddress ("http://localhost:" + NetworkHelpers.FindFreePort ()), null);
+			f.CreateChannel (new EndpointAddress ("http://localhost:37564"), null);
 			Assert.IsNull (f.Endpoint.Address, "#1");
 		}
 
@@ -165,7 +163,7 @@ namespace MonoTests.System.ServiceModel
 			MyChannelFactory<ITestService> f =
 				new MyChannelFactory<ITestService> (
 					new BasicHttpBinding (),
-					new EndpointAddress ("http://localhost:" + NetworkHelpers.FindFreePort ()));
+					new EndpointAddress ("http://localhost:37564"));
 			Assert.AreEqual (CommunicationState.Created,
 				f.State, "#1");
 			f.OpenAnyways ();
@@ -181,7 +179,7 @@ namespace MonoTests.System.ServiceModel
 			ChannelFactory<ITestService> f =
 				new ChannelFactory<ITestService> (
 					new BasicHttpBinding (),
-					new EndpointAddress ("http://localhost:" + NetworkHelpers.FindFreePort ()));
+					new EndpointAddress ("http://localhost:37564"));
 			f.CreateChannel ();
 		}
 

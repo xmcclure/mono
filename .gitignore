@@ -44,8 +44,6 @@ Ankh.NoLoad
 _ReSharper*/
 *.resharper
 [Tt]est[Rr]esult*
-*.orig
-*.rej
 
 # NuGet packages
 !.nuget/*

@@ -188,7 +188,6 @@ struct _MonoImage {
 	MonoStreamHeader     heap_blob;
 	MonoStreamHeader     heap_guid;
 	MonoStreamHeader     heap_tables;
-	MonoStreamHeader     heap_pdb;
 			    
 	const char          *tables_base;
 
