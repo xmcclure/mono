@@ -20570,22 +20570,6 @@
       </method>
     </type>
   </test>
-  <test name="gtest-autoproperty-13.cs">
-    <type name="S">
-      <method name="Int32 get_X()" attrs="2182">
-        <size>14</size>
-      </method>
-      <method name="Int32 get_Y()" attrs="2182">
-        <size>14</size>
-      </method>
-      <method name="Int32 Main()" attrs="150">
-        <size>37</size>
-      </method>
-      <method name="Void .ctor()" attrs="6278">
-        <size>21</size>
-      </method>
-    </type>
-  </test>
   <test name="gtest-autoproperty-14.cs">
     <type name="S">
       <method name="Int32 get_A()" attrs="2182">
@@ -22010,15 +21994,8 @@
       <method name="Boolean &lt;Main&gt;m__9(Boolean)" attrs="145">
         <size>12</size>
       </method>
-    </type>
-    <type name="StructWithUserConstructor">
-      <method name="Void .ctor()" attrs="6278">
-        <size>2</size>
-      </method>
-    </type>
-    <type name="Tester">
       <method name="Void NewTest_8()" attrs="129">
-        <size>140</size>
+        <size>64</size>
       </method>
       <method name="Void CallTest_10()" attrs="129">
         <size>137</size>
@@ -51241,47 +51218,6 @@
       </method>
     </type>
   </test>
-  <test name="test-906.cs">
-    <type name="S1">
-      <method name="Void .ctor()" attrs="6278">
-        <size>10</size>
-      </method>
-    </type>
-    <type name="S2">
-      <method name="Void .ctor()" attrs="6278">
-        <size>9</size>
-      </method>
-    </type>
-    <type name="S3">
-      <method name="Void .ctor()" attrs="6278">
-        <size>17</size>
-      </method>
-    </type>
-    <type name="S4">
-      <method name="Void .ctor(Int32)" attrs="6278">
-        <size>10</size>
-      </method>
-      <method name="Void .ctor()" attrs="6278">
-        <size>9</size>
-      </method>
-    </type>
-    <type name="S5">
-      <method name="Void .ctor(Int32)" attrs="6278">
-        <size>22</size>
-      </method>
-      <method name="Void .ctor()" attrs="6278">
-        <size>8</size>
-      </method>
-    </type>
-    <type name="C">
-      <method name="Int32 Main()" attrs="145">
-        <size>161</size>
-      </method>
-      <method name="Void .ctor()" attrs="6278">
-        <size>7</size>
-      </method>
-    </type>
-  </test>
   <test name="test-907.cs">
     <type name="MainClass">
       <method name="Int32 Main()" attrs="150">
@@ -67226,6 +67162,33 @@
       </method>
     </type>
   </test>
+  <test name="test-interpolation-07.cs">
+    <type name="CloningTests">
+      <method name="Void Do(System.Action)" attrs="145">
+        <size>8</size>
+      </method>
+      <method name="Void SetupBAD()" attrs="145">
+        <size>32</size>
+      </method>
+      <method name="Void Main()" attrs="145">
+        <size>17</size>
+      </method>
+      <method name="Void .ctor()" attrs="6278">
+        <size>7</size>
+      </method>
+    </type>
+    <type name="CloningTests+&lt;SetupBAD&gt;c__AnonStorey0">
+      <method name="Void &lt;&gt;m__0()" attrs="131">
+        <size>19</size>
+      </method>
+      <method name="Void &lt;&gt;m__1()" attrs="131">
+        <size>38</size>
+      </method>
+      <method name="Void .ctor()" attrs="6278">
+        <size>7</size>
+      </method>
+    </type>
+  </test>
   <test name="test-iter-01.cs">
     <type name="X">
       <method name="Int32 Main()" attrs="150">
@@ -68930,40 +68893,6 @@
       </method>
     </type>
   </test>
-  <test name="test-null-operator-010.cs">
-    <type name="Test">
-      <method name="Void Main()" attrs="145">
-        <size>79</size>
-      </method>
-      <method name="Void Test_1[T](T)" attrs="145">
-        <size>22</size>
-      </method>
-      <method name="Void Test_2[T](T)" attrs="145">
-        <size>21</size>
-      </method>
-      <method name="Void Test_3[T](T[])" attrs="145">
-        <size>28</size>
-      </method>
-      <method name="Void .ctor()" attrs="6278">
-        <size>7</size>
-      </method>
-    </type>
-    <type name="Ext">
-      <method name="Void Call[T](T)" attrs="150">
-        <size>17</size>
-      </method>
-    </type>
-  </test>
-  <test name="test-null-operator-011.cs">
-    <type name="Crash">
-      <method name="System.String GetFoo()" attrs="145">
-        <size>10</size>
-      </method>
-      <method name="Void Main()" attrs="145">
-        <size>27</size>
-      </method>
-    </type>
-  </test>
   <test name="test-null-operator-02.cs">
     <type name="CI">
       <method name="Int32 get_Prop()" attrs="2182">
@@ -69220,6 +69149,92 @@
       </method>
     </type>
     <type name="D">
+      <method name="Void .ctor()" attrs="6278">
+        <size>7</size>
+      </method>
+    </type>
+  </test>
+  <test name="test-null-operator-12.cs">
+    <type name="Test">
+      <method name="Boolean Working()" attrs="134">
+        <size>61</size>
+      </method>
+      <method name="Int32 Main()" attrs="150">
+        <size>34</size>
+      </method>
+      <method name="Void .ctor()" attrs="6278">
+        <size>7</size>
+      </method>
+    </type>
+  </test>
+  <test name="test-null-operator-13.cs">
+    <type name="Crash">
+      <method name="X GetFoo()" attrs="145">
+        <size>10</size>
+      </method>
+      <method name="Int32 Main()" attrs="145">
+        <size>49</size>
+      </method>
+    </type>
+    <type name="X">
+      <method name="Y ToLower()" attrs="134">
+        <size>12</size>
+      </method>
+      <method name="Void .ctor()" attrs="6278">
+        <size>7</size>
+      </method>
+    </type>
+    <type name="Y">
+      <method name="Void .ctor()" attrs="6278">
+        <size>7</size>
+      </method>
+    </type>
+    <type name="SS">
+      <method name="Int32 ToUpper(Y)" attrs="150">
+        <size>23</size>
+      </method>
+    </type>
+  </test>
+  <test name="test-null-operator-14.cs">
+    <type name="Test">
+      <method name="Void Main()" attrs="145">
+        <size>79</size>
+      </method>
+      <method name="Void Test_1[T](T)" attrs="145">
+        <size>22</size>
+      </method>
+      <method name="Void Test_2[T](T)" attrs="145">
+        <size>21</size>
+      </method>
+      <method name="Void Test_3[T](T[])" attrs="145">
+        <size>28</size>
+      </method>
+      <method name="Void .ctor()" attrs="6278">
+        <size>7</size>
+      </method>
+    </type>
+    <type name="Ext">
+      <method name="Void Call[T](T)" attrs="150">
+        <size>17</size>
+      </method>
+    </type>
+  </test>
+  <test name="test-null-operator-15.cs">
+    <type name="MM">
+      <method name="System.Collections.Generic.IEnumerable`1[System.Int32] get_myEnumerable()" attrs="2182">
+        <size>14</size>
+      </method>
+      <method name="Void set_myEnumerable(System.Collections.Generic.IEnumerable`1[System.Int32])" attrs="2182">
+        <size>8</size>
+      </method>
+      <method name="Void .ctor()" attrs="6278">
+        <size>7</size>
+      </method>
+    </type>
+    <type name="Test">
+      <method name="Void Main()" attrs="150">
+        <size>65</size>
+      </method>
       <method name="Void .ctor()" attrs="6278">
         <size>7</size>
       </method>
@@ -70048,6 +70063,52 @@
   <test name="test-partial-33.cs">
     <type name="X">
       <method name="Void Main()" attrs="145">
+        <size>2</size>
+      </method>
+      <method name="Void .ctor()" attrs="6278">
+        <size>7</size>
+      </method>
+    </type>
+  </test>
+  <test name="test-partial-34.cs">
+    <type name="A">
+      <method name="Void PartialMethodWith_NoAttr_Decl(System.String)" attrs="129">
+        <size>2</size>
+      </method>
+      <method name="Void PartialMethodWith_AAttr_Decl(System.String)" attrs="129">
+        <size>2</size>
+      </method>
+      <method name="Void PartialMethodWith_BAttr_Decl(System.String)" attrs="129">
+        <size>2</size>
+      </method>
+      <method name="Void PartialMethodWith_AAttr_Defn(System.String)" attrs="129">
+        <size>2</size>
+      </method>
+      <method name="Void PartialMethodWith_BAttr_Defn(System.String)" attrs="129">
+        <size>2</size>
+      </method>
+      <method name="Void PartialMethodWith_ABAttr(System.String)" attrs="129">
+        <size>2</size>
+      </method>
+      <method name="Void PartialMethodWith_BAAttr(System.String)" attrs="129">
+        <size>2</size>
+      </method>
+      <method name="Void .ctor()" attrs="6278">
+        <size>7</size>
+      </method>
+    </type>
+    <type name="CustomAttributes.AttributeA">
+      <method name="Void .ctor(String)" attrs="6278">
+        <size>8</size>
+      </method>
+    </type>
+    <type name="CustomAttributes.AttributeB">
+      <method name="Void .ctor(String)" attrs="6278">
+        <size>8</size>
+      </method>
+    </type>
+    <type name="X">
+      <method name="Void Main()" attrs="150">
         <size>2</size>
       </method>
       <method name="Void .ctor()" attrs="6278">
