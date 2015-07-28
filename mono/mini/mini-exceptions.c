@@ -38,6 +38,10 @@
 #include <sys/syscall.h>
 #endif
 
+#ifdef HAVE_SYS_PRCTL_H
+#include <sys/prctl.h>
+#endif
+
 #include <mono/metadata/appdomain.h>
 #include <mono/metadata/tabledefs.h>
 #include <mono/metadata/threads.h>
@@ -1556,18 +1560,17 @@ mono_handle_exception_internal (MonoContext *ctx, gpointer obj, gboolean resume,
 			gboolean unhandled = FALSE;
 
 			/*
-			 * The exceptions caught by the mono_runtime_invoke () calls in mono_async_invoke () needs to be treated as
-			 * unhandled (#669836).
-			 * FIXME: The check below is hackish, but its hard to distinguish these runtime invoke calls from others
-			 * in the runtime.
+			 * The exceptions caught by the mono_runtime_invoke () calls
+			 * in the threadpool needs to be treated as unhandled (#669836).
+			 *
+			 * FIXME: The check below is hackish, but its hard to distinguish
+			 * these runtime invoke calls from others in the runtime.
 			 */
 			if (ji && jinfo_get_method (ji)->wrapper_type == MONO_WRAPPER_RUNTIME_INVOKE) {
-				if (prev_ji) {
-					MonoInternalThread *thread = mono_thread_internal_current ();
-					if (jinfo_get_method (prev_ji) == thread->async_invoke_method)
-						unhandled = TRUE;
-				}
+				if (prev_ji && jinfo_get_method (prev_ji) == mono_defaults.threadpool_perform_wait_callback_method)
+					unhandled = TRUE;
 			}
+
 			if (unhandled)
 				mono_debugger_agent_handle_exception (obj, ctx, NULL);
 			else
@@ -2214,7 +2217,15 @@ mono_handle_native_sigsegv (int signal, void *ctx, MONO_SIG_HANDLER_INFO_TYPE *i
 		 * it will deadlock. Call the syscall directly instead.
 		 */
 		pid = mono_runtime_syscall_fork ();
-
+#if defined (HAVE_PRCTL) && defined(PR_SET_PTRACER)
+		if (pid > 0) {
+			// Allow gdb to attach to the process even if ptrace_scope sysctl variable is set to
+			// a value other than 0 (the most permissive ptrace scope). Most modern Linux
+			// distributions set the scope to 1 which allows attaching only to direct children of
+			// the current process
+			prctl (PR_SET_PTRACER, pid, 0, 0, 0);
+		}
+#endif
 		if (pid == 0) {
 			dup2 (STDERR_FILENO, STDOUT_FILENO);
 

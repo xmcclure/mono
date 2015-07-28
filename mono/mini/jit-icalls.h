@@ -67,6 +67,8 @@ gpointer mono_ldtoken_wrapper_generic_shared (MonoImage *image, int token, MonoM
 
 guint64 mono_fconv_u8 (double v);
 
+guint64 mono_rconv_u8 (float v);
+
 gint64 mono_fconv_i8 (double v);
 
 guint32 mono_fconv_u4 (double v);
@@ -181,10 +183,17 @@ mono_object_isinst_with_cache (MonoObject *obj, MonoClass *klass, gpointer *cach
 MonoObject*
 mono_object_castclass_with_cache (MonoObject *obj, MonoClass *klass, gpointer *cache);
 
+void
+mono_generic_class_init (MonoVTable *vtable);
+
 MonoObject*
 mono_gsharedvt_constrained_call (gpointer mp, MonoMethod *cmethod, MonoClass *klass, gboolean deref_arg, gpointer *args);
 
 void mono_gsharedvt_value_copy (gpointer dest, gpointer src, MonoClass *klass);
+
+gpointer mono_fill_class_rgctx (MonoVTable *vtable, int index);
+
+gpointer mono_fill_method_rgctx (MonoMethodRuntimeGenericContext *mrgctx, int index);
 
 #endif /* __MONO_JIT_ICALLS_H__ */
 
