@@ -1487,12 +1487,8 @@ namespace System.Diagnostics {
 			}
 
 			public void Close () {
-				RemoveFromIOThreadPool (handle);
 				stream.Close ();
 			}
-
-			[MethodImplAttribute(MethodImplOptions.InternalCall)]
-			extern static void RemoveFromIOThreadPool (IntPtr handle);
 
 			void IThreadPoolWorkItem.ExecuteWorkItem()
 			{

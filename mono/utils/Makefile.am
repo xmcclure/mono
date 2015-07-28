@@ -39,7 +39,6 @@ monoutils_sources = \
 	mono-mmap-internal.h	\
 	mono-mutex.c  		\
 	mono-mutex.h  		\
-	mono-lazy-init.h		\
 	mono-networkinterfaces.c		\
 	mono-networkinterfaces.h		\
 	mono-proclib.c		\

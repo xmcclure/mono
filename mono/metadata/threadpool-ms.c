@@ -35,7 +35,6 @@
 #include <mono/utils/atomic.h>
 #include <mono/utils/mono-compiler.h>
 #include <mono/utils/mono-complex.h>
-#include <mono/utils/mono-lazy-init.h>
 #include <mono/utils/mono-logger.h>
 #include <mono/utils/mono-logger-internal.h>
 #include <mono/utils/mono-proclib.h>
@@ -163,14 +162,13 @@ typedef enum {
 	TRANSITION_UNDEFINED,
 } ThreadPoolHeuristicStateTransition;
 
-static mono_lazy_init_t status = MONO_LAZY_INIT_STATUS_NOT_INITIALIZED;
-
 enum {
 	MONITOR_STATUS_REQUESTED,
 	MONITOR_STATUS_WAITING_FOR_REQUEST,
 	MONITOR_STATUS_NOT_RUNNING,
 };
 
+static gint32 status = STATUS_NOT_INITIALIZED;
 static gint32 monitor_status = MONITOR_STATUS_NOT_RUNNING;
 
 static ThreadPool* threadpool;
@@ -235,12 +233,26 @@ rand_free (gpointer handle)
 }
 
 static void
-initialize (void)
+ensure_initialized (MonoBoolean *enable_worker_tracking)
 {
 	ThreadPoolHillClimbing *hc;
 	const char *threads_per_cpu_env;
 	gint threads_per_cpu;
 	gint threads_count;
+
+	if (enable_worker_tracking) {
+		// TODO implement some kind of switch to have the possibily to use it
+		*enable_worker_tracking = FALSE;
+	}
+
+	if (status >= STATUS_INITIALIZED)
+		return;
+	if (status == STATUS_INITIALIZING || InterlockedCompareExchange (&status, STATUS_INITIALIZING, STATUS_NOT_INITIALIZED) != STATUS_NOT_INITIALIZED) {
+		while (status == STATUS_INITIALIZING)
+			mono_thread_info_yield ();
+		g_assert (status >= STATUS_INITIALIZED);
+		return;
+	}
 
 	g_assert (!threadpool);
 	threadpool = g_new0 (ThreadPool, 1);
@@ -300,15 +312,32 @@ initialize (void)
 	threadpool->cpu_usage_state = g_new0 (MonoCpuUsageState, 1);
 
 	threadpool->suspended = FALSE;
+
+	status = STATUS_INITIALIZED;
 }
 
 static void worker_unpark (ThreadPoolParkedThread *thread);
 static void worker_kill (ThreadPoolWorkingThread *thread);
 
 static void
-cleanup (void)
+ensure_cleanedup (void)
 {
 	guint i;
+
+	if (status == STATUS_NOT_INITIALIZED && InterlockedCompareExchange (&status, STATUS_CLEANED_UP, STATUS_NOT_INITIALIZED) == STATUS_NOT_INITIALIZED)
+		return;
+	if (status == STATUS_INITIALIZING) {
+		while (status == STATUS_INITIALIZING)
+			mono_thread_info_yield ();
+	}
+	if (status == STATUS_CLEANED_UP)
+		return;
+	if (status == STATUS_CLEANING_UP || InterlockedCompareExchange (&status, STATUS_CLEANING_UP, STATUS_INITIALIZED) != STATUS_INITIALIZED) {
+		while (status == STATUS_CLEANING_UP)
+			mono_thread_info_yield ();
+		g_assert (status == STATUS_CLEANED_UP);
+		return;
+	}
 
 	/* we make the assumption along the code that we are
 	 * cleaning up only if the runtime is shutting down */
@@ -328,6 +357,8 @@ cleanup (void)
 		worker_unpark ((ThreadPoolParkedThread*) g_ptr_array_index (threadpool->parked_threads, i));
 
 	mono_mutex_unlock (&threadpool->active_threads_lock);
+
+	status = STATUS_CLEANED_UP;
 }
 
 void
@@ -559,6 +590,7 @@ worker_thread (gpointer data)
 
 	mono_trace (G_LOG_LEVEL_INFO, MONO_TRACE_THREADPOOL, "[%p] worker starting", GetCurrentThreadId ());
 
+	g_assert (status >= STATUS_INITIALIZED);
 	g_assert (threadpool);
 
 	thread = mono_thread_internal_current ();
@@ -1219,7 +1251,7 @@ mono_threadpool_ms_cleanup (void)
 	#ifndef DISABLE_SOCKETS
 		mono_threadpool_ms_io_cleanup ();
 	#endif
-	mono_lazy_cleanup (&status, cleanup);
+	ensure_cleanedup ();
 }
 
 MonoAsyncResult *
@@ -1236,7 +1268,7 @@ mono_threadpool_ms_begin_invoke (MonoDomain *domain, MonoObject *target, MonoMet
 		async_call_klass = mono_class_from_name (mono_defaults.corlib, "System", "MonoAsyncCall");
 	g_assert (async_call_klass);
 
-	mono_lazy_initialize (&status, initialize);
+	ensure_initialized (NULL);
 
 	message = mono_method_call_message_new (method, params, mono_get_delegate_invoke (method->klass), (params != NULL) ? (&async_callback) : NULL, (params != NULL) ? (&state) : NULL);
 
@@ -1386,7 +1418,7 @@ ves_icall_System_Threading_ThreadPool_GetAvailableThreadsNative (gint32 *worker_
 	if (!worker_threads || !completion_port_threads)
 		return;
 
-	mono_lazy_initialize (&status, initialize);
+	ensure_initialized (NULL);
 
 	*worker_threads = threadpool->limit_worker_max;
 	*completion_port_threads = threadpool->limit_io_max;
@@ -1398,7 +1430,7 @@ ves_icall_System_Threading_ThreadPool_GetMinThreadsNative (gint32 *worker_thread
 	if (!worker_threads || !completion_port_threads)
 		return;
 
-	mono_lazy_initialize (&status, initialize);
+	ensure_initialized (NULL);
 
 	*worker_threads = threadpool->limit_worker_min;
 	*completion_port_threads = threadpool->limit_io_min;
@@ -1410,7 +1442,7 @@ ves_icall_System_Threading_ThreadPool_GetMaxThreadsNative (gint32 *worker_thread
 	if (!worker_threads || !completion_port_threads)
 		return;
 
-	mono_lazy_initialize (&status, initialize);
+	ensure_initialized (NULL);
 
 	*worker_threads = threadpool->limit_worker_max;
 	*completion_port_threads = threadpool->limit_io_max;
@@ -1419,7 +1451,7 @@ ves_icall_System_Threading_ThreadPool_GetMaxThreadsNative (gint32 *worker_thread
 MonoBoolean
 ves_icall_System_Threading_ThreadPool_SetMinThreadsNative (gint32 worker_threads, gint32 completion_port_threads)
 {
-	mono_lazy_initialize (&status, initialize);
+	ensure_initialized (NULL);
 
 	if (worker_threads <= 0 || worker_threads > threadpool->limit_worker_max)
 		return FALSE;
@@ -1437,7 +1469,7 @@ ves_icall_System_Threading_ThreadPool_SetMaxThreadsNative (gint32 worker_threads
 {
 	gint cpu_count = mono_cpu_count ();
 
-	mono_lazy_initialize (&status, initialize);
+	ensure_initialized (NULL);
 
 	if (worker_threads < threadpool->limit_worker_min || worker_threads < cpu_count)
 		return FALSE;
@@ -1453,12 +1485,7 @@ ves_icall_System_Threading_ThreadPool_SetMaxThreadsNative (gint32 worker_threads
 void
 ves_icall_System_Threading_ThreadPool_InitializeVMTp (MonoBoolean *enable_worker_tracking)
 {
-	if (enable_worker_tracking) {
-		// TODO implement some kind of switch to have the possibily to use it
-		*enable_worker_tracking = FALSE;
-	}
-
-	mono_lazy_initialize (&status, initialize);
+	ensure_initialized (enable_worker_tracking);
 }
 
 MonoBoolean
