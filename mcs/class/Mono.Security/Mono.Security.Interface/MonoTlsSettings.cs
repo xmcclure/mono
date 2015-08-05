@@ -27,7 +27,7 @@ using System;
 
 namespace Mono.Security.Interface
 {
-	public class MonoTlsSettings
+	public sealed class MonoTlsSettings
 	{
 		public MonoRemoteCertificateValidationCallback ServerCertificateValidationCallback {
 			get; set;
@@ -60,6 +60,10 @@ namespace Mono.Security.Interface
 		public bool CallbackNeedsCertificateChain {
 			get { return callbackNeedsChain; }
 			set { callbackNeedsChain = value; }
+		}
+
+		public object UserSettings {
+			get; set;
 		}
 
 		bool checkCertName = true;
