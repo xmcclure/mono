@@ -100,11 +100,11 @@ namespace Mono.Net.Security
 		{
 		}
 
-		public LegacySslStream (Stream innerStream, bool leaveInnerStreamOpen, ICertificateValidator certificateValidator, MonoTlsSettings settings)
+		public LegacySslStream (Stream innerStream, bool leaveInnerStreamOpen, MonoTlsSettings settings)
 			: base (innerStream, leaveInnerStreamOpen)
 		{
-			this.certificateValidator = certificateValidator;
 			this.settings = settings;
+			this.certificateValidator = settings.CertificateValidator;
 		}
 		#endregion // Constructors
 

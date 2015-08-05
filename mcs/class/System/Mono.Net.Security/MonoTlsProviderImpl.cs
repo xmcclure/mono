@@ -65,23 +65,20 @@ namespace Mono.Net.Security.Private
 
 		IMonoSslStream IMonoTlsProvider.CreateSslStream (
 			Stream innerStream, bool leaveInnerStreamOpen,
-			MSI.ICertificateValidator certificateValidator,
 			MSI.MonoTlsSettings settings)
 		{
-			return CreateSslStreamImpl (innerStream, leaveInnerStreamOpen, certificateValidator, settings);
+			return CreateSslStreamImpl (innerStream, leaveInnerStreamOpen, settings);
 		}
 
 		protected abstract IMonoSslStream CreateSslStreamImpl (
 			Stream innerStream, bool leaveInnerStreamOpen,
-			MSI.ICertificateValidator certificateValidator,
 			MSI.MonoTlsSettings settings);
 
 		public override MSI.MonoSslStream CreateSslStream (
 			Stream innerStream, bool leaveInnerStreamOpen,
-			MSI.ICertificateValidator certificateValidator,
 			MSI.MonoTlsSettings settings = null)
 		{
-			var sslStream = CreateSslStreamImpl (innerStream, leaveInnerStreamOpen, certificateValidator, settings);
+			var sslStream = CreateSslStreamImpl (innerStream, leaveInnerStreamOpen, settings);
 			return new MonoSslStreamImpl (sslStream);
 		}
 
@@ -89,32 +86,31 @@ namespace Mono.Net.Security.Private
 			string hostname, bool serverMode, MSI.TlsProtocols protocolFlags,
 			X509Certificate serverCertificate, XX509CertificateCollection clientCertificates,
 			bool remoteCertRequired, bool checkCertName, bool checkCertRevocationStatus,
-			MSI.MonoEncryptionPolicy encryptionPolicy, MSI.ICertificateValidator certificateValidator,
-			MSI.MonoTlsSettings settings)
+			MSI.MonoEncryptionPolicy encryptionPolicy, MSI.MonoTlsSettings settings)
 		{
 			return CreateTlsContextImpl (
 				hostname, serverMode, protocolFlags,
 				serverCertificate, (X509CertificateCollection)(object)clientCertificates,
-				remoteCertRequired, encryptionPolicy, certificateValidator, settings);
+				remoteCertRequired, encryptionPolicy, settings);
 		}
 
 		protected abstract MSI.IMonoTlsContext CreateTlsContextImpl (
 			string hostname, bool serverMode, MSI.TlsProtocols protocolFlags,
 			X509Certificate serverCertificate, X509CertificateCollection clientCertificates,
 			bool remoteCertRequired, MSI.MonoEncryptionPolicy encryptionPolicy,
-			MSI.ICertificateValidator certificateValidator, MSI.MonoTlsSettings settings);
+			MSI.MonoTlsSettings settings);
 
 		public override MSI.IMonoTlsContext CreateTlsContext (
 			string hostname, bool serverMode, MSI.TlsProtocols protocolFlags,
 			X509Certificate serverCertificate, XX509CertificateCollection clientCertificates,
 			bool remoteCertRequired, MSI.MonoEncryptionPolicy encryptionPolicy,
-			MSI.ICertificateValidator certificateValidator, MSI.MonoTlsSettings settings)
+			MSI.MonoTlsSettings settings)
 		{
 			return CreateTlsContextImpl (
 				hostname, serverMode, (MSI.TlsProtocols)protocolFlags,
 				serverCertificate, (X509CertificateCollection)(object)clientCertificates,
 				remoteCertRequired, (MSI.MonoEncryptionPolicy)encryptionPolicy,
-				(ChainValidationHelper)certificateValidator, settings);
+				settings);
 		}
 	}
 }

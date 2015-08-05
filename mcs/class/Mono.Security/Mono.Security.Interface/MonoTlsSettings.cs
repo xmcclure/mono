@@ -66,11 +66,52 @@ namespace Mono.Security.Interface
 			get; set;
 		}
 
+		bool cloned = false;
 		bool checkCertName = true;
 		bool checkCertRevocationStatus = false;
 		bool useServicePointManagerCallback = false;
 		bool skipSystemValidators = false;
 		bool callbackNeedsChain = true;
+		ICertificateValidator certificateValidator;
+
+		#region Private APIs
+
+		/*
+		 * Private APIs - do not use!
+		 * 
+		 * This is only public to avoid making our internals visible to System.dll.
+		 * 
+		 */
+
+		[Obsolete ("Do not use outside System.dll!")]
+		public ICertificateValidator CertificateValidator {
+			get { return certificateValidator; }
+			set { certificateValidator = value; }
+		}
+
+		[Obsolete ("Do not use outside System.dll!")]
+		public MonoTlsSettings CloneWithValidator (ICertificateValidator validator)
+		{
+			if (cloned) {
+				this.certificateValidator = validator;
+				return this;
+			}
+
+			var copy = new MonoTlsSettings ();
+			copy.ServerCertificateValidationCallback = ServerCertificateValidationCallback;
+			copy.ClientCertificateSelectionCallback = ClientCertificateSelectionCallback;
+			copy.checkCertName = checkCertName;
+			copy.checkCertRevocationStatus = checkCertRevocationStatus;
+			copy.UseServicePointManagerCallback = useServicePointManagerCallback;
+			copy.skipSystemValidators = skipSystemValidators;
+			copy.callbackNeedsChain = callbackNeedsChain;
+			copy.UserSettings = UserSettings;
+			copy.certificateValidator = validator;
+			copy.cloned = true;
+			return copy;
+		}
+
+		#endregion
 	}
 }
 

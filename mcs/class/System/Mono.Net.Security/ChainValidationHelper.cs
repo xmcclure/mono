@@ -109,10 +109,12 @@ namespace Mono.Net.Security
 			}
 #endif
 		}
-	
-		internal static ICertificateValidator Create (MonoTlsSettings settings)
+
+		internal static ICertificateValidator GetDefaultValidator (MonoTlsSettings settings)
 		{
-			return new ChainValidationHelper (settings, null);
+			if (settings.CertificateValidator == null)
+				settings.CertificateValidator = new ChainValidationHelper (settings, false, null, null);
+			return settings.CertificateValidator;
 		}
 
 #region SslStream support
@@ -120,9 +122,15 @@ namespace Mono.Net.Security
 		/*
 		 * This is a hack which is used in SslStream - see ReferenceSources/SslStream.cs for details.
 		 */
-		internal static ICertificateValidator CloneWithCallbackWrapper (ICertificateValidator validator, ServerCertValidationCallbackWrapper wrapper)
+		internal static ChainValidationHelper CloneWithCallbackWrapper (ref MonoTlsSettings settings, ServerCertValidationCallbackWrapper wrapper)
 		{
-			return new ChainValidationHelper ((ChainValidationHelper)validator, wrapper);
+			var helper = (ChainValidationHelper)settings.CertificateValidator;
+			if (helper == null)
+				helper = new ChainValidationHelper (settings, true, null, wrapper);
+			else
+				helper = new ChainValidationHelper (helper, settings, wrapper);
+			settings = helper.settings;
+			return helper;
 		}
 
 		internal static bool InvokeCallback (ServerCertValidationCallback callback, object sender, X509Certificate certificate, X509Chain chain, MonoSslPolicyErrors sslPolicyErrors)
@@ -132,21 +140,33 @@ namespace Mono.Net.Security
 
 #endregion
 
-		ChainValidationHelper (ChainValidationHelper other, ServerCertValidationCallbackWrapper callbackWrapper = null)
+		ChainValidationHelper (ChainValidationHelper other, MonoTlsSettings settings, ServerCertValidationCallbackWrapper callbackWrapper = null)
 		{
 			sender = other.sender;
-			settings = other.settings;
 			certValidationCallback = other.certValidationCallback;
 			certSelectionCallback = other.certSelectionCallback;
 			tlsStream = other.tlsStream;
 			request = other.request;
+
+			this.settings = settings = settings.CloneWithValidator (this);
 			this.callbackWrapper = callbackWrapper;
 		}
 
-		internal ChainValidationHelper (MonoTlsSettings settings, MonoTlsStream stream)
+		internal static ChainValidationHelper Create (ref MonoTlsSettings settings, MonoTlsStream stream)
 		{
+			var helper = new ChainValidationHelper (settings, true, stream, null);
+			settings = helper.settings;
+			return helper;
+		}
+
+		ChainValidationHelper (MonoTlsSettings settings, bool cloneSettings, MonoTlsStream stream, ServerCertValidationCallbackWrapper callbackWrapper)
+		{
+			if (cloneSettings)
+				settings = settings.CloneWithValidator (this);
+
 			this.settings = settings;
 			this.tlsStream = stream;
+			this.callbackWrapper = callbackWrapper;
 
 			var fallbackToSPM = false;
 

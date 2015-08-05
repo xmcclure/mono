@@ -22,17 +22,15 @@ namespace System.Net.Security
 		#if SECURITY_DEP
 		SSPIConfiguration _Configuration;
 
-		internal SslStream (Stream innerStream, bool leaveInnerStreamOpen, ICertificateValidator certificateValidator, EncryptionPolicy encryptionPolicy, MonoTlsSettings settings)
+		internal SslStream (Stream innerStream, bool leaveInnerStreamOpen, EncryptionPolicy encryptionPolicy, MonoTlsSettings settings)
 			: base (innerStream, leaveInnerStreamOpen)
 		{
 			if (encryptionPolicy != EncryptionPolicy.RequireEncryption && encryptionPolicy != EncryptionPolicy.AllowNoEncryption && encryptionPolicy != EncryptionPolicy.NoEncryption)
 				throw new ArgumentException (SR.GetString (SR.net_invalid_enum, "EncryptionPolicy"), "encryptionPolicy");
 
-			if (certificateValidator == null)
-				certificateValidator = ChainValidationHelper.Create (settings);
-			certificateValidator = ChainValidationHelper.CloneWithCallbackWrapper (certificateValidator, myUserCertValidationCallbackWrapper);
+			ChainValidationHelper.CloneWithCallbackWrapper (ref settings, myUserCertValidationCallbackWrapper);
 
-			_Configuration = new MyConfiguration (certificateValidator, settings, this);
+			_Configuration = new MyConfiguration (settings, this);
 			_SslState = new SslState (innerStream, null, null, encryptionPolicy, _Configuration);
 		}
 
@@ -57,19 +55,13 @@ namespace System.Net.Security
 
 		class MyConfiguration : SSPIConfiguration
 		{
-			ICertificateValidator validator;
 			MonoTlsSettings settings;
 			IMonoTlsEventSink eventSink;
 
-			public MyConfiguration (ICertificateValidator validator, MonoTlsSettings settings, IMonoTlsEventSink eventSink)
+			public MyConfiguration (MonoTlsSettings settings, IMonoTlsEventSink eventSink)
 			{
-				this.validator = validator;
 				this.settings = settings;
 				this.eventSink = eventSink;
-			}
-
-			public ICertificateValidator CertificateValidator {
-				get { return validator; }
 			}
 
 			public MonoTlsSettings Settings {

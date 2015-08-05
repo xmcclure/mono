@@ -36,10 +36,6 @@ namespace System.Net.Security
 {
 	internal interface SSPIConfiguration
 	{
-		ICertificateValidator CertificateValidator {
-			get;
-		}
-
 		MonoTlsSettings Settings {
 			get;
 		}

@@ -1170,7 +1170,7 @@ namespace System.Net
 			var provider = MonoTlsProviderFactory.GetProviderInternal ();
 			var settings = new MSI.MonoTlsSettings ();
 			settings.UseServicePointManagerCallback = true;
-			var sslStream = provider.CreateSslStream (stream, true, null, settings);
+			var sslStream = provider.CreateSslStream (stream, true, settings);
 			sslStream.AuthenticateAsClient (requestUri.Host, null, SslProtocols.Default, false);
 			stream = sslStream.AuthenticatedStream;
 			return true;

@@ -105,19 +105,24 @@ namespace Mono.Security.Interface
 			internalHelperType = Type.GetType (InternalHelperTypeName + ", " + Consts.AssemblySystem, true);
 			if (internalHelperType == null)
 				throw new NotSupportedException ();
-			createMethod = internalHelperType.GetMethod ("Create", BindingFlags.Static | BindingFlags.NonPublic);
+			createMethod = internalHelperType.GetMethod ("GetDefaultValidator", BindingFlags.Static | BindingFlags.NonPublic);
 			if (createMethod == null)
 				throw new NotSupportedException ();
 			#endif
 		}
 
-		public static ICertificateValidator CreateDefaultValidator (MonoTlsSettings settings)
+		internal static ICertificateValidator GetDefaultValidator (MonoTlsSettings settings)
 		{
 			#if INSIDE_SYSTEM
-			return ChainValidationHelper.Create (settings);
+			return ChainValidationHelper.GetDefaultValidator (settings);
 			#else
 			return (ICertificateValidator)createMethod.Invoke (null, new object[] { settings });
 			#endif
+		}
+
+		public static ICertificateValidator GetValidator (MonoTlsSettings settings)
+		{
+			return GetDefaultValidator (settings);
 		}
 	}
 }

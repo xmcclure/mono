@@ -117,17 +117,16 @@ namespace Mono.Net.Security.Private
 
 		protected override IMonoSslStream CreateSslStreamImpl (
 			Stream innerStream, bool leaveInnerStreamOpen,
-			ICertificateValidator certificateValidator,
 			MonoTlsSettings settings)
 		{
-			return new LegacySslStream (innerStream, leaveInnerStreamOpen, certificateValidator, settings);
+			return new LegacySslStream (innerStream, leaveInnerStreamOpen, settings);
 		}
 
 		protected override IMonoTlsContext CreateTlsContextImpl (
 			string hostname, bool serverMode, TlsProtocols protocolFlags,
 			X509Certificate serverCertificate, X509CertificateCollection clientCertificates,
 			bool remoteCertRequired, MonoEncryptionPolicy encryptionPolicy,
-			ICertificateValidator certificateValidator, MonoTlsSettings settings)
+			MonoTlsSettings settings)
 		{
 			throw new NotSupportedException ();
 		}

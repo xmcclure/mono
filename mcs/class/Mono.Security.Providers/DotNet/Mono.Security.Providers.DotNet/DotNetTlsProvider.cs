@@ -58,7 +58,6 @@ namespace Mono.Security.Providers.DotNet
 
 		public override MonoSslStream CreateSslStream (
 			Stream innerStream, bool leaveInnerStreamOpen,
-			ICertificateValidator certificateValidator,
 			MonoTlsSettings settings = null)
 		{
 			if (settings != null)
@@ -67,9 +66,9 @@ namespace Mono.Security.Providers.DotNet
 			RemoteCertificateValidationCallback validation_callback = null;
 			LocalCertificateSelectionCallback selection_callback = null;
 
-			if (certificateValidator != null && certificateValidator.Settings != null) {
-				validation_callback = ConvertCallback (certificateValidator.Settings.ServerCertificateValidationCallback);
-				selection_callback = ConvertCallback (certificateValidator.Settings.ClientCertificateSelectionCallback);
+			if (settings != null) {
+				validation_callback = ConvertCallback (settings.ServerCertificateValidationCallback);
+				selection_callback = ConvertCallback (settings.ClientCertificateSelectionCallback);
 			}
 
 			return new DotNetSslStreamImpl (innerStream, leaveInnerStreamOpen, validation_callback, selection_callback);
@@ -79,7 +78,7 @@ namespace Mono.Security.Providers.DotNet
 			string hostname, bool serverMode, TlsProtocols protocolFlags,
 			X509Certificate serverCertificate, X509CertificateCollection clientCertificates,
 			bool remoteCertRequired, MonoEncryptionPolicy encryptionPolicy,
-			ICertificateValidator certificateValidator, MonoTlsSettings settings)
+			MonoTlsSettings settings)
 		{
 			throw new NotSupportedException ();
 		}

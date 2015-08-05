@@ -98,11 +98,9 @@ namespace Mono.Security.Interface
 		/*
 		 * Obtain a @MonoSslStream instance.
 		 *
-		 * The 'settings' argument is ignored unless this provider 'SupportsMonoExtensions'.
 		 */
 		public abstract MonoSslStream CreateSslStream (
 			Stream innerStream, bool leaveInnerStreamOpen,
-			ICertificateValidator certificateValidator,
 			MonoTlsSettings settings = null);
 
 #endregion
@@ -121,7 +119,6 @@ namespace Mono.Security.Interface
 			string hostname, bool serverMode, TlsProtocols protocolFlags,
 			X509Certificate serverCertificate, X509CertificateCollection clientCertificates,
 			bool remoteCertRequired, MonoEncryptionPolicy encryptionPolicy,
-			ICertificateValidator certificateValidator,
 			MonoTlsSettings settings);
 
 #endregion
