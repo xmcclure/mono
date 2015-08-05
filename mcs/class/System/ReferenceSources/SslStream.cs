@@ -28,10 +28,14 @@ namespace System.Net.Security
 			if (encryptionPolicy != EncryptionPolicy.RequireEncryption && encryptionPolicy != EncryptionPolicy.AllowNoEncryption && encryptionPolicy != EncryptionPolicy.NoEncryption)
 				throw new ArgumentException (SR.GetString (SR.net_invalid_enum, "EncryptionPolicy"), "encryptionPolicy");
 
-			ChainValidationHelper.CloneWithCallbackWrapper (ref settings, myUserCertValidationCallbackWrapper);
+			var validationHelper = ChainValidationHelper.CloneWithCallbackWrapper (ref settings, myUserCertValidationCallbackWrapper);
+
+			LocalCertSelectionCallback selectionCallback = null;
+			if (validationHelper.HasCertificateSelectionCallback)
+				selectionCallback = validationHelper.SelectClientCertificate;
 
 			_Configuration = new MyConfiguration (settings, this);
-			_SslState = new SslState (innerStream, null, null, encryptionPolicy, _Configuration);
+			_SslState = new SslState (innerStream, null, selectionCallback, encryptionPolicy, _Configuration);
 		}
 
 		/*

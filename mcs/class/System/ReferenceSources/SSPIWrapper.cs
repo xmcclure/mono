@@ -80,7 +80,7 @@ namespace System.Net.Security
 			var provider = MNS.MonoTlsProviderFactory.GetProviderInternal ();
 			var settings = userConfig != null ? userConfig.Settings : null;
 			var eventSink = userConfig != null ? userConfig.EventSink : null;
-			if ((settings != null && settings.CertificateValidator != null) && (certSelectionDelegate != null || remoteValidationCallback != null))
+			if (settings != null && remoteValidationCallback != null)
 				throw new InvalidOperationException ();
 			var context = provider.CreateTlsContext (
 				hostname, serverMode, (TlsProtocols)protocolFlags, serverCertificate, clientCertificates,

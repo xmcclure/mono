@@ -200,6 +200,10 @@ namespace Mono.Net.Security
 			get { return settings; }
 		}
 
+		public bool HasCertificateSelectionCallback {
+			get { return certSelectionCallback != null; }
+		}
+
 		public X509Certificate SelectClientCertificate (
 			string targetHost, XX509CertificateCollection localCertificates, X509Certificate remoteCertificate,
 			string[] acceptableIssuers)
