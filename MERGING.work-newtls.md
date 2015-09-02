@@ -1,3 +1,7 @@
+Currently tracking mono-4.2.0-branch commit d3f3d95a1c1d336a59e921cf6f9a051cca8ed6cb.
+
+Last merged on Sep 2nd in our commit 7d61d75185dc73c2661c5b00c27c96d862f9148c.
+
 How to merge new upstream changes:
 
 1. Checkout upstream branch and pull latest changes.
