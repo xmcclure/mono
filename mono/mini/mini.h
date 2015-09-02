@@ -2132,8 +2132,6 @@ void      mono_cprop_local                  (MonoCompile *cfg, MonoBasicBlock *b
 MonoInst* mono_compile_create_var           (MonoCompile *cfg, MonoType *type, int opcode);
 MonoInst* mono_compile_create_var_for_vreg  (MonoCompile *cfg, MonoType *type, int opcode, int vreg);
 void      mono_compile_make_var_load        (MonoCompile *cfg, MonoInst *dest, gssize var_index);
-MonoInst* mono_compile_create_var_load      (MonoCompile *cfg, gssize var_index);
-MonoInst* mono_compile_create_var_store     (MonoCompile *cfg, gssize var_index, MonoInst *value);
 MonoInst* mini_get_int_to_float_spill_area  (MonoCompile *cfg);
 MonoType* mono_type_from_stack_type         (MonoInst *ins);
 guint32   mono_alloc_ireg                   (MonoCompile *cfg) MONO_LLVM_INTERNAL;
@@ -2692,7 +2690,6 @@ MonoBoolean ves_icall_get_frame_info            (gint32 skip, MonoBoolean need_f
 						 MonoReflectionMethod **method, 
 						 gint32 *iloffset, gint32 *native_offset,
 						 MonoString **file, gint32 *line, gint32 *column);
-MonoString *ves_icall_System_Exception_get_trace (MonoException *exc);
 void mono_set_cast_details                      (MonoClass *from, MonoClass *to);
 
 /* Installs a function which is called when the runtime encounters an unhandled exception.
@@ -2876,6 +2873,7 @@ gboolean mini_is_gsharedvt_signature (MonoCompile *cfg, MonoMethodSignature *sig
 gboolean mini_is_gsharedvt_type_gsctx (MonoGenericSharingContext *gsctx, MonoType *t);
 gboolean mini_is_gsharedvt_variable_type (MonoCompile *cfg, MonoType *t) MONO_LLVM_INTERNAL;
 gboolean mini_is_gsharedvt_variable_klass (MonoCompile *cfg, MonoClass *klass) MONO_LLVM_INTERNAL;
+gboolean mini_is_gsharedvt_variable_type_gsctx (MonoGenericSharingContext *gsctx, MonoType *t) MONO_LLVM_INTERNAL;
 gboolean mini_is_gsharedvt_sharable_method (MonoMethod *method);
 gboolean mini_is_gsharedvt_variable_signature (MonoMethodSignature *sig);
 gboolean mini_is_gsharedvt_sharable_inst (MonoGenericInst *inst);

@@ -4365,7 +4365,8 @@ mono_object_new_specific (MonoVTable *vtable)
 				mono_class_init (klass);
 
 			im = mono_class_get_method_from_name (klass, "CreateProxyForType", 1);
-			g_assert (im);
+			if (!im)
+				mono_raise_exception (mono_get_exception_not_supported ("Linked away."));
 			vtable->domain->create_proxy_for_type_method = im;
 		}
 	
@@ -5138,6 +5139,8 @@ mono_object_isinst_mbyref (MonoObject *obj, MonoClass *klass)
 		gpointer pa [2];
 
 		im = mono_class_get_method_from_name (rpklass, "CanCastTo", -1);
+		if (!im)
+			mono_raise_exception (mono_get_exception_not_supported ("Linked away."));
 		im = mono_object_get_virtual_method (rp, im);
 		g_assert (im);
 	
@@ -5783,29 +5786,23 @@ mono_async_result_new (MonoDomain *domain, HANDLE handle, MonoObject *state, gpo
 }
 
 MonoObject *
-mono_async_result_invoke (MonoAsyncResult *ares, MonoObject **exc)
+ves_icall_System_Runtime_Remoting_Messaging_AsyncResult_Invoke (MonoAsyncResult *ares)
 {
 	MonoAsyncCall *ac;
 	MonoObject *res;
-	MonoInternalThread *thread;
 
 	g_assert (ares);
 	g_assert (ares->async_delegate);
 
-	thread = mono_thread_internal_current ();
-
 	ac = (MonoAsyncCall*) ares->object_data;
 	if (!ac) {
-		res = mono_runtime_delegate_invoke (ares->async_delegate, (void**) &ares->async_state, exc);
+		res = mono_runtime_delegate_invoke (ares->async_delegate, (void**) &ares->async_state, NULL);
 	} else {
-		MonoArray *out_args = NULL;
 		gpointer wait_event = NULL;
 
 		ac->msg->exc = NULL;
-		res = mono_message_invoke (ares->async_delegate, ac->msg, exc, &out_args);
-		MONO_OBJECT_SETREF (ac->msg, exc, *exc);
+		res = mono_message_invoke (ares->async_delegate, ac->msg, &ac->msg->exc, &ac->out_args);
 		MONO_OBJECT_SETREF (ac, res, res);
-		MONO_OBJECT_SETREF (ac, out_args, out_args);
 
 		mono_monitor_enter ((MonoObject*) ares);
 		ares->completed = 1;
@@ -5816,23 +5813,15 @@ mono_async_result_invoke (MonoAsyncResult *ares, MonoObject **exc)
 		if (wait_event != NULL)
 			SetEvent (wait_event);
 
-		if (!ac->cb_method) {
-			*exc = NULL;
-		} else {
-			mono_runtime_invoke (ac->cb_method, ac->cb_target, (gpointer*) &ares, exc);
+		if (ac->cb_method) {
+			/* we swallow the excepton as it is the behavior on .NET */
+			MonoObject *exc = NULL;
+			mono_runtime_invoke (ac->cb_method, ac->cb_target, (gpointer*) &ares, &exc);
+			if (exc)
+				mono_unhandled_exception (exc);
 		}
 	}
 
-	return res;
-}
-
-MonoObject *
-ves_icall_System_Runtime_Remoting_Messaging_AsyncResult_Invoke (MonoAsyncResult *this)
-{
-	MonoObject *exc = NULL;
-	MonoObject *res = mono_async_result_invoke (this, &exc);
-	if (exc)
-		mono_raise_exception ((MonoException*) exc);
 	return res;
 }
 
@@ -5930,7 +5919,8 @@ mono_remoting_invoke (MonoObject *real_proxy, MonoMethodMessage *msg,
 
 	if (!im) {
 		im = mono_class_get_method_from_name (mono_defaults.real_proxy_class, "PrivateInvoke", 4);
-		g_assert (im);
+		if (!im)
+			mono_raise_exception (mono_get_exception_not_supported ("Linked away."));
 		real_proxy->vtable->domain->private_invoke_method = im;
 	}
 
@@ -5984,8 +5974,7 @@ mono_message_invoke (MonoObject *target, MonoMethodMessage *msg,
 		object_array_klass = klass;
 	}
 
-	/* FIXME: GC ensure we insert a write barrier for out_args, maybe in the caller? */
-	*out_args = mono_array_new_specific (mono_class_vtable (domain, object_array_klass), outarg_count);
+	mono_gc_wbarrier_generic_store (out_args, (MonoObject*) mono_array_new_specific (mono_class_vtable (domain, object_array_klass), outarg_count));
 	*exc = NULL;
 
 	ret = mono_runtime_invoke_array (method, method->klass->valuetype? mono_object_unbox (target): target, msg->args, exc);
@@ -6310,7 +6299,8 @@ mono_load_remote_field (MonoObject *this, MonoClass *klass, MonoClassField *fiel
 	
 	if (!getter) {
 		getter = mono_class_get_method_from_name (mono_defaults.object_class, "FieldGetter", -1);
-		g_assert (getter);
+		if (!getter)
+			mono_raise_exception (mono_get_exception_not_supported ("Linked away."));
 	}
 	
 	field_class = mono_class_from_mono_type (field->type);
@@ -6377,7 +6367,8 @@ mono_load_remote_field_new (MonoObject *this, MonoClass *klass, MonoClassField *
 
 	if (!getter) {
 		getter = mono_class_get_method_from_name (mono_defaults.object_class, "FieldGetter", -1);
-		g_assert (getter);
+		if (!getter)
+			mono_raise_exception (mono_get_exception_not_supported ("Linked away."));
 	}
 	
 	msg = (MonoMethodMessage *)mono_object_new (domain, mono_defaults.mono_method_message_class);
@@ -6438,7 +6429,8 @@ mono_store_remote_field (MonoObject *this, MonoClass *klass, MonoClassField *fie
 
 	if (!setter) {
 		setter = mono_class_get_method_from_name (mono_defaults.object_class, "FieldSetter", -1);
-		g_assert (setter);
+		if (!setter)
+			mono_raise_exception (mono_get_exception_not_supported ("Linked away."));
 	}
 
 	if (field_class->valuetype)
@@ -6494,7 +6486,8 @@ mono_store_remote_field_new (MonoObject *this, MonoClass *klass, MonoClassField 
 
 	if (!setter) {
 		setter = mono_class_get_method_from_name (mono_defaults.object_class, "FieldSetter", -1);
-		g_assert (setter);
+		if (!setter)
+			mono_raise_exception (mono_get_exception_not_supported ("Linked away."));
 	}
 
 	msg = (MonoMethodMessage *)mono_object_new (domain, mono_defaults.mono_method_message_class);

@@ -1408,8 +1408,7 @@ get_call_info (MonoGenericSharingContext *gsctx, MonoMemPool *mp, MonoMethodSign
 			cinfo->ret.reg = ARMREG_R0;
 			break;
 		}
-		// FIXME: Only for variable types
-		if (mini_is_gsharedvt_type_gsctx (gsctx, t)) {
+		if (mini_is_gsharedvt_variable_type_gsctx (gsctx, t)) {
 			cinfo->ret.storage = RegTypeStructByAddr;
 			break;
 		}
@@ -1527,7 +1526,7 @@ get_call_info (MonoGenericSharingContext *gsctx, MonoMemPool *mp, MonoMethodSign
 				add_general (&gr, &stack_size, ainfo, TRUE);
 				break;
 			}
-			if (mini_is_gsharedvt_type_gsctx (gsctx, t)) {
+			if (mini_is_gsharedvt_variable_type_gsctx (gsctx, t)) {
 				/* gsharedvt arguments are passed by ref */
 				g_assert (mini_is_gsharedvt_type_gsctx (gsctx, t));
 				add_general (&gr, &stack_size, ainfo, TRUE);
@@ -2702,8 +2701,8 @@ dyn_call_supported (CallInfo *cinfo, MonoMethodSignature *sig)
 
 		switch (ainfo->storage) {
 		case RegTypeGeneral:
-			break;
 		case RegTypeIRegPair:
+		case RegTypeBaseGen:
 			break;
 		case RegTypeBase:
 			if (ainfo->offset >= (DYN_CALL_STACK_ARGS * sizeof (gpointer)))
@@ -2818,12 +2817,16 @@ mono_arch_start_dyn_call (MonoDynCallInfo *info, gpointer **args, guint8 *ret, g
 		ArgInfo *ainfo = &dinfo->cinfo->args [i + sig->hasthis];
 		int slot = -1;
 
-		if (ainfo->storage == RegTypeGeneral || ainfo->storage == RegTypeIRegPair || ainfo->storage == RegTypeStructByVal)
+		if (ainfo->storage == RegTypeGeneral || ainfo->storage == RegTypeIRegPair || ainfo->storage == RegTypeStructByVal) {
 			slot = ainfo->reg;
-		else if (ainfo->storage == RegTypeBase)
+		} else if (ainfo->storage == RegTypeBase) {
 			slot = PARAM_REGS + (ainfo->offset / 4);
-		else
+		} else if (ainfo->storage == RegTypeBaseGen) {
+			/* slot + 1 is the first stack slot, so the code below will work */
+			slot = 3;
+		} else {
 			g_assert_not_reached ();
+		}
 
 		if (t->byref) {
 			p->regs [slot] = (mgreg_t)*arg;
@@ -3790,6 +3793,10 @@ handle_thunk (MonoCompile *cfg, MonoDomain *domain, guchar *code, const guchar *
 			for (p = thunks; p < thunks + thunks_size; p += THUNK_SIZE) {
 				if (((guint32*)p) [0] == 0) {
 					/* Free entry */
+					target_thunk = p;
+					break;
+				} else if (((guint32*)p) [2] == (guint32)target) {
+					/* Thunk already points to target */
 					target_thunk = p;
 					break;
 				}
