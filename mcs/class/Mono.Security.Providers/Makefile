@@ -14,6 +14,8 @@ monotouch_SUBDIRS = $(net_4_5_SUBDIRS)
 
 xammac_SUBDIRS = $(net_4_5_SUBDIRS)
 
+xammac_net_4_5_SUBDIRS = $(net_4_5_SUBDIRS)
+
 PROFILE_SUBDIRS = $(PROVIDERS)
 
 #OVERRIDE_TARGET_ALL = yes

@@ -122,6 +122,7 @@ xammac_4_5_dirs := \
 	Mono.CompilerServices.SymbolWriter	\
 	System.Data.Linq		\
 	System.Net.Http \
+	Mono.Security.Providers \
 	$(pcl_facade_dirs)
 
 net_4_5_dirs := \
