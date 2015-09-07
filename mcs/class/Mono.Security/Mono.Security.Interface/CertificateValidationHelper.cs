@@ -84,45 +84,8 @@ namespace Mono.Security.Interface
 			string targetHost, X509CertificateCollection localCertificates, X509Certificate remoteCertificate,
 			string[] acceptableIssuers);
 
-		#if !INSIDE_SYSTEM
-		ValidationResult ValidateClientCertificate (MX.X509CertificateCollection certificates);
+		ValidationResult ValidateChain (string targetHost, X509CertificateCollection certificates);
 
-		ValidationResult ValidateChain (string targetHost, MX.X509CertificateCollection certificates);
-		#endif
-	}
-
-	public static class CertificateValidationHelper
-	{
-		#if !INSIDE_SYSTEM
-		const string InternalHelperTypeName = "Mono.Net.Security.ChainValidationHelper";
-		static readonly Type internalHelperType;
-		static readonly MethodInfo createMethod;
-		#endif
-
-		static CertificateValidationHelper ()
-		{
-			#if !INSIDE_SYSTEM
-			internalHelperType = Type.GetType (InternalHelperTypeName + ", " + Consts.AssemblySystem, true);
-			if (internalHelperType == null)
-				throw new NotSupportedException ();
-			createMethod = internalHelperType.GetMethod ("GetDefaultValidator", BindingFlags.Static | BindingFlags.NonPublic);
-			if (createMethod == null)
-				throw new NotSupportedException ();
-			#endif
-		}
-
-		internal static ICertificateValidator GetDefaultValidator (MonoTlsSettings settings)
-		{
-			#if INSIDE_SYSTEM
-			return ChainValidationHelper.GetDefaultValidator (settings);
-			#else
-			return (ICertificateValidator)createMethod.Invoke (null, new object[] { settings });
-			#endif
-		}
-
-		public static ICertificateValidator GetValidator (MonoTlsSettings settings)
-		{
-			return GetDefaultValidator (settings);
-		}
+		ValidationResult ValidateClientCertificate (X509CertificateCollection certificates);
 	}
 }

@@ -215,25 +215,50 @@ namespace Mono.Net.Security
 
 		internal bool ValidateClientCertificate (X509Certificate certificate, MonoSslPolicyErrors errors)
 		{
-			var mcerts = new MSX.X509CertificateCollection ();
-			mcerts.Add (new MSX.X509Certificate (certificate.GetRawCertData ()));
+			var certs2 = new X509Certificate2Collection ();
+			certs2.Add (new X509Certificate2 (certificate.GetRawCertData ()));
 
-			var result = ValidateChain (null, mcerts, (SslPolicyErrors)errors);
+			var result = ValidateChain (null, certs2, (SslPolicyErrors)errors);
 			if (result == null)
 				return false;
 
 			return result.Trusted && !result.UserDenied;
 		}
 
-		public ValidationResult ValidateClientCertificate (MSX.X509CertificateCollection certs)
+		static X509Certificate2Collection Convert (MSX.X509CertificateCollection certificates)
 		{
-			return ValidateChain (null, certs, 0);
+			if (certificates == null)
+				return null;
+
+			var certs2 = new X509Certificate2Collection ();
+			for (int i = 0; i < certificates.Count; i++)
+				certs2.Add (new X509Certificate2 (certificates [i].RawData));
+			return certs2;
 		}
 
-		public ValidationResult ValidateChain (string host, MSX.X509CertificateCollection certs)
+		static X509Certificate2Collection Convert (XX509CertificateCollection certificates)
+		{
+			var certs2 = (object)certificates as X509Certificate2Collection;
+			if (certs2 != null || certificates == null)
+				return certs2;
+
+			certs2 = new X509Certificate2Collection ();
+			for (int i = 0; i < certificates.Count; i++)
+				certs2.Add ((X509Certificate2)certificates [i]);
+			return certs2;
+		}
+
+		public ValidationResult ValidateClientCertificate (XX509CertificateCollection certs)
+		{
+			var certs2 = Convert (certs);
+			return ValidateChain (null, certs2, 0);
+		}
+
+		public ValidationResult ValidateChain (string host, XX509CertificateCollection certs)
 		{
 			try {
-				var result = ValidateChain (host, certs, 0);
+				var certs2 = Convert (certs);
+				var result = ValidateChain (host, certs2, 0);
 				if (tlsStream != null)
 					tlsStream.CertificateValidationFailed = result == null || !result.Trusted || result.UserDenied;
 				return result;
@@ -244,7 +269,22 @@ namespace Mono.Net.Security
 			}
 		}
 
-		ValidationResult ValidateChain (string host, MSX.X509CertificateCollection certs, SslPolicyErrors errors)
+		internal ValidationResult ValidateChain (string host, MSX.X509CertificateCollection certs)
+		{
+			try {
+				var certs2 = Convert (certs);
+				var result = ValidateChain (host, certs2, 0);
+				if (tlsStream != null)
+					tlsStream.CertificateValidationFailed = result == null || !result.Trusted || result.UserDenied;
+				return result;
+			} catch {
+				if (tlsStream != null)
+					tlsStream.CertificateValidationFailed = true;
+				throw;
+			}
+		}
+
+		ValidationResult ValidateChain (string host, X509Certificate2Collection certs, SslPolicyErrors errors)
 		{
 			// user_denied is true if the user callback is called and returns false
 			bool user_denied = false;
@@ -256,7 +296,7 @@ namespace Mono.Net.Security
 			if (certs == null || certs.Count == 0)
 				leaf = null;
 			else
-				leaf = new X509Certificate2 (certs [0].RawData);
+				leaf = certs [0];
 
 			if (tlsStream != null)
 				request.ServicePoint.SetServerCertificate (leaf);
@@ -298,8 +338,7 @@ namespace Mono.Net.Security
 				chain.ChainPolicy.RevocationMode = revocation_mode;
 #endif
 				for (int i = 1; i < certs.Count; i++) {
-					X509Certificate2 c2 = new X509Certificate2 (certs [i].RawData);
-					chain.ChainPolicy.ExtraStore.Add (c2);
+					chain.ChainPolicy.ExtraStore.Add (certs [i]);
 				}
 			}
 
@@ -322,7 +361,7 @@ namespace Mono.Net.Security
 					status11 = -2146762490; //CERT_E_PURPOSE 0x800B0106
 				}
 
-				if (host != null && !CheckServerIdentity (certs [0], host)) {
+				if (host != null && !CheckServerIdentity (leaf, host)) {
 					errors |= SslPolicyErrors.RemoteCertificateNameMismatch;
 					status11 = -2146762481; // CERT_E_CN_NO_MATCH 0x800B010F
 				}
@@ -542,10 +581,11 @@ namespace Mono.Net.Security
 		// 2.1.		exact match is required
 		// 3.	Use of the most specific Common Name (CN=) in the Subject
 		// 3.1		Existing practice but DEPRECATED
-		static bool CheckServerIdentity (MSX.X509Certificate cert, string targetHost)
+		static bool CheckServerIdentity (X509Certificate2 cert, string targetHost)
 		{
 			try {
-				MSX.X509Extension ext = cert.Extensions ["2.5.29.17"];
+				var mcert = new MSX.X509Certificate (cert.RawData);
+				MSX.X509Extension ext = mcert.Extensions ["2.5.29.17"];
 				// 1. subjectAltName
 				if (ext != null) {
 					SubjectAltNameExtension subjectAltName = new SubjectAltNameExtension (ext);
@@ -563,7 +603,7 @@ namespace Mono.Net.Security
 					}
 				}
 				// 3. Common Name (CN=)
-				return CheckDomainName (cert.SubjectName, targetHost);
+				return CheckDomainName (mcert.SubjectName, targetHost);
 			} catch (Exception e) {
 				Console.Error.WriteLine ("ERROR processing certificate: {0}", e);
 				Console.Error.WriteLine ("Please, report this problem to the Mono team");
