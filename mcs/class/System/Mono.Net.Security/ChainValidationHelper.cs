@@ -90,7 +90,10 @@ namespace Mono.Net.Security
 
 		static ChainValidationHelper ()
 		{
-#if MONOTOUCH || MONODROID
+#if MONOTOUCH
+			is_macosx = true;
+			is_mobile = true;
+#elif MONODROID
 			is_macosx = false;
 			is_mobile = true;
 #else
@@ -365,7 +368,10 @@ namespace Mono.Net.Security
 					errors |= SslPolicyErrors.RemoteCertificateNameMismatch;
 					status11 = -2146762481; // CERT_E_CN_NO_MATCH 0x800B010F
 				}
-			} else if (!skipSystemValidators) {
+			}
+#endif
+
+			if (is_macosx && !skipSystemValidators) {
 				// Attempt to use OSX certificates
 				// Ideally we should return the SecTrustResult
 				OSX509Certificates.SecTrustResult trustResult = OSX509Certificates.SecTrustResult.Deny;
@@ -389,7 +395,6 @@ namespace Mono.Net.Security
 					errors |= SslPolicyErrors.RemoteCertificateChainErrors;
 				}
 			}
-#endif
 
 
 #if MONODROID && SECURITY_DEP
