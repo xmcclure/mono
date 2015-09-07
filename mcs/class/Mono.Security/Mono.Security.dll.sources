@@ -136,6 +136,7 @@
 ./Mono.Xml/SecurityParser.cs
 
 ./Mono.Security.Interface/CertificateValidationHelper.cs
+./Mono.Security.Interface/CertificateValidationHelper2.cs
 ./Mono.Security.Interface/IBufferOffsetSize.cs
 ./Mono.Security.Interface/IMonoTlsEventSink.cs
 ./Mono.Security.Interface/IMonoTlsContext.cs
