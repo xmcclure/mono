@@ -39,6 +39,7 @@ using Mono.Net.Security;
 
 namespace Mono.Security.Interface
 {
+	#if (!MONOTOUCH && !MONODROID) || INSIDE_SYSTEM
 	public class ValidationResult
 	{
 		bool trusted;
@@ -87,5 +88,67 @@ namespace Mono.Security.Interface
 		ValidationResult ValidateChain (string targetHost, X509CertificateCollection certificates);
 
 		ValidationResult ValidateClientCertificate (X509CertificateCollection certificates);
+	}
+	#endif
+
+	#if !INSIDE_SYSTEM
+	public
+	#endif
+	static class CertificateValidationHelper
+	{
+		const string SecurityLibrary = "/System/Library/Frameworks/Security.framework/Security";
+		static readonly bool noX509Chain;
+
+		#if !INSIDE_SYSTEM
+		const string InternalHelperTypeName = "Mono.Net.Security.ChainValidationHelper";
+		static readonly Type internalHelperType;
+		static readonly MethodInfo createMethod;
+		static readonly MethodInfo validateClientCertificateMethod;
+		static readonly MethodInfo validateChainMethod;
+		#endif
+
+		static CertificateValidationHelper ()
+		{
+			#if !INSIDE_SYSTEM
+			internalHelperType = Type.GetType (InternalHelperTypeName + ", " + Consts.AssemblySystem, true);
+			if (internalHelperType == null)
+				throw new NotSupportedException ();
+			createMethod = internalHelperType.GetMethod ("GetDefaultValidator", BindingFlags.Static | BindingFlags.NonPublic);
+			if (createMethod == null)
+				throw new NotSupportedException ();
+			validateClientCertificateMethod = internalHelperType.GetMethod ("ValidateClientCertificate", BindingFlags.Instance | BindingFlags.Public);
+			if (validateClientCertificateMethod == null)
+				throw new NotSupportedException ();
+			validateChainMethod = internalHelperType.GetMethod ("ValidateChain", BindingFlags.Instance | BindingFlags.Public);
+			if (validateChainMethod == null)
+				throw new NotSupportedException ();
+			#endif
+
+			#if MONOTOUCH || XAMMAC
+			noX509Chain = true;
+			#else
+			noX509Chain = File.Exists (SecurityLibrary);
+			#endif
+		}
+
+		public static bool SupportsX509Chain {
+			get { return !noX509Chain; }
+		}
+
+		internal static ICertificateValidator GetDefaultValidator (MonoTlsSettings settings)
+		{
+			#if INSIDE_SYSTEM
+			return ChainValidationHelper.GetDefaultValidator (settings);
+			#else
+			return (ICertificateValidator)createMethod.Invoke (null, new object[] { settings });
+			#endif
+		}
+
+		#if !INSIDE_SYSTEM
+		public static ICertificateValidator GetValidator (MonoTlsSettings settings)
+		{
+			return GetDefaultValidator (settings);
+		}
+		#endif
 	}
 }

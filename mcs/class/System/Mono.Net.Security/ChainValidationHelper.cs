@@ -318,7 +318,7 @@ namespace Mono.Net.Security
 
 			bool needsChain;
 			bool skipSystemValidators = false;
-			if (is_mobile || is_macosx) {
+			if (!CertificateValidationHelper.SupportsX509Chain || is_mobile || is_macosx) {
 				needsChain = false;
 			} else if (settings != null) {
 				skipSystemValidators = settings.SkipSystemValidators;

@@ -1,6 +1,5 @@
 #include monotouch_Mono.Security.dll.sources
 
-./Mono.Security.Interface/CertificateValidationHelper.cs
 ./Mono.Security.Interface/IBufferOffsetSize.cs
 ./Mono.Security.Interface/IMonoTlsEventSink.cs
 ./Mono.Security.Interface/IMonoTlsContext.cs
