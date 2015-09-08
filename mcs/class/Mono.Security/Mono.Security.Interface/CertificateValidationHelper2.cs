@@ -39,7 +39,10 @@ using Mono.Net.Security;
 
 namespace Mono.Security.Interface
 {
-	public static class CertificateValidationHelper
+	#if !INSIDE_SYSTEM
+	public
+	#endif
+	static class CertificateValidationHelper
 	{
 		#if !INSIDE_SYSTEM
 		const string InternalHelperTypeName = "Mono.Net.Security.ChainValidationHelper";
@@ -67,6 +70,17 @@ namespace Mono.Security.Interface
 			#endif
 		}
 
+		#if MONOTOUCH
+		static readonly bool noX509Chain = true;
+		#else
+		const string SecurityLibrary = "/System/Library/Frameworks/Security.framework/Security";
+		static readonly bool noX509Chain = !File.Exists (SecurityLibrary);
+		#endif
+
+		public static bool SupportsX509Chain {
+			get { return !noX509Chain; }
+		}
+
 		internal static ICertificateValidator GetDefaultValidator (MonoTlsSettings settings)
 		{
 			#if INSIDE_SYSTEM
@@ -76,9 +90,11 @@ namespace Mono.Security.Interface
 			#endif
 		}
 
+		#if !INSIDE_SYSTEM
 		public static ICertificateValidator GetValidator (MonoTlsSettings settings)
 		{
 			return GetDefaultValidator (settings);
 		}
+		#endif
 	}
 }

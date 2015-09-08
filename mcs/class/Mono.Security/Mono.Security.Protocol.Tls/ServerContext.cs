@@ -28,6 +28,7 @@ using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 
 using Mono.Security.Protocol.Tls.Handshake;
+using Mono.Security.Interface;
 using MonoX509 = Mono.Security.X509;
 
 namespace Mono.Security.Protocol.Tls
@@ -83,14 +84,16 @@ namespace Mono.Security.Protocol.Tls
 
 			this.ServerSettings.UpdateCertificateRSA();
 
-			// Build the chain for the certificate and if the chain is correct, add all certificates 
-			// (except the root certificate [FIRST ONE] ... the client is supposed to know that one,
-			// otherwise the whole concept of a trusted chain doesn't work out ... 
-			MonoX509.X509Chain chain = new MonoX509.X509Chain (MonoX509.X509StoreManager.IntermediateCACertificates);
+			if (CertificateValidationHelper.SupportsX509Chain) {
+				// Build the chain for the certificate and if the chain is correct, add all certificates 
+				// (except the root certificate [FIRST ONE] ... the client is supposed to know that one,
+				// otherwise the whole concept of a trusted chain doesn't work out ... 
+				MonoX509.X509Chain chain = new MonoX509.X509Chain (MonoX509.X509StoreManager.IntermediateCACertificates);
 
-			if (chain.Build (cert)) {
-				for (int j = chain.Chain.Count - 1; j > 0; j--)
-					ServerSettings.Certificates.Add (chain.Chain [j]);
+				if (chain.Build (cert)) {
+					for (int j = chain.Chain.Count - 1; j > 0; j--)
+						ServerSettings.Certificates.Add (chain.Chain [j]);
+				}
 			}
 
 			// Add requested certificate types
