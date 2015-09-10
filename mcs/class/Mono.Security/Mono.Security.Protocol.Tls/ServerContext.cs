@@ -101,15 +101,16 @@ namespace Mono.Security.Protocol.Tls
 			for (int j = 0; j < this.ServerSettings.CertificateTypes.Length; j++)
 				ServerSettings.CertificateTypes [j] = ClientCertificateType.RSA;
 
-			// Add certificate authorities
-			MonoX509.X509CertificateCollection trusted = MonoX509.X509StoreManager.TrustedRootCertificates;
-			string[] list = new string [trusted.Count];
-			int i = 0;
-			foreach (MonoX509.X509Certificate root in trusted)
-			{
-				list [i++] = root.IssuerName;
+			if (CertificateValidationHelper.SupportsX509Chain) {
+				// Add certificate authorities
+				MonoX509.X509CertificateCollection trusted = MonoX509.X509StoreManager.TrustedRootCertificates;
+				string[] list = new string [trusted.Count];
+				int i = 0;
+				foreach (MonoX509.X509Certificate root in trusted) {
+					list [i++] = root.IssuerName;
+				}
+				this.ServerSettings.DistinguisedNames = list;
 			}
-			this.ServerSettings.DistinguisedNames = list;
 		}
 
 		#endregion
