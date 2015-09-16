@@ -252,6 +252,11 @@ namespace System.Net.Security
 			return safeContext.Context.VerifyRemoteCertificate ();
 		}
 
+		internal static MonoTlsConnectionInfo GetMonoConnectionInfo (SSPIInterface SecModule, SafeDeleteContext securityContext)
+		{
+			return securityContext.Context.GetConnectionInfo ();
+		}
+
 		internal static SslConnectionInfo GetConnectionInfo (SSPIInterface SecModule, SafeDeleteContext securityContext)
 		{
 			var info = securityContext.Context.GetConnectionInfo ();

@@ -2,6 +2,12 @@
 // Mono-specific additions to Microsoft's _SslState.cs
 //
 #if MONO_FEATURE_NEW_TLS && SECURITY_DEP
+#if MONO_SECURITY_ALIAS
+extern alias MonoSecurity;
+using MonoSecurity::Mono.Security.Interface;
+#else
+using Mono.Security.Interface;
+#endif
 namespace System.Net.Security
 {
 	using System.IO;
@@ -11,6 +17,11 @@ namespace System.Net.Security
 	partial class SslState
 	{
 		int _SentShutdown;
+
+		internal MonoTlsConnectionInfo GetMonoConnectionInfo ()
+		{
+			return Context.GetMonoConnectionInfo ();
+		}
 
 		internal bool IsClosed {
 			get { return Context.IsClosed; }

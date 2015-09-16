@@ -124,6 +124,11 @@ namespace System.Net.Security
 		internal X509Certificate InternalLocalCertificate {
 			get { return _SslState.InternalLocalCertificate; }
 		}
+
+		internal MonoTlsConnectionInfo GetMonoConnectionInfo ()
+		{
+			return _SslState.GetMonoConnectionInfo ();
+		}
 	}
 }
 #endif
