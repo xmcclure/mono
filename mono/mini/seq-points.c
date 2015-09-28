@@ -98,7 +98,8 @@ mono_save_seq_point_info (MonoCompile *cfg)
 				last = ins;
 			}
 
-			if (bb->last_ins && bb->last_ins->opcode == OP_ENDFINALLY && bb->seq_points) {
+			/* The second case handles endfinally opcodes which are in a separate bb by themselves */
+			if ((bb->last_ins && bb->last_ins->opcode == OP_ENDFINALLY && bb->seq_points) || (bb->out_count == 1 && bb->out_bb [0]->code && bb->out_bb [0]->code->opcode == OP_ENDFINALLY)) {
 				MonoBasicBlock *bb2;
 				MonoInst *endfinally_seq_point = NULL;
 
@@ -189,16 +190,22 @@ MonoSeqPointInfo*
 mono_get_seq_points (MonoDomain *domain, MonoMethod *method)
 {
 	MonoSeqPointInfo *seq_points;
+	MonoMethod *declaring_generic_method = NULL, *shared_method = NULL;
 
-	mono_domain_lock (domain);
+	if (method->is_inflated) {
+		declaring_generic_method = mono_method_get_declaring_generic_method (method);
+		shared_method = mini_get_shared_method (method);
+	}
+
+	mono_loader_lock ();
 	seq_points = g_hash_table_lookup (domain_jit_info (domain)->seq_points, method);
 	if (!seq_points && method->is_inflated) {
 		/* generic sharing + aot */
-		seq_points = g_hash_table_lookup (domain_jit_info (domain)->seq_points, mono_method_get_declaring_generic_method (method));
+		seq_points = g_hash_table_lookup (domain_jit_info (domain)->seq_points, declaring_generic_method);
 		if (!seq_points)
-			seq_points = g_hash_table_lookup (domain_jit_info (domain)->seq_points, mini_get_shared_method (method));
+			seq_points = g_hash_table_lookup (domain_jit_info (domain)->seq_points, shared_method);
 	}
-	mono_domain_unlock (domain);
+	mono_loader_unlock ();
 
 	return seq_points;
 }

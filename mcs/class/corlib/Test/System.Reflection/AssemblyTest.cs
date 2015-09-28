@@ -123,6 +123,7 @@ namespace MonoTests.System.Reflection
 			// note: only available in default appdomain
 			// http://weblogs.asp.net/asanto/archive/2003/09/08/26710.aspx
 			// Not sure we should emulate this behavior.
+#if !MONODROID
 			string fname = AppDomain.CurrentDomain.FriendlyName;
 			if (fname.EndsWith (".dll")) { // nunit-console
 				Assert.IsNull (Assembly.GetEntryAssembly (), "GetEntryAssembly");
@@ -131,10 +132,15 @@ namespace MonoTests.System.Reflection
 				Assert.IsNotNull (Assembly.GetEntryAssembly (), "GetEntryAssembly");
 				Assert.IsTrue (AppDomain.CurrentDomain.IsDefaultAppDomain (), "!default appdomain");
 			}
+#else
+			Assert.IsNull (Assembly.GetEntryAssembly (), "GetEntryAssembly");
+			Assert.IsTrue (AppDomain.CurrentDomain.IsDefaultAppDomain (), "!default appdomain");
+#endif
 		}
 
 #if !MONOTOUCH // Reflection.Emit is not supported.
 		[Test]
+		[Category("AndroidNotWorking")] // Missing Mono.CompilerServices.SymbolWriter
 		public void GetModules_MissingFile ()
 		{
 			AssemblyName newName = new AssemblyName ();
@@ -184,7 +190,10 @@ namespace MonoTests.System.Reflection
 		public void Corlib_test ()
 		{
 			Assembly corlib_test = Assembly.GetExecutingAssembly ();
-#if MOBILE
+#if MONODROID
+			Assert.IsNull (corlib_test.EntryPoint, "EntryPoint");
+			Assert.IsNull (corlib_test.Evidence, "Evidence");
+#elif MOBILE
 			Assert.IsNotNull (corlib_test.EntryPoint, "EntryPoint");
 			Assert.IsNull (corlib_test.Evidence, "Evidence");
 #else
@@ -195,11 +204,7 @@ namespace MonoTests.System.Reflection
 
 			Assert.IsTrue (corlib_test.GetReferencedAssemblies ().Length > 0, "GetReferencedAssemblies");
 			Assert.AreEqual (0, corlib_test.HostContext, "HostContext");
-#if NET_4_0 && !MOBILE
 			Assert.AreEqual ("v4.0.30319", corlib_test.ImageRuntimeVersion, "ImageRuntimeVersion");
-#else
-			Assert.AreEqual ("v2.0.50727", corlib_test.ImageRuntimeVersion, "ImageRuntimeVersion");
-#endif
 
 			Assert.IsNotNull (corlib_test.ManifestModule, "ManifestModule");
 			Assert.IsFalse (corlib_test.ReflectionOnly, "ReflectionOnly");
@@ -242,6 +247,7 @@ namespace MonoTests.System.Reflection
 		}
 
 		[Test]
+		[Category ("AndroidNotWorking")] // Assemblies in Xamarin.Android cannot be accessed as FileStream
 		public void GetFiles_False ()
 		{
 			Assembly corlib = typeof (int).Assembly;
@@ -254,6 +260,7 @@ namespace MonoTests.System.Reflection
 		}
 
 		[Test]
+		[Category ("AndroidNotWorking")] // Assemblies in Xamarin.Android cannot be accessed as FileStream
 		public void GetFiles_True ()
 		{
 			Assembly corlib = typeof (int).Assembly;
@@ -391,7 +398,7 @@ namespace MonoTests.System.Reflection
 		[Test]
 		public void LoadWithPartialName ()
 		{
-			string [] names = { "corlib_test_net_1_1", "corlib_test_net_2_0", "corlib_test_net_4_0", "corlib_test_net_4_5", "corlib_plattest", "mscorlibtests" };
+			string [] names = { "corlib_test_net_1_1", "corlib_test_net_2_0", "corlib_test_net_4_0", "corlib_test_net_4_5", "corlib_test_net_4_x", "corlib_plattest", "mscorlibtests", "BclTests" };
 
 			foreach (string s in names)
 				if (Assembly.LoadWithPartialName (s) != null)
@@ -544,6 +551,7 @@ namespace MonoTests.System.Reflection
 		}
 
 		[Test]
+		[Category("MobileNotWorking")]
 		public void bug78465 ()
 		{
 			string assemblyFileName = Path.Combine (
@@ -581,6 +589,7 @@ namespace MonoTests.System.Reflection
 		}
 
 		[Test]
+		[Category("MobileNotWorking")]
 		public void bug78468 ()
 		{
 			string assemblyFileNameA = Path.Combine (Path.GetTempPath (),
@@ -663,6 +672,7 @@ namespace MonoTests.System.Reflection
 		}
 
 		[Test]
+		[Category ("AndroidNotWorking")] // Assemblies in Xamarin.Android cannot be directly as files
 		public void ReflectionOnlyLoadFrom ()
 		{
 			string loc = typeof (AssemblyTest).Assembly.Location;
@@ -834,6 +844,7 @@ namespace MonoTests.System.Reflection
 
 
 		[Test] // bug #79715
+		[Category("MobileNotWorking")]
 		public void Load_PartialVersion ()
 		{
 			string tempDir = Path.Combine (Path.GetTempPath (),
@@ -1103,11 +1114,7 @@ namespace MonoTests.System.Reflection
 			Module module = assembly.ManifestModule;
 			Assert.IsNotNull (module, "#1");
 
-#if NET_4_0
 			Assert.AreEqual ("MonoModule", module.GetType ().Name, "#2");
-#else
-			Assert.AreEqual (typeof (Module), module.GetType (), "#2");
-#endif
 
 #if !MONOTOUCH
 			Assert.AreEqual ("mscorlib.dll", module.Name, "#3");

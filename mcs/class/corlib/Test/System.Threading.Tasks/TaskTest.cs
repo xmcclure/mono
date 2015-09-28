@@ -27,7 +27,6 @@
 //
 //
 
-#if NET_4_0
 
 using System;
 using System.Threading;
@@ -345,12 +344,12 @@ namespace MonoTests.System.Threading.Tasks
 			CountdownEvent cde = new CountdownEvent (2);
 			var mre = new ManualResetEvent (false);
 			var tasks = new[] {
-				Task.Factory.StartNew (delegate { Assert.IsTrue (mre.WaitOne (1500), "#0"); }),
+				Task.Factory.StartNew (delegate { Assert.IsTrue (mre.WaitOne (10000), "#0"); }),
 				Task.Factory.StartNew (delegate { try { throw new ApplicationException (); } finally { cde.Signal (); } }),
 				Task.Factory.StartNew (delegate { try { throw new ApplicationException (); } finally { cde.Signal (); } })
 			};
 
-			Assert.IsTrue (cde.Wait (1000), "#1");
+			Assert.IsTrue (cde.Wait (5000), "#1");
 			Assert.IsFalse (Task.WaitAll (tasks, 1000), "#2");
 
 			mre.Set ();
@@ -2118,4 +2117,3 @@ namespace MonoTests.System.Threading.Tasks
 #endif
 	}
 }
-#endif

@@ -80,12 +80,28 @@ public class Tests2 {
 	}
 }
 
-public struct AStruct {
+public struct AStruct : ITest2 {
 	public int i;
 	public string s;
 	public byte k;
 	public IntPtr j;
 	public int l;
+/*
+	public AStruct () {
+		i = 0;
+		s = null;
+		k = 0;
+		j = IntPtr.Zero;
+		l = 0;
+	}
+*/
+	public AStruct (int arg) {
+		i = arg;
+		s = null;
+		k = 0;
+		j = IntPtr.Zero;
+		l = 0;
+	}
 
 	[MethodImplAttribute (MethodImplOptions.NoInlining)]
 	public int foo (int val) {
@@ -115,6 +131,14 @@ public struct AStruct {
 	[MethodImplAttribute (MethodImplOptions.NoInlining)]
 	public void invoke_mutate () {
 		l = 5;
+	}
+
+	public int invoke_iface () {
+		return i;
+	}
+
+	public override string ToString () {
+		return i.ToString ();
 	}
 }
 
@@ -308,6 +332,7 @@ public class Tests : TestsBase, ITest2
 		gc_suspend ();
 		set_ip ();
 		step_filters ();
+		local_reflect ();
 		if (args.Length > 0 && args [0] == "domain-test")
 			/* This takes a lot of time, so execute it conditionally */
 			domains ();
@@ -317,8 +342,15 @@ public class Tests : TestsBase, ITest2
 			frames_in_native ();
 		if (args.Length > 0 && args [0] == "invoke-single-threaded")
 			new Tests ().invoke_single_threaded ();
+		if (args.Length > 0 && args [0] == "invoke-abort")
+			new Tests ().invoke_abort ();
 		new Tests ().evaluate_method ();
 		return 3;
+	}
+
+	public static void local_reflect () {
+		//Breakpoint line below, and reflect someField via ObjectMirror;
+		LocalReflectClass.RunMe ();
 	}
 
 	public static void breakpoints () {
@@ -568,7 +600,7 @@ public class Tests : TestsBase, ITest2
 	public static void arguments () {
 		arg1 (SByte.MaxValue - 5, Byte.MaxValue - 5, true, Int16.MaxValue - 5, UInt16.MaxValue - 5, 'F', Int32.MaxValue - 5, UInt32.MaxValue - 5, Int64.MaxValue - 5, UInt64.MaxValue - 5, 1.2345f, 6.78910, new IntPtr (Int32.MaxValue - 5), new UIntPtr (UInt32.MaxValue - 5));
 		int i = 42;
-		arg2 ("FOO", null, "BLA", ref i, new GClass <int> { field = 42 }, new object ());
+		arg2 ("FOO", null, "BLA", ref i, new GClass <int> { field = 42 }, new object (), '\0'.ToString () + "A");
 		Tests t = new Tests () { field_i = 42, field_s = "S" };
 		t.arg3 ("BLA");
 	}
@@ -579,7 +611,7 @@ public class Tests : TestsBase, ITest2
 	}
 
 	[MethodImplAttribute (MethodImplOptions.NoInlining)]
-	public static string arg2 (string s, string s3, object o, ref int i, GClass <int> gc, object o2) {
+	public static string arg2 (string s, string s3, object o, ref int i, GClass <int> gc, object o2, string s4) {
 		return s + (s3 != null ? "" : "") + o + i + gc.field + o2;
 	}
 
@@ -716,6 +748,7 @@ public class Tests : TestsBase, ITest2
 			astruct = new AStruct ();
 		}
 		rs = "A";
+		List<int> alist = new List<int> () { 12 };
 	}
 
 
@@ -911,6 +944,15 @@ public class Tests : TestsBase, ITest2
 
 	[MethodImplAttribute (MethodImplOptions.NoInlining)]
 	public void invoke_single_threaded_2 () {
+	}
+
+	[MethodImplAttribute (MethodImplOptions.NoInlining)]
+	public void invoke_abort () {
+	}
+
+	[MethodImplAttribute (MethodImplOptions.NoInlining)]
+	public void invoke_abort_2 () {
+		Thread.Sleep (1000000);
 	}
 
 	public void invoke_return_void () {
@@ -1454,3 +1496,23 @@ public class LineNumbers
 		#line 55 "FOO"
 	}
 }
+
+class LocalReflectClass
+{
+	public static void RunMe ()
+	{
+		var reflectMe = new someClass ();
+		reflectMe.someMethod ();
+	}
+
+	class someClass : ContextBoundObject
+	{
+		public object someField;
+
+		public void someMethod ()
+		{
+		}
+	}
+}
+
+

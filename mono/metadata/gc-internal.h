@@ -11,6 +11,7 @@
 #define __MONO_METADATA_GC_INTERNAL_H__
 
 #include <glib.h>
+#include <mono/utils/gc_wrapper.h>
 #include <mono/metadata/object-internals.h>
 #include <mono/metadata/threads-types.h>
 #include <mono/sgen/gc-internal-agnostic.h>
@@ -20,7 +21,7 @@
 #define mono_domain_finalizers_unlock(domain) mono_mutex_unlock (&(domain)->finalizable_objects_hash_lock);
 
 /* Register a memory area as a conservatively scanned GC root */
-#define MONO_GC_REGISTER_ROOT_PINNING(x) mono_gc_register_root ((char*)&(x), sizeof(x), NULL)
+#define MONO_GC_REGISTER_ROOT_PINNING(x,src,msg) mono_gc_register_root ((char*)&(x), sizeof(x), MONO_GC_DESCRIPTOR_NULL, (src), (msg))
 
 #define MONO_GC_UNREGISTER_ROOT(x) mono_gc_deregister_root ((char*)&(x))
 
@@ -29,9 +30,9 @@
  * mono_gc_alloc_fixed (). This includes MonoGHashTable.
  */
 /* The result of alloc_fixed () is not GC tracked memory */
-#define MONO_GC_REGISTER_ROOT_FIXED(x) do { \
+#define MONO_GC_REGISTER_ROOT_FIXED(x,src,msg) do { \
 	if (!mono_gc_is_moving ())				\
-		MONO_GC_REGISTER_ROOT_PINNING ((x)); \
+		MONO_GC_REGISTER_ROOT_PINNING ((x),(src),(msg)); \
 	} while (0)
 
 /*
@@ -39,21 +40,21 @@
  * by mono_gc_alloc_fixed ().
  */
 /* For SGEN, the result of alloc_fixed () is not GC tracked memory */
-#define MONO_GC_ROOT_DESCR_FOR_FIXED(n) (mono_gc_is_moving () ? mono_gc_make_root_descr_all_refs (0) : NULL)
+#define MONO_GC_ROOT_DESCR_FOR_FIXED(n) (mono_gc_is_moving () ? mono_gc_make_root_descr_all_refs (0) : MONO_GC_DESCRIPTOR_NULL)
 
 /* Register a memory location holding a single object reference as a GC root */
-#define MONO_GC_REGISTER_ROOT_SINGLE(x) do { \
+#define MONO_GC_REGISTER_ROOT_SINGLE(x,src,msg) do { \
 	g_assert (sizeof (x) == sizeof (MonoObject*)); \
-	mono_gc_register_root ((char*)&(x), sizeof(MonoObject*), mono_gc_make_root_descr_all_refs (1)); \
+	mono_gc_register_root ((char*)&(x), sizeof(MonoObject*), mono_gc_make_root_descr_all_refs (1), (src), (msg)); \
 	} while (0)
 
 /*
  * This is used for fields which point to objects which are kept alive by other references
  * when using Boehm.
  */
-#define MONO_GC_REGISTER_ROOT_IF_MOVING(x) do { \
+#define MONO_GC_REGISTER_ROOT_IF_MOVING(x,src,msg) do { \
 	if (mono_gc_is_moving ()) \
-		MONO_GC_REGISTER_ROOT_SINGLE(x);		\
+		MONO_GC_REGISTER_ROOT_SINGLE(x,src,msg);		\
 } while (0)
 
 #define MONO_GC_UNREGISTER_ROOT_IF_MOVING(x) do { \
@@ -62,7 +63,7 @@
 } while (0)
 
 /* useful until we keep track of gc-references in corlib etc. */
-#define IS_GC_REFERENCE(t) (mono_gc_is_moving () ? FALSE : ((t)->type == MONO_TYPE_U && class->image == mono_defaults.corlib))
+#define IS_GC_REFERENCE(class,t) (mono_gc_is_moving () ? FALSE : ((t)->type == MONO_TYPE_U && (class)->image == mono_defaults.corlib))
 
 void   mono_object_register_finalizer               (MonoObject  *obj);
 void   ves_icall_System_GC_InternalCollect          (int          generation);
@@ -105,10 +106,7 @@ gpointer mono_gc_out_of_memory (size_t size);
 void     mono_gc_enable_events (void);
 void     mono_gc_enable_alloc_events (void);
 
-/* disappearing link functionality */
-void        mono_gc_weak_link_add    (void **link_addr, MonoObject *obj, gboolean track);
-void        mono_gc_weak_link_remove (void **link_addr, gboolean track);
-MonoObject *mono_gc_weak_link_get    (void **link_addr);
+void mono_gchandle_set_target (guint32 gchandle, MonoObject *obj);
 
 /*Ephemeron functionality. Sgen only*/
 gboolean    mono_gc_ephemeron_array_add (MonoObject *obj);
@@ -124,11 +122,11 @@ mono_gc_GCHandle_CheckCurrentDomain (guint32 gchandle);
  * foreach (ref in GC references in the are structure pointed to by ADDR)
  *    mark_func (ref)
  */
-typedef void (*MonoGCMarkFunc)     (void **addr, void *gc_data);
+typedef void (*MonoGCMarkFunc)     (MonoObject **addr, void *gc_data);
 typedef void (*MonoGCRootMarkFunc) (void *addr, MonoGCMarkFunc mark_func, void *gc_data);
 
 /* Create a descriptor with a user defined marking function */
-void *mono_gc_make_root_descr_user (MonoGCRootMarkFunc marker);
+MonoGCDescriptor mono_gc_make_root_descr_user (MonoGCRootMarkFunc marker);
 
 /* Return whenever user defined marking functions are supported */
 gboolean mono_gc_user_markers_supported (void);
@@ -141,7 +139,7 @@ gboolean mono_gc_user_markers_supported (void);
  * NOTE: Under Boehm, this returns memory allocated using GC_malloc, so the result should
  * be stored into a location registered using MONO_GC_REGISTER_ROOT_FIXED ().
  */
-void* mono_gc_alloc_fixed            (size_t size, void *descr);
+void* mono_gc_alloc_fixed            (size_t size, MonoGCDescriptor descr, MonoGCRootSource source, const char *msg);
 void  mono_gc_free_fixed             (void* addr);
 
 /* make sure the gchandle was allocated for an object in domain */
@@ -159,11 +157,11 @@ void* mono_gc_alloc_obj (MonoVTable *vtable, size_t size);
 void* mono_gc_alloc_vector (MonoVTable *vtable, size_t size, uintptr_t max_length);
 void* mono_gc_alloc_array (MonoVTable *vtable, size_t size, uintptr_t max_length, uintptr_t bounds_size);
 void* mono_gc_alloc_string (MonoVTable *vtable, size_t size, gint32 len);
-void* mono_gc_make_descr_for_string (gsize *bitmap, int numbits);
+MonoGCDescriptor mono_gc_make_descr_for_string (gsize *bitmap, int numbits);
 
 void  mono_gc_register_for_finalization (MonoObject *obj, void *user_data);
 void  mono_gc_add_memory_pressure (gint64 value);
-MONO_API int   mono_gc_register_root (char *start, size_t size, void *descr);
+MONO_API int   mono_gc_register_root (char *start, size_t size, MonoGCDescriptor descr, MonoGCRootSource source, const char *msg);
 void  mono_gc_deregister_root (char* addr);
 int   mono_gc_finalizers_for_domain (MonoDomain *domain, MonoObject **out_array, int out_size);
 void  mono_gc_run_finalize (void *obj, void *data);
@@ -180,7 +178,7 @@ void* mono_gc_alloc_mature (MonoVTable *vtable);
  * FIXME: Add an API for clearing remset entries if a root with a user defined
  * mark routine is deleted.
  */
-int mono_gc_register_root_wbarrier (char *start, size_t size, void *descr);
+int mono_gc_register_root_wbarrier (char *start, size_t size, MonoGCDescriptor descr, MonoGCRootSource source, const char *msg);
 
 void mono_gc_wbarrier_set_root (gpointer ptr, MonoObject *value);
 

@@ -13,6 +13,7 @@ using System;
 using System.Runtime.CompilerServices;
 using System.Linq;
 using System.Collections.Generic;
+using System.IO;
 
 #if STATIC
 using MetaType = IKVM.Reflection.Type;
@@ -979,6 +980,21 @@ namespace Mono.CSharp
 			return found;
 		}
 
+		public ImportedAssemblyDefinition GetImportedAssemblyDefinition (AssemblyName assemblyName)
+		{
+			foreach (var a in Assemblies) {
+				var ia = a as ImportedAssemblyDefinition;
+				if (ia == null)
+					continue;
+				
+				if (a.Name == assemblyName.Name)
+					return ia;
+			}
+
+			return null;
+		}
+
+
 		public void ImportTypeBase (MetaType type)
 		{
 			TypeSpec spec = import_cache[type];
@@ -1724,7 +1740,14 @@ namespace Mono.CSharp
 					if (s == null)
 						continue;
 
-					var an = new AssemblyName (s);
+					AssemblyName an;
+					try {
+						an = new AssemblyName (s);
+					} catch (FileLoadException) {
+						// Invalid assembly name reuses FileLoadException
+						continue;
+					}
+
 					if (internals_visible_to == null)
 						internals_visible_to = new List<AssemblyName> ();
 

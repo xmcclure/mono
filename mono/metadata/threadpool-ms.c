@@ -20,15 +20,10 @@
 // Ported from C++ to C and adjusted to Mono runtime
 
 #include <stdlib.h>
+#define _USE_MATH_DEFINES // needed by MSVC to define math constants
 #include <math.h>
 #include <config.h>
 #include <glib.h>
-
-#if !defined (HAVE_COMPLEX_H)
-#include <../../support/libm/complex.h>
-#else
-#include <complex.h>
-#endif
 
 #include <mono/metadata/class-internals.h>
 #include <mono/metadata/exception.h>
@@ -37,9 +32,12 @@
 #include <mono/metadata/object-internals.h>
 #include <mono/metadata/threadpool-ms.h>
 #include <mono/metadata/threadpool-ms-io.h>
-#include <mono/metadata/threadpool-internals.h>
 #include <mono/utils/atomic.h>
 #include <mono/utils/mono-compiler.h>
+#include <mono/utils/mono-complex.h>
+#include <mono/utils/mono-lazy-init.h>
+#include <mono/utils/mono-logger.h>
+#include <mono/utils/mono-logger-internal.h>
 #include <mono/utils/mono-proclib.h>
 #include <mono/utils/mono-threads.h>
 #include <mono/utils/mono-time.h>
@@ -49,6 +47,7 @@
 #define CPU_USAGE_HIGH 95
 
 #define MONITOR_INTERVAL 100 // ms
+#define MONITOR_MINIMAL_LIFETIME 60 * 1000 // ms
 
 /* The exponent to apply to the gain. 1.0 means to use linear gain,
  * higher values will enhance large moves and damp small ones.
@@ -165,13 +164,14 @@ typedef enum {
 	TRANSITION_UNDEFINED,
 } ThreadPoolHeuristicStateTransition;
 
+static mono_lazy_init_t status = MONO_LAZY_INIT_STATUS_NOT_INITIALIZED;
+
 enum {
 	MONITOR_STATUS_REQUESTED,
 	MONITOR_STATUS_WAITING_FOR_REQUEST,
 	MONITOR_STATUS_NOT_RUNNING,
 };
 
-static gint32 status = STATUS_NOT_INITIALIZED;
 static gint32 monitor_status = MONITOR_STATUS_NOT_RUNNING;
 
 static ThreadPool* threadpool;
@@ -236,26 +236,12 @@ rand_free (gpointer handle)
 }
 
 static void
-ensure_initialized (MonoBoolean *enable_worker_tracking)
+initialize (void)
 {
 	ThreadPoolHillClimbing *hc;
 	const char *threads_per_cpu_env;
 	gint threads_per_cpu;
 	gint threads_count;
-
-	if (enable_worker_tracking) {
-		// TODO implement some kind of switch to have the possibily to use it
-		*enable_worker_tracking = FALSE;
-	}
-
-	if (status >= STATUS_INITIALIZED)
-		return;
-	if (status == STATUS_INITIALIZING || InterlockedCompareExchange (&status, STATUS_INITIALIZING, STATUS_NOT_INITIALIZED) != STATUS_NOT_INITIALIZED) {
-		while (status == STATUS_INITIALIZING)
-			mono_thread_info_yield ();
-		g_assert (status >= STATUS_INITIALIZED);
-		return;
-	}
 
 	g_assert (!threadpool);
 	threadpool = g_new0 (ThreadPool, 1);
@@ -315,41 +301,28 @@ ensure_initialized (MonoBoolean *enable_worker_tracking)
 	threadpool->cpu_usage_state = g_new0 (MonoCpuUsageState, 1);
 
 	threadpool->suspended = FALSE;
-
-	status = STATUS_INITIALIZED;
 }
 
 static void worker_unpark (ThreadPoolParkedThread *thread);
 static void worker_kill (ThreadPoolWorkingThread *thread);
 
 static void
-ensure_cleanedup (void)
+cleanup (void)
 {
 	guint i;
-
-	if (status == STATUS_NOT_INITIALIZED && InterlockedCompareExchange (&status, STATUS_CLEANED_UP, STATUS_NOT_INITIALIZED) == STATUS_NOT_INITIALIZED)
-		return;
-	if (status == STATUS_INITIALIZING) {
-		while (status == STATUS_INITIALIZING)
-			mono_thread_info_yield ();
-	}
-	if (status == STATUS_CLEANED_UP)
-		return;
-	if (status == STATUS_CLEANING_UP || InterlockedCompareExchange (&status, STATUS_CLEANING_UP, STATUS_INITIALIZED) != STATUS_INITIALIZED) {
-		while (status == STATUS_CLEANING_UP)
-			mono_thread_info_yield ();
-		g_assert (status == STATUS_CLEANED_UP);
-		return;
-	}
 
 	/* we make the assumption along the code that we are
 	 * cleaning up only if the runtime is shutting down */
 	g_assert (mono_runtime_is_shutting_down ());
 
+	MONO_PREPARE_BLOCKING;
 	while (monitor_status != MONITOR_STATUS_NOT_RUNNING)
 		g_usleep (1000);
+	MONO_FINISH_BLOCKING;
 
+	MONO_PREPARE_BLOCKING;
 	mono_mutex_lock (&threadpool->active_threads_lock);
+	MONO_FINISH_BLOCKING;
 
 	/* stop all threadpool->working_threads */
 	for (i = 0; i < threadpool->working_threads->len; ++i)
@@ -360,8 +333,6 @@ ensure_cleanedup (void)
 		worker_unpark ((ThreadPoolParkedThread*) g_ptr_array_index (threadpool->parked_threads, i));
 
 	mono_mutex_unlock (&threadpool->active_threads_lock);
-
-	status = STATUS_CLEANED_UP;
 }
 
 void
@@ -519,9 +490,13 @@ worker_park (void)
 	mono_cond_t cond;
 	MonoInternalThread *thread = mono_thread_internal_current ();
 
-	mono_cond_init (&cond, NULL);
+	mono_trace (G_LOG_LEVEL_DEBUG, MONO_TRACE_THREADPOOL, "[%p] current worker parking", GetCurrentThreadId ());
+
+	mono_cond_init (&cond, 0);
 
 	mono_gc_set_skip_thread (TRUE);
+
+	MONO_PREPARE_BLOCKING;
 
 	mono_mutex_lock (&threadpool->active_threads_lock);
 
@@ -537,9 +512,13 @@ worker_park (void)
 
 	mono_mutex_unlock (&threadpool->active_threads_lock);
 
+	MONO_FINISH_BLOCKING;
+
 	mono_gc_set_skip_thread (FALSE);
 
 	mono_cond_destroy (&cond);
+
+	mono_trace (G_LOG_LEVEL_DEBUG, MONO_TRACE_THREADPOOL, "[%p] current worker unparking", GetCurrentThreadId ());
 }
 
 static gboolean
@@ -547,6 +526,10 @@ worker_try_unpark (void)
 {
 	gboolean res = FALSE;
 	guint len;
+
+	mono_trace (G_LOG_LEVEL_DEBUG, MONO_TRACE_THREADPOOL, "[%p] try unpark worker", GetCurrentThreadId ());
+
+	MONO_PREPARE_BLOCKING;
 
 	mono_mutex_lock (&threadpool->active_threads_lock);
 	len = threadpool->parked_threads->len;
@@ -556,6 +539,11 @@ worker_try_unpark (void)
 		res = TRUE;
 	}
 	mono_mutex_unlock (&threadpool->active_threads_lock);
+
+	MONO_FINISH_BLOCKING;
+
+	mono_trace (G_LOG_LEVEL_DEBUG, MONO_TRACE_THREADPOOL, "[%p] try unpark worker, success? %s", GetCurrentThreadId (), res ? "yes" : "no");
+
 	return res;
 }
 
@@ -577,22 +565,12 @@ worker_kill (ThreadPoolWorkingThread *thread)
 static void
 worker_thread (gpointer data)
 {
-	static MonoClass *threadpool_wait_callback_class = NULL;
-	static MonoMethod *perform_wait_callback_method = NULL;
 	MonoInternalThread *thread;
 	ThreadPoolDomain *tpdomain, *previous_tpdomain;
 	ThreadPoolCounter counter;
 	gboolean retire = FALSE;
 
-	g_assert (status >= STATUS_INITIALIZED);
-
-	if (!threadpool_wait_callback_class)
-		threadpool_wait_callback_class = mono_class_from_name (mono_defaults.corlib, "System.Threading.Microsoft", "_ThreadPoolWaitCallback");
-	g_assert (threadpool_wait_callback_class);
-
-	if (!perform_wait_callback_method)
-		perform_wait_callback_method = mono_class_get_method_from_name (threadpool_wait_callback_class, "PerformWaitCallback", 0);
-	g_assert (perform_wait_callback_method);
+	mono_trace (G_LOG_LEVEL_INFO, MONO_TRACE_THREADPOOL, "[%p] worker starting", GetCurrentThreadId ());
 
 	g_assert (threadpool);
 
@@ -601,9 +579,11 @@ worker_thread (gpointer data)
 
 	mono_thread_set_name_internal (thread, mono_string_new (mono_domain_get (), "Threadpool worker"), FALSE);
 
+	MONO_PREPARE_BLOCKING;
 	mono_mutex_lock (&threadpool->active_threads_lock);
 	g_ptr_array_add (threadpool->working_threads, thread);
 	mono_mutex_unlock (&threadpool->active_threads_lock);
+	MONO_FINISH_BLOCKING;
 
 	previous_tpdomain = NULL;
 
@@ -642,6 +622,9 @@ worker_thread (gpointer data)
 		tpdomain->outstanding_request --;
 		g_assert (tpdomain->outstanding_request >= 0);
 
+		mono_trace (G_LOG_LEVEL_DEBUG, MONO_TRACE_THREADPOOL, "[%p] worker running in domain %p",
+			GetCurrentThreadId (), tpdomain->domain, tpdomain->outstanding_request);
+
 		g_assert (tpdomain->domain);
 		g_assert (tpdomain->domain->threadpool_jobs >= 0);
 		tpdomain->domain->threadpool_jobs ++;
@@ -651,9 +634,9 @@ worker_thread (gpointer data)
 		mono_thread_push_appdomain_ref (tpdomain->domain);
 		if (mono_domain_set (tpdomain->domain, FALSE)) {
 			MonoObject *exc = NULL;
-			MonoObject *res = mono_runtime_invoke (perform_wait_callback_method, NULL, NULL, &exc);
+			MonoObject *res = mono_runtime_invoke (mono_defaults.threadpool_perform_wait_callback_method, NULL, NULL, &exc);
 			if (exc)
-				mono_internal_thread_unhandled_exception (exc);
+				mono_thread_internal_unhandled_exception (exc);
 			else if (res && *(MonoBoolean*) mono_object_unbox (res) == FALSE)
 				retire = TRUE;
 
@@ -684,20 +667,27 @@ worker_thread (gpointer data)
 
 	mono_mutex_unlock (&threadpool->domains_lock);
 
+	MONO_PREPARE_BLOCKING;
 	mono_mutex_lock (&threadpool->active_threads_lock);
 	g_ptr_array_remove_fast (threadpool->working_threads, thread);
 	mono_mutex_unlock (&threadpool->active_threads_lock);
+	MONO_FINISH_BLOCKING;
 
 	COUNTER_ATOMIC (counter, {
 		counter._.working--;
 		counter._.active --;
 	});
+
+	mono_trace (G_LOG_LEVEL_INFO, MONO_TRACE_THREADPOOL, "[%p] worker finishing", GetCurrentThreadId ());
 }
 
 static gboolean
 worker_try_create (void)
 {
 	ThreadPoolCounter counter;
+	MonoInternalThread *thread;
+
+	mono_trace (G_LOG_LEVEL_DEBUG, MONO_TRACE_THREADPOOL, "[%p] try create worker", GetCurrentThreadId ());
 
 	COUNTER_ATOMIC (counter, {
 		if (counter._.working >= counter._.max_working)
@@ -706,8 +696,13 @@ worker_try_create (void)
 		counter._.active ++;
 	});
 
-	if (mono_thread_create_internal (mono_get_root_domain (), worker_thread, NULL, TRUE, 0) != NULL)
+	if ((thread = mono_thread_create_internal (mono_get_root_domain (), worker_thread, NULL, TRUE, 0)) != NULL) {
+		mono_trace (G_LOG_LEVEL_DEBUG, MONO_TRACE_THREADPOOL, "[%p] try create worker, created %p",
+			GetCurrentThreadId (), thread->tid);
 		return TRUE;
+	}
+
+	mono_trace (G_LOG_LEVEL_DEBUG, MONO_TRACE_THREADPOOL, "[%p] try create worker, failed", GetCurrentThreadId ());
 
 	COUNTER_ATOMIC (counter, {
 		counter._.working --;
@@ -742,6 +737,9 @@ worker_request (MonoDomain *domain)
 	g_assert (tpdomain);
 	tpdomain->outstanding_request ++;
 
+	mono_trace (G_LOG_LEVEL_DEBUG, MONO_TRACE_THREADPOOL, "[%p] request worker, domain = %p, outstanding_request = %d",
+		GetCurrentThreadId (), tpdomain->domain, tpdomain->outstanding_request);
+
 	mono_mutex_unlock (&threadpool->domains_lock);
 
 	if (threadpool->suspended)
@@ -749,22 +747,48 @@ worker_request (MonoDomain *domain)
 
 	monitor_ensure_running ();
 
-	if (worker_try_unpark ())
+	if (worker_try_unpark ()) {
+		mono_trace (G_LOG_LEVEL_DEBUG, MONO_TRACE_THREADPOOL, "[%p] request worker, unparked", GetCurrentThreadId ());
 		return TRUE;
+	}
 
-	if (worker_try_create ())
+	if (worker_try_create ()) {
+		mono_trace (G_LOG_LEVEL_DEBUG, MONO_TRACE_THREADPOOL, "[%p] request worker, created", GetCurrentThreadId ());
 		return TRUE;
+	}
 
+	mono_trace (G_LOG_LEVEL_DEBUG, MONO_TRACE_THREADPOOL, "[%p] request worker, failed", GetCurrentThreadId ());
 	return FALSE;
 }
 
 static gboolean
 monitor_should_keep_running (void)
 {
+	static gint64 last_should_keep_running = -1;
+
 	g_assert (monitor_status == MONITOR_STATUS_WAITING_FOR_REQUEST || monitor_status == MONITOR_STATUS_REQUESTED);
 
 	if (InterlockedExchange (&monitor_status, MONITOR_STATUS_WAITING_FOR_REQUEST) == MONITOR_STATUS_WAITING_FOR_REQUEST) {
-		if (mono_runtime_is_shutting_down () || !domain_any_has_request ()) {
+		gboolean should_keep_running = TRUE, force_should_keep_running = FALSE;
+
+		if (mono_runtime_is_shutting_down ()) {
+			should_keep_running = FALSE;
+		} else {
+			if (!domain_any_has_request ())
+				should_keep_running = FALSE;
+
+			if (!should_keep_running) {
+				if (last_should_keep_running == -1 || mono_100ns_ticks () - last_should_keep_running < MONITOR_MINIMAL_LIFETIME * 1000 * 10) {
+					should_keep_running = force_should_keep_running = TRUE;
+				}
+			}
+		}
+
+		if (should_keep_running) {
+			if (last_should_keep_running == -1 || !force_should_keep_running)
+				last_should_keep_running = mono_100ns_ticks ();
+		} else {
+			last_should_keep_running = -1;
 			if (InterlockedCompareExchange (&monitor_status, MONITOR_STATUS_NOT_RUNNING, MONITOR_STATUS_WAITING_FOR_REQUEST) == MONITOR_STATUS_WAITING_FOR_REQUEST)
 				return FALSE;
 		}
@@ -803,6 +827,8 @@ monitor_thread (void)
 
 	mono_cpu_usage (threadpool->cpu_usage_state);
 
+	mono_trace (G_LOG_LEVEL_DEBUG, MONO_TRACE_THREADPOOL, "[%p] monitor thread, started", GetCurrentThreadId ());
+
 	do {
 		MonoInternalThread *thread;
 		gboolean all_waitsleepjoin = TRUE;
@@ -838,6 +864,7 @@ monitor_thread (void)
 		if (mono_runtime_is_shutting_down () || !domain_any_has_request ())
 			continue;
 
+		MONO_PREPARE_BLOCKING;
 		mono_mutex_lock (&threadpool->active_threads_lock);
 		for (i = 0; i < threadpool->working_threads->len; ++i) {
 			thread = g_ptr_array_index (threadpool->working_threads, i);
@@ -847,6 +874,7 @@ monitor_thread (void)
 			}
 		}
 		mono_mutex_unlock (&threadpool->active_threads_lock);
+		MONO_FINISH_BLOCKING;
 
 		if (all_waitsleepjoin) {
 			ThreadPoolCounter counter;
@@ -861,14 +889,20 @@ monitor_thread (void)
 				if (mono_runtime_is_shutting_down ())
 					break;
 
-				if (worker_try_unpark ())
+				if (worker_try_unpark ()) {
+					mono_trace (G_LOG_LEVEL_DEBUG, MONO_TRACE_THREADPOOL, "[%p] monitor thread, unparked", GetCurrentThreadId ());
 					break;
+				}
 
-				if (worker_try_create ())
+				if (worker_try_create ()) {
+					mono_trace (G_LOG_LEVEL_DEBUG, MONO_TRACE_THREADPOOL, "[%p] monitor thread, created", GetCurrentThreadId ());
 					break;
+				}
 			}
 		}
 	} while (monitor_should_keep_running ());
+
+	mono_trace (G_LOG_LEVEL_DEBUG, MONO_TRACE_THREADPOOL, "[%p] monitor thread, finished", GetCurrentThreadId ());
 }
 
 static void
@@ -904,6 +938,8 @@ hill_climbing_change_thread_count (gint16 new_thread_count, ThreadPoolHeuristicS
 
 	hc = &threadpool->heuristic_hill_climbing;
 
+	mono_trace (G_LOG_LEVEL_INFO, MONO_TRACE_THREADPOOL, "[%p] hill climbing, change max number of threads %d", GetCurrentThreadId (), new_thread_count);
+
 	hc->last_thread_count = new_thread_count;
 	hc->current_sample_interval = rand_next (&hc->random_interval_generator, hc->sample_interval_low, hc->sample_interval_high);
 	hc->elapsed_since_last_change = 0;
@@ -925,7 +961,7 @@ hill_climbing_force_change (gint16 new_thread_count, ThreadPoolHeuristicStateTra
 	}
 }
 
-static double complex
+static double_complex
 hill_climbing_get_wave_component (gdouble *samples, guint sample_count, gdouble period)
 {
 	ThreadPoolHillClimbing *hc;
@@ -950,7 +986,7 @@ hill_climbing_get_wave_component (gdouble *samples, guint sample_count, gdouble 
 		q1 = q0;
 	}
 
-	return ((q1 - q2 * cosine) + (q2 * sine) * I) / ((gdouble) sample_count);
+	return mono_double_complex_scalar_div (mono_double_complex_make (q1 - q2 * cosine, (q2 * sine)), ((gdouble)sample_count));
 }
 
 static gint16
@@ -967,9 +1003,9 @@ hill_climbing_update (gint16 current_thread_count, guint32 sample_duration, gint
 	gint sample_count;
 	gint new_thread_wave_magnitude;
 	gint new_thread_count;
-	double complex thread_wave_component;
-	double complex throughput_wave_component;
-	double complex ratio;
+	double_complex thread_wave_component;
+	double_complex throughput_wave_component;
+	double_complex ratio;
 
 	g_assert (threadpool);
 	g_assert (adjustment_interval);
@@ -1029,10 +1065,10 @@ hill_climbing_update (gint16 current_thread_count, guint32 sample_duration, gint
 	hc->total_samples ++;
 
 	/* Set up defaults for our metrics. */
-	thread_wave_component = 0;
-	throughput_wave_component = 0;
+	thread_wave_component = mono_double_complex_make(0, 0);
+	throughput_wave_component = mono_double_complex_make(0, 0);
 	throughput_error_estimate = 0;
-	ratio = 0;
+	ratio = mono_double_complex_make(0, 0);
 	confidence = 0;
 
 	transition = TRANSITION_WARMUP;
@@ -1070,17 +1106,17 @@ hill_climbing_update (gint16 current_thread_count, guint32 sample_duration, gint
 			/* Get the the three different frequency components of the throughput (scaled by average
 			 * throughput). Our "error" estimate (the amount of noise that might be present in the
 			 * frequency band we're really interested in) is the average of the adjacent bands. */
-			throughput_wave_component = hill_climbing_get_wave_component (hc->samples, sample_count, hc->wave_period) / average_throughput;
-			throughput_error_estimate = cabs (hill_climbing_get_wave_component (hc->samples, sample_count, adjacent_period_1) / average_throughput);
+			throughput_wave_component = mono_double_complex_scalar_div (hill_climbing_get_wave_component (hc->samples, sample_count, hc->wave_period), average_throughput);
+			throughput_error_estimate = cabs (mono_double_complex_scalar_div (hill_climbing_get_wave_component (hc->samples, sample_count, adjacent_period_1), average_throughput));
 
 			if (adjacent_period_2 <= sample_count) {
-				throughput_error_estimate = MAX (throughput_error_estimate, cabs (hill_climbing_get_wave_component (
-					hc->samples, sample_count, adjacent_period_2) / average_throughput));
+				throughput_error_estimate = MAX (throughput_error_estimate, cabs (mono_double_complex_scalar_div (hill_climbing_get_wave_component (
+					hc->samples, sample_count, adjacent_period_2), average_throughput)));
 			}
 
 			/* Do the same for the thread counts, so we have something to compare to. We don't
 			 * measure thread count noise, because there is none; these are exact measurements. */
-			thread_wave_component = hill_climbing_get_wave_component (hc->thread_counts, sample_count, hc->wave_period) / average_thread_count;
+			thread_wave_component = mono_double_complex_scalar_div (hill_climbing_get_wave_component (hc->thread_counts, sample_count, hc->wave_period), average_thread_count);
 
 			/* Update our moving average of the throughput noise. We'll use this
 			 * later as feedback to determine the new size of the thread wave. */
@@ -1094,10 +1130,10 @@ hill_climbing_update (gint16 current_thread_count, guint32 sample_duration, gint
 			if (cabs (thread_wave_component) > 0) {
 				/* Adjust the throughput wave so it's centered around the target wave,
 				 * and then calculate the adjusted throughput/thread ratio. */
-				ratio = (throughput_wave_component - (hc->target_throughput_ratio * thread_wave_component)) / thread_wave_component;
+				ratio = mono_double_complex_div (mono_double_complex_sub (throughput_wave_component, mono_double_complex_scalar_mul(thread_wave_component, hc->target_throughput_ratio)), thread_wave_component);
 				transition = TRANSITION_CLIMBING_MOVE;
 			} else {
-				ratio = 0;
+				ratio = mono_double_complex_make (0, 0);
 				transition = TRANSITION_STABILIZING;
 			}
 
@@ -1223,7 +1259,7 @@ mono_threadpool_ms_cleanup (void)
 	#ifndef DISABLE_SOCKETS
 		mono_threadpool_ms_io_cleanup ();
 	#endif
-	ensure_cleanedup ();
+	mono_lazy_cleanup (&status, cleanup);
 }
 
 MonoAsyncResult *
@@ -1240,7 +1276,7 @@ mono_threadpool_ms_begin_invoke (MonoDomain *domain, MonoObject *target, MonoMet
 		async_call_klass = mono_class_from_name (mono_defaults.corlib, "System", "MonoAsyncCall");
 	g_assert (async_call_klass);
 
-	ensure_initialized (NULL);
+	mono_lazy_initialize (&status, initialize);
 
 	message = mono_method_call_message_new (method, params, mono_get_delegate_invoke (method->klass), (params != NULL) ? (&async_callback) : NULL, (params != NULL) ? (&state) : NULL);
 
@@ -1286,7 +1322,7 @@ mono_threadpool_ms_end_invoke (MonoAsyncResult *ares, MonoArray **out_args, Mono
 		return NULL;
 	}
 
-	MONO_OBJECT_SETREF (ares, endinvoke_called, 1);
+	ares->endinvoke_called = 1;
 
 	/* wait until we are really finished */
 	if (ares->completed) {
@@ -1301,9 +1337,9 @@ mono_threadpool_ms_end_invoke (MonoAsyncResult *ares, MonoArray **out_args, Mono
 			MONO_OBJECT_SETREF (ares, handle, (MonoObject*) mono_wait_handle_new (mono_object_domain (ares), wait_event));
 		}
 		mono_monitor_exit ((MonoObject*) ares);
-		MONO_PREPARE_BLOCKING
+		MONO_PREPARE_BLOCKING;
 		WaitForSingleObjectEx (wait_event, INFINITE, TRUE);
-		MONO_FINISH_BLOCKING
+		MONO_FINISH_BLOCKING;
 	}
 
 	ac = (MonoAsyncCall*) ares->object_data;
@@ -1352,9 +1388,9 @@ mono_threadpool_ms_remove_domain_jobs (MonoDomain *domain, int timeout)
 	mono_memory_write_barrier ();
 
 	while (domain->threadpool_jobs) {
-		MONO_PREPARE_BLOCKING
+		MONO_PREPARE_BLOCKING;
 		WaitForSingleObject (sem, timeout);
-		MONO_FINISH_BLOCKING
+		MONO_FINISH_BLOCKING;
 		if (timeout != -1) {
 			timeout -= mono_msec_ticks () - start;
 			if (timeout <= 0) {
@@ -1373,55 +1409,57 @@ mono_threadpool_ms_remove_domain_jobs (MonoDomain *domain, int timeout)
 void
 mono_threadpool_ms_suspend (void)
 {
-	threadpool->suspended = TRUE;
+	if (threadpool)
+		threadpool->suspended = TRUE;
 }
 
 void
 mono_threadpool_ms_resume (void)
 {
-	threadpool->suspended = FALSE;
+	if (threadpool)
+		threadpool->suspended = FALSE;
 }
 
 void
-ves_icall_System_Threading_Microsoft_ThreadPool_GetAvailableThreadsNative (gint32 *worker_threads, gint32 *completion_port_threads)
+ves_icall_System_Threading_ThreadPool_GetAvailableThreadsNative (gint32 *worker_threads, gint32 *completion_port_threads)
 {
 	if (!worker_threads || !completion_port_threads)
 		return;
 
-	ensure_initialized (NULL);
+	mono_lazy_initialize (&status, initialize);
 
 	*worker_threads = threadpool->limit_worker_max;
 	*completion_port_threads = threadpool->limit_io_max;
 }
 
 void
-ves_icall_System_Threading_Microsoft_ThreadPool_GetMinThreadsNative (gint32 *worker_threads, gint32 *completion_port_threads)
+ves_icall_System_Threading_ThreadPool_GetMinThreadsNative (gint32 *worker_threads, gint32 *completion_port_threads)
 {
 	if (!worker_threads || !completion_port_threads)
 		return;
 
-	ensure_initialized (NULL);
+	mono_lazy_initialize (&status, initialize);
 
 	*worker_threads = threadpool->limit_worker_min;
 	*completion_port_threads = threadpool->limit_io_min;
 }
 
 void
-ves_icall_System_Threading_Microsoft_ThreadPool_GetMaxThreadsNative (gint32 *worker_threads, gint32 *completion_port_threads)
+ves_icall_System_Threading_ThreadPool_GetMaxThreadsNative (gint32 *worker_threads, gint32 *completion_port_threads)
 {
 	if (!worker_threads || !completion_port_threads)
 		return;
 
-	ensure_initialized (NULL);
+	mono_lazy_initialize (&status, initialize);
 
 	*worker_threads = threadpool->limit_worker_max;
 	*completion_port_threads = threadpool->limit_io_max;
 }
 
 MonoBoolean
-ves_icall_System_Threading_Microsoft_ThreadPool_SetMinThreadsNative (gint32 worker_threads, gint32 completion_port_threads)
+ves_icall_System_Threading_ThreadPool_SetMinThreadsNative (gint32 worker_threads, gint32 completion_port_threads)
 {
-	ensure_initialized (NULL);
+	mono_lazy_initialize (&status, initialize);
 
 	if (worker_threads <= 0 || worker_threads > threadpool->limit_worker_max)
 		return FALSE;
@@ -1435,11 +1473,11 @@ ves_icall_System_Threading_Microsoft_ThreadPool_SetMinThreadsNative (gint32 work
 }
 
 MonoBoolean
-ves_icall_System_Threading_Microsoft_ThreadPool_SetMaxThreadsNative (gint32 worker_threads, gint32 completion_port_threads)
+ves_icall_System_Threading_ThreadPool_SetMaxThreadsNative (gint32 worker_threads, gint32 completion_port_threads)
 {
 	gint cpu_count = mono_cpu_count ();
 
-	ensure_initialized (NULL);
+	mono_lazy_initialize (&status, initialize);
 
 	if (worker_threads < threadpool->limit_worker_min || worker_threads < cpu_count)
 		return FALSE;
@@ -1453,13 +1491,18 @@ ves_icall_System_Threading_Microsoft_ThreadPool_SetMaxThreadsNative (gint32 work
 }
 
 void
-ves_icall_System_Threading_Microsoft_ThreadPool_InitializeVMTp (MonoBoolean *enable_worker_tracking)
+ves_icall_System_Threading_ThreadPool_InitializeVMTp (MonoBoolean *enable_worker_tracking)
 {
-	ensure_initialized (enable_worker_tracking);
+	if (enable_worker_tracking) {
+		// TODO implement some kind of switch to have the possibily to use it
+		*enable_worker_tracking = FALSE;
+	}
+
+	mono_lazy_initialize (&status, initialize);
 }
 
 MonoBoolean
-ves_icall_System_Threading_Microsoft_ThreadPool_NotifyWorkItemComplete (void)
+ves_icall_System_Threading_ThreadPool_NotifyWorkItemComplete (void)
 {
 	ThreadPoolCounter counter;
 
@@ -1476,7 +1519,7 @@ ves_icall_System_Threading_Microsoft_ThreadPool_NotifyWorkItemComplete (void)
 }
 
 void
-ves_icall_System_Threading_Microsoft_ThreadPool_NotifyWorkItemProgressNative (void)
+ves_icall_System_Threading_ThreadPool_NotifyWorkItemProgressNative (void)
 {
 	heuristic_notify_work_completed ();
 
@@ -1485,20 +1528,20 @@ ves_icall_System_Threading_Microsoft_ThreadPool_NotifyWorkItemProgressNative (vo
 }
 
 void
-ves_icall_System_Threading_Microsoft_ThreadPool_ReportThreadStatus (MonoBoolean is_working)
+ves_icall_System_Threading_ThreadPool_ReportThreadStatus (MonoBoolean is_working)
 {
 	// TODO
 	mono_raise_exception (mono_get_exception_not_implemented (NULL));
 }
 
 MonoBoolean
-ves_icall_System_Threading_Microsoft_ThreadPool_RequestWorkerThread (void)
+ves_icall_System_Threading_ThreadPool_RequestWorkerThread (void)
 {
 	return worker_request (mono_domain_get ());
 }
 
 MonoBoolean G_GNUC_UNUSED
-ves_icall_System_Threading_Microsoft_ThreadPool_PostQueuedCompletionStatus (MonoNativeOverlapped *native_overlapped)
+ves_icall_System_Threading_ThreadPool_PostQueuedCompletionStatus (MonoNativeOverlapped *native_overlapped)
 {
 	/* This copy the behavior of the current Mono implementation */
 	mono_raise_exception (mono_get_exception_not_implemented (NULL));
@@ -1506,14 +1549,14 @@ ves_icall_System_Threading_Microsoft_ThreadPool_PostQueuedCompletionStatus (Mono
 }
 
 MonoBoolean G_GNUC_UNUSED
-ves_icall_System_Threading_Microsoft_ThreadPool_BindIOCompletionCallbackNative (gpointer file_handle)
+ves_icall_System_Threading_ThreadPool_BindIOCompletionCallbackNative (gpointer file_handle)
 {
 	/* This copy the behavior of the current Mono implementation */
 	return TRUE;
 }
 
 MonoBoolean G_GNUC_UNUSED
-ves_icall_System_Threading_Microsoft_ThreadPool_IsThreadPoolHosted (void)
+ves_icall_System_Threading_ThreadPool_IsThreadPoolHosted (void)
 {
 	return FALSE;
 }

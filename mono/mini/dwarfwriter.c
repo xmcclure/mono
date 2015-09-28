@@ -407,7 +407,7 @@ emit_fde (MonoDwarfWriter *w, int fde_index, char *start_symbol, char *end_symbo
 	}
 
 	/* Convert the list of MonoUnwindOps to the format used by DWARF */	
-	uw_info = mono_unwind_ops_encode (l, &uw_info_len);
+	uw_info = mono_unwind_ops_encode_full (l, &uw_info_len, FALSE);
 	emit_bytes (w, uw_info, uw_info_len);
 	g_free (uw_info);
 
@@ -817,7 +817,9 @@ emit_all_line_number_info (MonoDwarfWriter *w)
 		MethodLineNumberInfo *info = l->data;
 		MonoDebugMethodJitInfo *dmji;
 
-		dmji = mono_debug_find_method (info->method, mono_domain_get ());;
+		dmji = mono_debug_find_method (info->method, mono_domain_get ());
+		if (!dmji)
+			continue;
 		emit_line_number_info (w, info->method, info->start_symbol, info->end_symbol, info->code, info->code_size, dmji);
 		mono_debug_free_method_jit_info (dmji);
 	}
@@ -1055,7 +1057,7 @@ emit_class_dwarf_info (MonoDwarfWriter *w, MonoClass *klass, gboolean vtype)
 			const char *p;
 			MonoTypeEnum def_type;
 
-			if (strcmp ("value__", mono_field_get_name (field)) == 0)
+			if (!(field->type->attrs & FIELD_ATTRIBUTE_STATIC))
 				continue;
 			if (mono_field_is_deleted (field))
 				continue;
@@ -1643,8 +1645,12 @@ emit_line_number_info (MonoDwarfWriter *w, MonoMethod *method,
 		prev_il_offset = il_offset;
 
 		loc = mono_debug_symfile_lookup_location (minfo, il_offset);
-		if (!(loc && loc->source_file))
+		if (!loc)
 			continue;
+		if (!loc->source_file) {
+			mono_debug_symfile_free_location (loc);
+			continue;
+		}
 
 		line_diff = (gint32)loc->row - (gint32)prev_line;
 		addr_diff = i - prev_native_offset;
@@ -1875,6 +1881,9 @@ mono_dwarf_writer_emit_method (MonoDwarfWriter *w, MonoCompile *cfg, MonoMethod 
 		int file_index = add_line_number_file_name (w, loc->source_file, 0, 0);
 		emit_uleb128 (w, file_index + 1);
 		emit_uleb128 (w, loc->row);
+
+		mono_debug_symfile_free_location (loc);
+		loc = NULL;
 	} else {
 		emit_uleb128 (w, 0);
 		emit_uleb128 (w, 0);

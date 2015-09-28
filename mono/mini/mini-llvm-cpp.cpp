@@ -425,10 +425,30 @@ mono_llvm_build_fence (LLVMBuilderRef builder, BarrierKind kind)
 }
 
 void
+mono_llvm_set_must_tail (LLVMValueRef call_ins)
+{
+	CallInst *ins = (CallInst*)unwrap (call_ins);
+
+	ins->setTailCallKind (CallInst::TailCallKind::TCK_MustTail);
+}
+
+void
 mono_llvm_replace_uses_of (LLVMValueRef var, LLVMValueRef v)
 {
 	Value *V = ConstantExpr::getTruncOrBitCast (unwrap<Constant> (v), unwrap (var)->getType ());
 	unwrap (var)->replaceAllUsesWith (V);
+}
+
+LLVMValueRef
+mono_llvm_create_constant_data_array (const uint8_t *data, int len)
+{
+	return wrap(ConstantDataArray::get (*unwrap(LLVMGetGlobalContext ()), makeArrayRef(data, len)));
+}
+
+void
+mono_llvm_set_is_constant (LLVMValueRef global_var)
+{
+	unwrap<GlobalVariable>(global_var)->setConstant (true);
 }
 
 static cl::list<const PassInfo*, bool, PassNameParser>
@@ -628,11 +648,7 @@ mono_llvm_create_ee (LLVMModuleProviderRef MP, AllocCodeMemoryCb *alloc_cb, Func
   // EngineBuilder no longer has a copy assignment operator (?)
   std::unique_ptr<Module> Owner(unwrap(MP));
   EngineBuilder b (std::move(Owner));
-#ifdef TARGET_AMD64
-  ExecutionEngine *EE = b.setJITMemoryManager (mono_mm).setTargetOptions (opts).setAllocateGVsWithCode (true).setMCPU (cpu_name).setCodeModel (CodeModel::Large).create ();
-#else
   ExecutionEngine *EE = b.setJITMemoryManager (mono_mm).setTargetOptions (opts).setAllocateGVsWithCode (true).setMCPU (cpu_name).create ();
-#endif
 
   g_assert (EE);
   mono_ee->EE = EE;

@@ -195,9 +195,7 @@ namespace Mono.CSharp {
 					continue;
 
 				if (obsoleteCheck) {
-					ObsoleteAttribute obsolete_attr = t.GetAttributeObsolete ();
-					if (obsolete_attr != null)
-						AttributeTester.Report_ObsoleteMessage (obsolete_attr, t.GetSignatureForError (), c.Location, context.Module.Compiler.Report);
+					t.CheckObsoleteness (context, c.Location);
 				}
 
 				ConstraintChecker.Check (context, t, c.Location);
@@ -651,10 +649,10 @@ namespace Mono.CSharp {
 				var meta_constraints = new List<MetaType> (spec.TypeArguments.Length);
 				foreach (var c in spec.TypeArguments) {
 					//
-					// Inflated type parameters can collide with special constraint types, don't
+					// Inflated type parameters can collide with base type constraint, don't
 					// emit any such type parameter.
 					//
-					if (c.BuiltinType == BuiltinTypeSpec.Type.Object || c.BuiltinType == BuiltinTypeSpec.Type.ValueType)
+					if (c.IsClass && spec.BaseType.BuiltinType != BuiltinTypeSpec.Type.Object)
 						continue;
 
 					meta_constraints.Add (c.GetMetaInfo ());
@@ -1114,14 +1112,20 @@ namespace Mono.CSharp {
 			//
 			bool found;
 			if (!TypeSpecComparer.Override.IsEqual (BaseType, other.BaseType)) {
-				if (other.targs == null)
-					return false;
-
 				found = false;
-				foreach (var otarg in other.targs) {
-					if (TypeSpecComparer.Override.IsEqual (BaseType, otarg)) {
-						found = true;
-						break;
+				if (other.targs != null) {
+					foreach (var otarg in other.targs) {
+						if (TypeSpecComparer.Override.IsEqual (BaseType, otarg)) {
+							found = true;
+							break;
+						}
+					}
+				} else if (targs != null) {
+					foreach (var targ in targs) {
+						if (TypeSpecComparer.Override.IsEqual (targ, other.BaseType)) {
+							found = true;
+							break;
+						}
 					}
 				}
 
@@ -1164,18 +1168,25 @@ namespace Mono.CSharp {
 
 			// Check interfaces implementation <- definition
 			if (other.InterfacesDefined != null) {
-				if (InterfacesDefined == null)
-					return false;
-
 				//
 				// Iterate over inflated interfaces
 				//
 				foreach (var oiface in other.Interfaces) {
 					found = false;
-					foreach (var iface in Interfaces) {
-						if (TypeSpecComparer.Override.IsEqual (iface, oiface)) {
-							found = true;
-							break;
+
+					if (InterfacesDefined != null) {
+						foreach (var iface in Interfaces) {
+							if (TypeSpecComparer.Override.IsEqual (iface, oiface)) {
+								found = true;
+								break;
+							}
+						}
+					} else if (targs != null) {
+						foreach (var targ in targs) {
+							if (TypeSpecComparer.Override.IsEqual (targ, oiface)) {
+								found = true;
+								break;
+							}
 						}
 					}
 
@@ -1186,17 +1197,29 @@ namespace Mono.CSharp {
 
 			// Check type parameters implementation -> definition
 			if (targs != null) {
-				if (other.targs == null)
-					return false;
-
 				foreach (var targ in targs) {
 					found = false;
-					foreach (var otarg in other.targs) {
-						if (TypeSpecComparer.Override.IsEqual (targ, otarg)) {
-							found = true;
-							break;
+
+					if (other.targs != null) {
+						foreach (var otarg in other.targs) {
+							if (TypeSpecComparer.Override.IsEqual (targ, otarg)) {
+								found = true;
+								break;
+							}
 						}
 					}
+
+					if (other.InterfacesDefined != null && !found) {
+						foreach (var iface in other.Interfaces) {
+							if (TypeSpecComparer.Override.IsEqual (iface, targ)) {
+								found = true;
+								break;
+							}
+						}
+					}
+
+					if (!found)
+						found = TypeSpecComparer.Override.IsEqual (targ, other.BaseType);
 
 					if (!found)
 						return false;
@@ -1311,12 +1334,26 @@ namespace Mono.CSharp {
 		{
 			cache = new MemberCache ();
 
+			if (targs != null) {
+				foreach (var ta in targs) {
+					var tps = ta as TypeParameterSpec;
+					var b_type = tps == null ? ta : tps.GetEffectiveBase ();
+
+					//
+					// Find the most specific type when base type was inflated from base constraints
+					//
+					if (b_type != null && !b_type.IsStructOrEnum && TypeSpec.IsBaseClass (b_type, BaseType, false))
+						BaseType = b_type;
+				}
+			}
+
 			//
 			// For a type parameter the membercache is the union of the sets of members of the types
 			// specified as a primary constraint or secondary constraint
 			//
-			if (BaseType.BuiltinType != BuiltinTypeSpec.Type.Object && BaseType.BuiltinType != BuiltinTypeSpec.Type.ValueType)
+			if (BaseType.BuiltinType != BuiltinTypeSpec.Type.Object && BaseType.BuiltinType != BuiltinTypeSpec.Type.ValueType) {
 				cache.AddBaseType (BaseType);
+			}
 
 			if (InterfacesDefined != null) {
 				foreach (var iface_type in InterfacesDefined) {
@@ -1324,25 +1361,13 @@ namespace Mono.CSharp {
 				}
 			}
 
+			//
+			// Import interfaces after base type to match behavior from ordinary classes
+			//
 			if (targs != null) {
 				foreach (var ta in targs) {
 					var tps = ta as TypeParameterSpec;
-					IList<TypeSpec> ifaces;
-					TypeSpec b_type;
-					if (tps != null) {
-						b_type = tps.GetEffectiveBase ();
-						ifaces = tps.InterfacesDefined;
-					} else {
-						b_type = ta;
-						ifaces = ta.Interfaces;
-					}
-
-					//
-					// Don't add base type which was inflated from base constraints but it's not valid
-					// in C# context
-					//
-					if (b_type != null && b_type.BuiltinType != BuiltinTypeSpec.Type.Object && b_type.BuiltinType != BuiltinTypeSpec.Type.ValueType && !b_type.IsStructOrEnum)
-						cache.AddBaseType (b_type);
+					var ifaces = tps == null ? ta.Interfaces : tps.InterfacesDefined;
 
 					if (ifaces != null) {
 						foreach (var iface_type in ifaces) {
@@ -1913,6 +1938,14 @@ namespace Mono.CSharp {
 			} while (type != null);
 
 			return definition.GetMetaInfo ().MakeGenericType (all.ToArray ());
+		}
+
+		public override void CheckObsoleteness (IMemberContext mc, Location loc)
+		{
+			base.CheckObsoleteness (mc, loc);
+
+			foreach (var ta in TypeArguments)
+				ta.CheckObsoleteness (mc, loc);
 		}
 
 		public override ObsoleteAttribute GetAttributeObsolete ()

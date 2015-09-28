@@ -493,7 +493,11 @@ namespace MonoTests.System.Net {
 		public IPEndPoint CreateListenerRequest (HttpListener listener, string uri)
 		{
 			IPEndPoint ipEndPoint = null;
-			listener.BeginGetContext ((result) => ipEndPoint = ListenerCallback (result), listener);
+			var mre = new ManualResetEventSlim ();
+			listener.BeginGetContext (result => {
+				ipEndPoint = ListenerCallback (result);
+				mre.Set ();
+			}, listener);
 
 			var request = (HttpWebRequest) WebRequest.Create (uri);
 			request.Method = "POST";
@@ -507,6 +511,8 @@ namespace MonoTests.System.Net {
 
 			// Close response so socket can be reused.
 			response.Close ();
+
+			mre.Wait ();
 
 			return ipEndPoint;
 		}

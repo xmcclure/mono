@@ -255,6 +255,8 @@ struct _MonoException {
 	MonoObject *_data;
 	MonoObject *captured_traces;
 	MonoArray  *native_trace_ips;
+	/* Dynamic methods referenced by the stack trace */
+	MonoObject *dynamic_methods;
 };
 
 typedef struct {
@@ -416,7 +418,6 @@ struct _MonoInternalThread {
 	gpointer interrupt_on_stop;
 	gsize    flags;
 	gpointer thread_pinning_ref;
-	MonoMethod *async_invoke_method;
 	/* 
 	 * These fields are used to avoid having to increment corlib versions
 	 * when a new field is added to this structure.
@@ -635,10 +636,7 @@ mono_async_result_new	    (MonoDomain *domain, HANDLE handle,
 			     MonoObject *state, gpointer data, MonoObject *object_data);
 
 MonoObject *
-mono_async_result_invoke    (MonoAsyncResult *ares, MonoObject **exc);
-
-MonoObject *
-ves_icall_System_Runtime_Remoting_Messaging_AsyncResult_Invoke (MonoAsyncResult *this);
+ves_icall_System_Runtime_Remoting_Messaging_AsyncResult_Invoke (MonoAsyncResult *ares);
 
 MonoWaitHandle *
 mono_wait_handle_new	    (MonoDomain *domain, HANDLE handle);
@@ -782,6 +780,7 @@ struct _MonoDelegate {
 	MonoObject *target;
 	MonoMethod *method;
 	gpointer delegate_trampoline;
+	gpointer rgctx;
 	/* 
 	 * If non-NULL, this points to a memory location which stores the address of 
 	 * the compiled code of the method, or NULL if it is not yet compiled.
@@ -790,6 +789,7 @@ struct _MonoDelegate {
 	MonoReflectionMethod *method_info;
 	MonoReflectionMethod *original_method_info;
 	MonoObject *data;
+	MonoBoolean method_is_virtual;
 };
 
 typedef struct _MonoMulticastDelegate MonoMulticastDelegate;

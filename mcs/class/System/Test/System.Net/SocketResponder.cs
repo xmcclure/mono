@@ -98,6 +98,9 @@ namespace MonoTests.System.Net
 				if (tcpListener != null) {
 					tcpListener.Stop ();
 					tcpListener = null;
+					listenThread.Abort ();
+					listenThread.Join ();
+					listenThread = null;
 					Thread.Sleep (50);
 				}
 			}
@@ -119,6 +122,14 @@ namespace MonoTests.System.Net
 					// ignore interruption of blocking call
 					if (ex.ErrorCode != SOCKET_CLOSED && ex.ErrorCode != SOCKET_INVALID_ARGS)
 						throw;
+#if MOBILE
+				} catch (InvalidOperationException ex) {
+					// This breaks some tests running on Android. The problem is that the stack trace
+					// doesn't point to where the exception is actually thrown from but the entire process
+					// is aborted because of unhandled exception.
+					Console.WriteLine ("SocketResponder.Listen failed:");
+					Console.WriteLine (ex);
+#endif
 				} finally {
 					Thread.Sleep (500);
 					if (socket != null)

@@ -188,7 +188,6 @@ System.IO/InternalBufferOverflowException.cs
 System.IO/InvalidDataException.cs
 System.IO/IODescriptionAttribute.cs
 System.IO/KeventWatcher.cs
-System.IO/MonoSyncFileStream.cs
 System.IO/NotifyFilters.cs
 System.IO.Ports/Handshake.cs
 System.IO.Ports/ISerialStream.cs
@@ -296,12 +295,12 @@ System.Net/HttpListenerException.cs
 System.Net/HttpListenerPrefixCollection.cs
 System.Net/HttpListenerRequest.cs
 System.Net/HttpListenerResponse.cs
+System.Net/HttpListenerTimeoutManager.cs
 System.Net/HttpRequestCreator.cs
 System.Net/HttpRequestHeader.cs
 System.Net/HttpResponseHeader.cs
 System.Net/HttpStatusCode.cs
 System.Net/HttpStreamAsyncResult.cs
-System.Net/HttpUtility.cs
 System.Net/HttpVersion.cs
 System.Net/HttpWebRequest.cs
 System.Net/HttpWebResponse.cs
@@ -335,6 +334,7 @@ System.Net.Mail/MailPriority.cs
 System.Net.Mail/SendCompletedEventHandler.cs
 System.Net.Mail/SmtpAccess.cs
 System.Net.Mail/SmtpClient.cs
+System.Net.Mail/SmtpDeliveryFormat.cs
 System.Net.Mail/SmtpDeliveryMethod.cs
 System.Net.Mail/SmtpException.cs
 System.Net.Mail/SmtpFailedRecipientException.cs
@@ -466,7 +466,6 @@ System.Net/WebProxy.cs
 System.Net/WebRequest.cs
 System.Net/WebRequestMethods.cs
 System.Net/WebResponse.cs
-System.Net/WebUtility.cs
 System.Net.WebSockets/ClientWebSocket.cs
 System.Net.WebSockets/ClientWebSocketOptions.cs
 System.Net.WebSockets/HttpListenerWebSocketContext.cs
@@ -506,6 +505,7 @@ System.Security.Cryptography/AsnEncodedDataEnumerator.cs
 System.Security.Cryptography/OidCollection.cs
 System.Security.Cryptography/Oid.cs
 System.Security.Cryptography/OidEnumerator.cs
+System.Security.Cryptography/OidGroup.cs
 System.Security.Cryptography.X509Certificates/OpenFlags.cs
 System.Security.Cryptography.X509Certificates/OSX509Certificates.cs
 System.Security.Cryptography.X509Certificates/PublicKey.cs
@@ -628,6 +628,7 @@ ReferenceSources/BinaryCompatibility.cs
 ReferenceSources/BootstrapHelper.cs
 ReferenceSources/ConfigurationManagerInternalFactory.cs
 ReferenceSources/Internal.cs
+ReferenceSources/HttpSysSettings.cs
 ReferenceSources/Logging.cs
 ReferenceSources/NativeMethods.cs
 ReferenceSources/SettingsSectionInternal.cs
@@ -1020,15 +1021,23 @@ ReferenceSources/_SslStream.cs
 ../../../external/referencesource/System/net/System/Net/cookiecollection.cs
 ../../../external/referencesource/System/net/System/Net/cookiecontainer.cs
 ../../../external/referencesource/System/net/System/Net/cookieexception.cs
+../../../external/referencesource/System/net/System/Net/HttpListenerRequestUriBuilder.cs
 ../../../external/referencesource/System/net/System/Net/Internal.cs
 ../../../external/referencesource/System/net/System/Net/UnicodeDecodingConformance.cs
 ../../../external/referencesource/System/net/System/Net/UnicodeEncodingConformance.cs
 ../../../external/referencesource/System/net/System/Net/ServicePointManager.cs
 ../../../external/referencesource/System/net/System/Net/webclient.cs
 ../../../external/referencesource/System/net/System/Net/WebPermission.cs
+../../../external/referencesource/System/net/System/Net/WebUtility.cs
 ../../../external/referencesource/System/net/System/Net/WriteStreamClosedEventArgs.cs
 
 ../../../external/referencesource/System/net/System/Net/Sockets/NetworkStream.cs
+../../../external/referencesource/System/net/System/Net/NetworkInformation/IPInterfaceStatistics.cs
+../../../external/referencesource/System/net/System/Net/NetworkInformation/ScopeLevel.cs
+../../../external/referencesource/System/net/System/Net/NetworkInformation/UnicastIPAddressInformation.cs
+
+../../../external/referencesource/System/net/System/Net/Sockets/IPProtectionLevel.cs
+
 ../../../external/referencesource/System/sys/system/runtime/versioning/FrameworkName.cs
 
 ../../../external/referencesource/System/sys/system/threading/Barrier.cs
@@ -1144,4 +1153,3 @@ ReferenceSources/_SslStream.cs
 ../../../external/referencesource/System/compmod/system/codedom/compiler/ICodeParser.cs
 ../../../external/referencesource/System/compmod/system/codedom/compiler/IndentTextWriter.cs
 ../../../external/referencesource/System/compmod/system/codedom/compiler/LanguageOptions.cs
-

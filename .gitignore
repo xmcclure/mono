@@ -23,7 +23,6 @@
 *.tlb
 *.tlh
 *.bak
-*.[Cc]ache
 *.ilk
 *.log
 *.lib
@@ -44,6 +43,8 @@ Ankh.NoLoad
 _ReSharper*/
 *.resharper
 [Tt]est[Rr]esult*
+*.orig
+*.rej
 
 # NuGet packages
 !.nuget/*

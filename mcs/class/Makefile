@@ -46,6 +46,8 @@ mobile_common_dirs := \
 	System.ComponentModel.DataAnnotations \
 	System.ComponentModel.Composition.4.5 \
 	System.Net \
+	System.Net.Http	\
+	System.Net.Http.WebRequest	\
 	System.Windows \
 	System.Xml.Serialization \
 	Mono.CSharp	\
@@ -55,12 +57,13 @@ mobile_common_dirs := \
 
 mobile_static_dirs := \
 	$(mobile_common_dirs)	\
-	Mono.Dynamic.Interpreter
+	Mono.Dynamic.Interpreter	\
+	$(pcl_facade_dirs)
 
 mobile_dynamic_dirs := \
 	$(mobile_common_dirs)	\
 	Mono.CompilerServices.SymbolWriter	\
-	System.Net.Http
+	$(pcl_facade_dirs)
 
 xammac_dirs := \
 	$(mobile_dynamic_dirs)
@@ -71,6 +74,9 @@ monodroid_dirs := \
 monotouch_dirs := \
 	$(mobile_static_dirs)
 
+monotouch_watch_dirs := $(monotouch_dirs)
+monotouch_tv_dirs   := $(monotouch_dirs)
+
 monotouch_runtime_dirs := \
 	corlib \
 	System \
@@ -78,7 +84,51 @@ monotouch_runtime_dirs := \
 	System.XML \
 	Mono.CSharp
 
-net_4_5_dirs := \
+xammac_4_5_dirs := \
+	corlib	\
+	System	\
+	Mono.Posix			\
+	System.Core	\
+	System.XML	\
+	Mono.Security	\
+	System	\
+	I18N		\
+	System.ServiceModel.Internals	\
+	SMDiagnostics	\
+	System.Numerics	\
+	Mono.Data.Tds	\
+	System.Transactions	\
+	System.EnterpriseServices	\
+	System.Data	\
+	System.Runtime.Serialization	\
+	System.Xml.Linq	\
+	Mono.Data.Sqlite	\
+	System.Runtime.Serialization.Formatters.Soap \
+	System.ComponentModel.DataAnnotations \
+	System.IdentityModel		\
+	System.IdentityModel.Selectors	\
+	Mono.Messaging			\
+	System.Configuration.Install 	\
+	System.Messaging	        \
+	System.Web.Services \
+	System.ServiceModel	\
+	System.ServiceModel.Web	\
+	System.Json	\
+	System.Data.Services.Client \
+	System.IO.Compression \
+	System.IO.Compression.FileSystem \
+	System.ComponentModel.Composition.4.5 \
+	System.Net \
+	System.Windows \
+	System.Xml.Serialization \
+	Mono.CSharp	\
+	Microsoft.CSharp \
+	Mono.CompilerServices.SymbolWriter	\
+	System.Data.Linq		\
+	System.Net.Http \
+	$(pcl_facade_dirs)
+
+net_4_x_dirs := \
 	corlib				\
 	System				\
 	System.XML			\
@@ -94,6 +144,7 @@ net_4_5_dirs := \
 	System.EnterpriseServices	\
 	Mono.Data.Tds			\
 	System.Numerics		\
+	System.Numerics.Vectors		\
 	System.Data			\
 	System.ComponentModel.DataAnnotations	\
 	Accessibility			\
@@ -159,9 +210,9 @@ net_4_5_dirs := \
 	System.Web.Http.SelfHost \
 	System.Web.Http.WebHost
 
-# These are the subdirs which depends on libs in net_4_5_dirs
+# These are the subdirs which depends on libs in net_4_x_dirs
 # or have proper dependencies between each other
-net_4_5_parallel_dirs := \
+net_4_x_parallel_dirs := \
 	PEAPI				\
 	I18N				\
 	Mono.Http			\
@@ -223,19 +274,22 @@ xbuild_4_0_dirs := \
 
 monodroid_SUBDIRS := $(monodroid_dirs)
 monotouch_SUBDIRS := $(monotouch_dirs)
+monotouch_watch_SUBDIRS := $(monotouch_watch_dirs)
+monotouch_tv_SUBDIRS    := $(monotouch_tv_dirs)
 monotouch_runtime_SUBDIRS := $(monotouch_runtime_dirs)
 mobile_static_SUBDIRS := $(mobile_static_dirs)
 mobile_SUBDIRS := $(mobile_dynamic_dirs)
 xammac_SUBDIRS := $(xammac_dirs)
+xammac_net_4_5_SUBDIRS := $(xammac_4_5_dirs)
 binary_reference_assemblies_SUBDIRS := reference-assemblies
-net_4_5_SUBDIRS := $(net_4_5_dirs) $(xbuild_4_0_dirs)
-net_4_5_PARALLEL_SUBDIRS := $(net_4_5_parallel_dirs) aot-compiler
+net_4_x_SUBDIRS := $(net_4_x_dirs) $(xbuild_4_0_dirs)
+net_4_x_PARALLEL_SUBDIRS := $(net_4_x_parallel_dirs) aot-compiler
 xbuild_12_SUBDIRS := $(xbuild_4_0_dirs)
 xbuild_14_SUBDIRS := $(xbuild_4_0_dirs)
 
 include ../build/rules.make
 
-SUBDIRS = $(mobile_static_dirs) $(mobile_dynamic_dirs) $(monotouch_dirs) $(monodroid_dirs) $(xammac_dirs) $(net_4_5_dirs) $(net_4_5_parallel_dirs)
+SUBDIRS = $(mobile_static_dirs) $(mobile_dynamic_dirs) $(monotouch_dirs) $(monodroid_dirs) $(xammac_dirs) $(net_4_x_dirs) $(net_4_x_parallel_dirs) $(xammac_net_4_5_SUBDIRS)
 
 DIST_ONLY_SUBDIRS = dlr aot-compiler reference-assemblies $(xbuild_4_0_dirs)
 

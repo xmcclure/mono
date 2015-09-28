@@ -16,6 +16,12 @@
 #error Unknown architecture
 #endif
 
+#ifndef WINVER
+#define WINVER 0x0A00
+#endif
+
+#include <SDKDDKVer.h>
+
 #if _WIN32_WINNT < 0x0600
 #error "Mono requires Windows Vista or later"
 #endif /* _WIN32_WINNT < 0x0600 */
@@ -96,6 +102,9 @@
 
 /* Define to 1 if you have the <complex.h> header file. */
 #define HAVE_COMPLEX_H 1
+
+/* Define to 1 if you have the `system' function. */
+#define HAVE_SYSTEM 1
 
 /* Have /dev/random */
 #define HAVE_CRYPT_RNG 1
@@ -361,6 +370,9 @@
 
 /* Using the simple generational GC. */
 /* #undef HAVE_SGEN_GC */
+
+ /* Have signal */
+#define HAVE_SIGNAL 1
 
 /* Have signbit */
 /* #undef HAVE_SIGNBIT */

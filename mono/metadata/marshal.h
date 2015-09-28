@@ -397,9 +397,6 @@ void
 mono_marshal_free_dynamic_wrappers (MonoMethod *method);
 
 void
-mono_marshal_free_inflated_wrappers (MonoMethod *method);
-
-void
 mono_marshal_lock_internal (void);
 
 void
@@ -560,7 +557,7 @@ MONO_API void
 mono_win32_compat_ZeroMemory (gpointer dest, gsize length);
 
 void
-mono_marshal_find_nonzero_bit_offset (guint8 *buf, int len, int *byte_offset, guint8 *bitmask);
+mono_marshal_find_nonzero_bit_offset (guint8 *buf, int len, int *byte_offset, guint8 *bitmask) MONO_LLVM_INTERNAL;
 
 MonoMethodSignature*
 mono_signature_no_pinvoke (MonoMethod *method);

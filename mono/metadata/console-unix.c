@@ -33,7 +33,7 @@
 #include <mono/metadata/domain-internals.h>
 #include <mono/metadata/gc-internal.h>
 #include <mono/metadata/metadata.h>
-#include <mono/metadata/threadpool.h>
+#include <mono/metadata/threadpool-ms.h>
 #include <mono/utils/mono-signal-handler.h>
 #include <mono/utils/mono-proclib.h>
 
@@ -251,7 +251,7 @@ do_console_cancel_event (void)
 	method = mono_class_get_method_from_name (klass, "BeginInvoke", -1);
 	g_assert (method != NULL);
 
-	mono_thread_pool_begin_invoke (domain, (MonoObject*) load_value, method, NULL);
+	mono_threadpool_ms_begin_invoke (domain, (MonoObject*) load_value, method, NULL);
 }
 
 static int need_cancel = FALSE;
@@ -336,6 +336,7 @@ MONO_SIG_HANDLER_FUNC (static, sigwinch_handler)
 static void
 console_set_signal_handlers ()
 {
+#if defined(HAVE_SIGACTION)
 	struct sigaction sigcont, sigint, sigwinch;
 
 	memset (&sigcont, 0, sizeof (struct sigaction));
@@ -359,6 +360,7 @@ console_set_signal_handlers ()
 	sigwinch.sa_flags = 0;
 	sigemptyset (&sigwinch.sa_mask);
 	sigaction (SIGWINCH, &sigwinch, &save_sigwinch);
+#endif
 }
 
 #if currently_unuused

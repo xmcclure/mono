@@ -1045,6 +1045,8 @@ namespace System.Net
 		{
 			Stream s = null;
 			lock (this) {
+				if (status == WebExceptionStatus.RequestCanceled)
+					return true;
 				if (Data.request != request)
 					throw new ObjectDisposedException (typeof (NetworkStream).FullName);
 				if (nstream == null)

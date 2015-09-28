@@ -1894,8 +1894,83 @@ namespace MonoTests.System.Runtime.Serialization.Json
 
 		public class IntList : List<int>{}
 		#endregion
+
+		[Test]
+		public void DefaultValueDeserialization ()
+		{
+			// value type
+			var person = new Person { name = "John" };
+			using (var ms = new MemoryStream()) {
+				var serializer = new DataContractJsonSerializer (typeof (Person), new DataContractJsonSerializerSettings {
+					SerializeReadOnlyTypes = true,
+					UseSimpleDictionaryFormat = true
+					});
+				serializer.WriteObject (ms, person);
+			}
+
+			// reference type
+			var person2 = new PersonWithContact {
+				name = "Jane",
+				contact = new Contact { url = "localhost", email = "jane@localhost" } };
+			using (var ms = new MemoryStream ()) {
+				var serializer = new DataContractJsonSerializer (typeof (PersonWithContact), new DataContractJsonSerializerSettings {
+					SerializeReadOnlyTypes = true,
+					UseSimpleDictionaryFormat = true
+					});
+				serializer.WriteObject (ms, person2);
+			}
+		}
+
+		[Test]
+		public void Bug15028()
+		{
+			DataContractJsonSerializer ser = new DataContractJsonSerializer(typeof(Bug15028));
+			using (MemoryStream memoryStream = new MemoryStream())
+			{
+				ser.WriteObject(memoryStream, new Bug15028());
+				string output = Encoding.Default.GetString(memoryStream.ToArray());
+				Assert.AreEqual(@"{""Int0"":1,""Int1"":1,""IntZero1"":0,""Str0"":"""",""Str1"":"""",""StrNull1"":null}", output);
+			}
+		}
 	}
 	
+
+	[DataContract]
+	public class Bug15028
+	{
+		[DataMember(EmitDefaultValue = false)]
+		public string StrNull0 { get; private set; }
+
+		[DataMember(EmitDefaultValue = false)]
+		public string Str0 { get; private set; }
+
+		[DataMember(EmitDefaultValue = true)]
+		public string StrNull1 { get; private set; }
+
+		[DataMember(EmitDefaultValue = true)]
+		public string Str1 { get; private set; }
+
+		[DataMember(EmitDefaultValue = false)]
+		public int IntZero0 { get; private set; }
+
+		[DataMember(EmitDefaultValue = false)]
+		public int Int0 { get; private set; }
+
+		[DataMember(EmitDefaultValue = true)]
+		public int IntZero1 { get; private set; }
+
+		[DataMember(EmitDefaultValue = true)]
+		public int Int1 { get; private set; }
+
+		public Bug15028()
+		{
+			Str0 = string.Empty;
+			Str1 = string.Empty;
+			Int0 = 1;
+			Int1 = 1;
+		}
+	}
+
 	public class CharTest
 	{
 		public char Foo;
@@ -2685,4 +2760,33 @@ public class Bug13485Type
 		}
 	}	
 
+#endregion
+
+#region DefaultValueDeserialization
+    [DataContract]
+    public class Person
+    {
+        [DataMember(EmitDefaultValue = false)]
+        public string name { get; set; }
+    }
+
+    [DataContract]
+    public class PersonWithContact
+    {
+        [DataMember(EmitDefaultValue = false)]
+        public string name { get; set; }
+
+        [DataMember(EmitDefaultValue = false)]
+        public Contact contact { get; set; }
+    }
+
+    [DataContract]
+    public class Contact
+    {
+        [DataMember(EmitDefaultValue = false)]
+        public string url { get; set; }
+
+        [DataMember(EmitDefaultValue = false)]
+        public string email{ get; set; }
+    }
 #endregion

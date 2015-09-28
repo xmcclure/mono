@@ -280,7 +280,7 @@ done:
 			mono_error_set_type_load_name (error, name, assembly, "Could not resolve type with token %08x", type_token);
 		}
 	}
-	g_assert (!mono_loader_get_last_error ());
+	mono_loader_assert_no_error ();
 	return res;
 }
 
@@ -632,7 +632,7 @@ inflate_generic_type (MonoImage *image, MonoType *type, MonoGenericContext *cont
 		MonoType *nt;
 		int num = mono_type_get_generic_param_num (type);
 		MonoGenericInst *inst = context->method_inst;
-		if (!inst || !inst->type_argv)
+		if (!inst)
 			return NULL;
 		if (num >= inst->type_argc) {
 			MonoGenericParamInfo *info = mono_generic_param_info (type->data.generic_param);
@@ -1009,7 +1009,6 @@ mono_class_inflate_generic_method_full_checked (MonoMethod *method, MonoClass *k
 	MonoMethodInflated *iresult, *cached;
 	MonoMethodSignature *sig;
 	MonoGenericContext tmp_context;
-	gboolean is_mb_open = FALSE;
 
 	mono_error_init (error);
 
@@ -1041,44 +1040,9 @@ mono_class_inflate_generic_method_full_checked (MonoMethod *method, MonoClass *k
 		(method->klass->generic_container && context->class_inst)))
 		return method;
 
-	/*
-	 * The reason for this hack is to fix the behavior of inflating generic methods that come from a MethodBuilder.
-	 * What happens is that instantiating a generic MethodBuilder with its own arguments should create a diferent object.
-	 * This is opposite to the way non-SRE MethodInfos behave.
-	 * 
-	 * This happens, for example, when we want to emit a recursive generic method. Given the following C# code:
-	 * 
-	 * void Example<T> () {
-	 *    Example<T> ();
-	 * }
-	 *  
-	 * In Example, the method token must be encoded as: "void Example<!!0>()"
-	 * 
-	 * The reference to the first generic argument, "!!0", must be explicit otherwise it won't be inflated
-	 * properly. To get that we need to inflate the MethodBuilder with its own arguments.
-	 * 
-	 * On the other hand, inflating a non-SRE generic method with its own arguments should
-	 * return itself. For example:
-	 * 
-	 * MethodInfo m = ... //m is a generic method definition
-	 * MethodInfo res = m.MakeGenericMethod (m.GetGenericArguments ());
-	 * res == m
-	 *
-	 * To allow such scenarios we must allow inflation of MethodBuilder to happen in a diferent way than
-	 * what happens with regular methods.
-	 * 
-	 * There is one last touch to this madness, once a TypeBuilder is finished, IOW CreateType() is called,
-	 * everything should behave like a regular type or method.
-	 * 
-	 */
-	is_mb_open = method->is_generic &&
-		image_is_dynamic (method->klass->image) && !method->klass->wastypebuilder && /* that is a MethodBuilder from an unfinished TypeBuilder */
-		context->method_inst == mono_method_get_generic_container (method)->context.method_inst; /* and it's been instantiated with its own arguments.  */
-
 	iresult = g_new0 (MonoMethodInflated, 1);
 	iresult->context = *context;
 	iresult->declaring = method;
-	iresult->method.method.is_mb_open = is_mb_open;
 
 	if (!context->method_inst && method->is_generic)
 		iresult->context.method_inst = mono_method_get_generic_container (method)->context.method_inst;
@@ -1094,7 +1058,13 @@ mono_class_inflate_generic_method_full_checked (MonoMethod *method, MonoClass *k
 	if (!iresult->declaring->klass->generic_container && !iresult->declaring->klass->generic_class)
 		iresult->context.class_inst = NULL;
 
-	cached = mono_method_inflated_lookup (iresult, FALSE);
+	MonoImageSet *set = mono_metadata_get_image_set_for_method (iresult);
+
+	// check cache
+	mono_image_set_lock (set);
+	cached = g_hash_table_lookup (set->gmethod_cache, iresult);
+	mono_image_set_unlock (set);
+
 	if (cached) {
 		g_free (iresult);
 		return (MonoMethod*)cached;
@@ -1123,7 +1093,6 @@ mono_class_inflate_generic_method_full_checked (MonoMethod *method, MonoClass *k
 	result->is_generic = FALSE;
 	result->sre_method = FALSE;
 	result->signature = NULL;
-	result->is_mb_open = is_mb_open;
 
 	if (!context->method_inst) {
 		/* Set the generic_container of the result to the generic_container of method */
@@ -1166,7 +1135,17 @@ mono_class_inflate_generic_method_full_checked (MonoMethod *method, MonoClass *k
 	 * is_generic_method_definition().
 	 */
 
-	return (MonoMethod*)mono_method_inflated_lookup (iresult, TRUE);
+	// check cache
+	mono_image_set_lock (set);
+	cached = g_hash_table_lookup (set->gmethod_cache, iresult);
+	if (!cached) {
+		g_hash_table_insert (set->gmethod_cache, iresult, iresult);
+		iresult->owner = set;
+		cached = iresult;
+	}
+	mono_image_set_unlock (set);
+
+	return (MonoMethod*)cached;
 
 fail:
 	g_free (iresult);
@@ -1335,7 +1314,7 @@ mono_class_find_enum_basetype (MonoClass *class, MonoError *error)
 	mono_error_set_type_load_class (error, class, "Could not find base type");
 
 fail:
-	g_assert (!mono_loader_get_last_error ());
+	mono_loader_assert_no_error ();
 	return NULL;
 }
 
@@ -1597,7 +1576,7 @@ mono_class_setup_fields (MonoClass *class)
 		return;
 	}
 
-	if (layout == TYPE_ATTRIBUTE_AUTO_LAYOUT && !(class->image == mono_defaults.corlib && !strcmp (class->name_space, "System") && !strcmp (class->name, "ValueType")))
+	if (layout == TYPE_ATTRIBUTE_AUTO_LAYOUT && !(mono_is_corlib_image (class->image) && !strcmp (class->name_space, "System") && !strcmp (class->name, "ValueType")))
 		blittable = FALSE;
 
 	/* Prevent infinite loops if the class references itself */
@@ -1772,6 +1751,20 @@ mono_type_get_basic_type_from_generic (MonoType *type)
 	return type;
 }
 
+static gboolean
+type_has_references (MonoClass *klass, MonoType *ftype)
+{
+	if (MONO_TYPE_IS_REFERENCE (ftype) || IS_GC_REFERENCE (klass, ftype) || ((MONO_TYPE_ISSTRUCT (ftype) && mono_class_has_references (mono_class_from_mono_type (ftype)))))
+		return TRUE;
+	if (!ftype->byref && (ftype->type == MONO_TYPE_VAR || ftype->type == MONO_TYPE_MVAR)) {
+		MonoGenericParam *gparam = ftype->data.generic_param;
+
+		if (gparam->gshared_constraint)
+			return mono_class_has_references (mono_class_from_mono_type (gparam->gshared_constraint));
+	}
+	return FALSE;
+}
+
 /*
  * mono_class_layout_fields:
  * @class: a class
@@ -1832,7 +1825,7 @@ mono_class_layout_fields (MonoClass *class)
 		if (!(field->type->attrs & FIELD_ATTRIBUTE_STATIC)) {
 			ftype = mono_type_get_underlying_type (field->type);
 			ftype = mono_type_get_basic_type_from_generic (ftype);
-			if (MONO_TYPE_IS_REFERENCE (ftype) || IS_GC_REFERENCE (ftype) || ((MONO_TYPE_ISSTRUCT (ftype) && mono_class_has_references (mono_class_from_mono_type (ftype)))))
+			if (type_has_references (class, ftype))
 				class->has_references = TRUE;
 		}
 	}
@@ -1845,7 +1838,7 @@ mono_class_layout_fields (MonoClass *class)
 		if (field->type->attrs & FIELD_ATTRIBUTE_STATIC) {
 			ftype = mono_type_get_underlying_type (field->type);
 			ftype = mono_type_get_basic_type_from_generic (ftype);
-			if (MONO_TYPE_IS_REFERENCE (ftype) || IS_GC_REFERENCE (ftype) || ((MONO_TYPE_ISSTRUCT (ftype) && mono_class_has_references (mono_class_from_mono_type (ftype)))))
+			if (type_has_references (class, ftype))
 				class->has_static_refs = TRUE;
 		}
 	}
@@ -1857,7 +1850,7 @@ mono_class_layout_fields (MonoClass *class)
 
 		ftype = mono_type_get_underlying_type (field->type);
 		ftype = mono_type_get_basic_type_from_generic (ftype);
-		if (MONO_TYPE_IS_REFERENCE (ftype) || IS_GC_REFERENCE (ftype) || ((MONO_TYPE_ISSTRUCT (ftype) && mono_class_has_references (mono_class_from_mono_type (ftype))))) {
+		if (type_has_references (class, ftype)) {
 			if (field->type->attrs & FIELD_ATTRIBUTE_STATIC)
 				class->has_static_refs = TRUE;
 			else
@@ -1908,7 +1901,7 @@ mono_class_layout_fields (MonoClass *class)
 				ftype = mono_type_get_underlying_type (field->type);
 				ftype = mono_type_get_basic_type_from_generic (ftype);
 				if (gc_aware_layout) {
-					if (MONO_TYPE_IS_REFERENCE (ftype) || IS_GC_REFERENCE (ftype) || ((MONO_TYPE_ISSTRUCT (ftype) && mono_class_has_references (mono_class_from_mono_type (ftype))))) {
+					if (type_has_references (class, ftype)) {
 						if (pass == 1)
 							continue;
 					} else {
@@ -1930,7 +1923,7 @@ mono_class_layout_fields (MonoClass *class)
 				/* if the field has managed references, we need to force-align it
 				 * see bug #77788
 				 */
-				if (MONO_TYPE_IS_REFERENCE (ftype) || IS_GC_REFERENCE (ftype) || ((MONO_TYPE_ISSTRUCT (ftype) && mono_class_has_references (mono_class_from_mono_type (ftype)))))
+				if (type_has_references (class, ftype))
 					align = MAX (align, sizeof (gpointer));
 
 				class->min_align = MAX (align, class->min_align);
@@ -1985,7 +1978,7 @@ mono_class_layout_fields (MonoClass *class)
 			field->offset += sizeof (MonoObject);
 			ftype = mono_type_get_underlying_type (field->type);
 			ftype = mono_type_get_basic_type_from_generic (ftype);
-			if (MONO_TYPE_IS_REFERENCE (ftype) || ((MONO_TYPE_ISSTRUCT (ftype) && mono_class_has_references (mono_class_from_mono_type (ftype))))) {
+			if (type_has_references (class, ftype)) {
 				if (field->offset % sizeof (gpointer)) {
 					mono_class_set_failure (class, MONO_EXCEPTION_TYPE_LOAD, NULL);
 				}
@@ -2072,6 +2065,9 @@ mono_class_layout_fields (MonoClass *class)
 		if (!(field->type->attrs & FIELD_ATTRIBUTE_STATIC) || field->type->attrs & FIELD_ATTRIBUTE_LITERAL)
 			continue;
 		if (mono_field_is_deleted (field))
+			continue;
+		// Special static fields do not need a domain-level static slot
+		if (mono_class_field_is_special_static (field))
 			continue;
 
 		if (mono_type_has_exceptions (field->type)) {
@@ -5730,7 +5726,7 @@ mono_class_create_from_typedef (MonoImage *image, guint32 type_token, MonoError 
 
 	if (mono_metadata_token_table (type_token) != MONO_TABLE_TYPEDEF || tidx > tt->rows) {
 		mono_error_set_bad_image (error, image, "Invalid typedef token %x", type_token);
-		g_assert (!mono_loader_get_last_error ());
+		mono_loader_assert_no_error ();
 		return NULL;
 	}
 
@@ -5738,7 +5734,7 @@ mono_class_create_from_typedef (MonoImage *image, guint32 type_token, MonoError 
 
 	if ((class = mono_internal_hash_table_lookup (&image->class_cache, GUINT_TO_POINTER (type_token)))) {
 		mono_loader_unlock ();
-		g_assert (!mono_loader_get_last_error ());
+		mono_loader_assert_no_error ();
 		return class;
 	}
 
@@ -5827,7 +5823,7 @@ mono_class_create_from_typedef (MonoImage *image, guint32 type_token, MonoError 
 			mono_class_set_failure (class, MONO_EXCEPTION_TYPE_LOAD, g_strdup (mono_error_get_message (error)));
 			mono_loader_unlock ();
 			mono_profiler_class_loaded (class, MONO_PROFILE_FAILED);
-			g_assert (!mono_loader_get_last_error ());
+			mono_loader_assert_no_error ();
 			return NULL;
 		}
 	}
@@ -5899,7 +5895,7 @@ mono_class_create_from_typedef (MonoImage *image, guint32 type_token, MonoError 
 			mono_class_set_failure (class, MONO_EXCEPTION_TYPE_LOAD, g_strdup (mono_error_get_message (error)));
 			mono_loader_unlock ();
 			mono_profiler_class_loaded (class, MONO_PROFILE_FAILED);
-			g_assert (!mono_loader_get_last_error ());
+			mono_loader_assert_no_error ();
 			return NULL;
 		}
 		class->cast_class = class->element_class = mono_class_from_mono_type (enum_basetype);
@@ -5914,7 +5910,7 @@ mono_class_create_from_typedef (MonoImage *image, guint32 type_token, MonoError 
 		mono_class_set_failure (class, MONO_EXCEPTION_TYPE_LOAD, g_strdup_printf ("Could not load generic parameter constrains due to %s", mono_error_get_message (error)));
 		mono_loader_unlock ();
 		mono_profiler_class_loaded (class, MONO_PROFILE_FAILED);
-		g_assert (!mono_loader_get_last_error ());
+		mono_loader_assert_no_error ();
 		return NULL;
 	}
 
@@ -5926,7 +5922,7 @@ mono_class_create_from_typedef (MonoImage *image, guint32 type_token, MonoError 
 	mono_loader_unlock ();
 
 	mono_profiler_class_loaded (class, MONO_PROFILE_OK);
-	g_assert (!mono_loader_get_last_error ());
+	mono_loader_assert_no_error ();
 
 	return class;
 
@@ -5934,7 +5930,7 @@ parent_failure:
 	mono_class_setup_mono_type (class);
 	mono_loader_unlock ();
 	mono_profiler_class_loaded (class, MONO_PROFILE_FAILED);
-	g_assert (!mono_loader_get_last_error ());
+	mono_loader_assert_no_error ();
 	return NULL;
 }
 
@@ -6532,7 +6528,7 @@ mono_type_retrieve_from_typespec (MonoImage *image, guint32 type_spec, MonoGener
 		MonoType *inflated = inflate_generic_type (NULL, t, context, error);
 
 		if (!mono_error_ok (error)) {
-			g_assert (!mono_loader_get_last_error ());
+			mono_loader_assert_no_error ();
 			return NULL;
 		}
 
@@ -7394,7 +7390,7 @@ mono_type_get_checked (MonoImage *image, guint32 type_token, MonoGenericContext 
 		MonoClass *class = mono_class_get_checked (image, type_token, error);
 
 		if (!class) {
-			g_assert (!mono_loader_get_last_error ());
+			mono_loader_assert_no_error ();
 			return NULL;
 		}
 
@@ -7405,7 +7401,7 @@ mono_type_get_checked (MonoImage *image, guint32 type_token, MonoGenericContext 
 	type = mono_type_retrieve_from_typespec (image, type_token, context, &inflated, error);
 
 	if (!type) {
-		g_assert (!mono_loader_get_last_error ());
+		mono_loader_assert_no_error ();
 		return NULL;
 	}
 
@@ -7448,18 +7444,21 @@ mono_image_init_name_cache (MonoImage *image)
 	const char *name;
 	const char *nspace;
 	guint32 i, visib, nspace_index;
-	GHashTable *name_cache2, *nspace_table;
+	GHashTable *name_cache2, *nspace_table, *the_name_cache;
 
-	mono_image_lock (image);
-
-	if (image->name_cache) {
-		mono_image_unlock (image);
+	if (image->name_cache)
 		return;
-	}
 
-	image->name_cache = g_hash_table_new (g_str_hash, g_str_equal);
+	the_name_cache = g_hash_table_new (g_str_hash, g_str_equal);
 
 	if (image_is_dynamic (image)) {
+		mono_image_lock (image);
+		if (image->name_cache) {
+			/* Somebody initialized it before us */
+			g_hash_table_destroy (the_name_cache);
+		} else {
+			mono_atomic_store_release (&image->name_cache, the_name_cache);
+		}
 		mono_image_unlock (image);
 		return;
 	}
@@ -7483,7 +7482,7 @@ mono_image_init_name_cache (MonoImage *image)
 		nspace_table = g_hash_table_lookup (name_cache2, GUINT_TO_POINTER (nspace_index));
 		if (!nspace_table) {
 			nspace_table = g_hash_table_new (g_str_hash, g_str_equal);
-			g_hash_table_insert (image->name_cache, (char*)nspace, nspace_table);
+			g_hash_table_insert (the_name_cache, (char*)nspace, nspace_table);
 			g_hash_table_insert (name_cache2, GUINT_TO_POINTER (nspace_index),
 								 nspace_table);
 		}
@@ -7505,7 +7504,7 @@ mono_image_init_name_cache (MonoImage *image)
 			nspace_table = g_hash_table_lookup (name_cache2, GUINT_TO_POINTER (nspace_index));
 			if (!nspace_table) {
 				nspace_table = g_hash_table_new (g_str_hash, g_str_equal);
-				g_hash_table_insert (image->name_cache, (char*)nspace, nspace_table);
+				g_hash_table_insert (the_name_cache, (char*)nspace, nspace_table);
 				g_hash_table_insert (name_cache2, GUINT_TO_POINTER (nspace_index),
 									 nspace_table);
 			}
@@ -7514,6 +7513,14 @@ mono_image_init_name_cache (MonoImage *image)
 	}
 
 	g_hash_table_destroy (name_cache2);
+
+	mono_image_lock (image);
+	if (image->name_cache) {
+		/* Somebody initialized it before us */
+		g_hash_table_destroy (the_name_cache);
+	} else {
+		mono_atomic_store_release (&image->name_cache, the_name_cache);
+	}
 	mono_image_unlock (image);
 }
 
@@ -7526,10 +7533,8 @@ mono_image_add_to_name_cache (MonoImage *image, const char *nspace,
 	GHashTable *name_cache;
 	guint32 old_index;
 
+	mono_image_init_name_cache (image);
 	mono_image_lock (image);
-
-	if (!image->name_cache)
-		mono_image_init_name_cache (image);
 
 	name_cache = image->name_cache;
 	if (!(nspace_table = g_hash_table_lookup (name_cache, nspace))) {
@@ -7595,10 +7600,8 @@ mono_class_from_name_case_checked (MonoImage *image, const char* name_space, con
 		guint32 token = 0;
 		FindUserData user_data;
 
+		mono_image_init_name_cache (image);
 		mono_image_lock (image);
-
-		if (!image->name_cache)
-			mono_image_init_name_cache (image);
 
 		user_data.key = name_space;
 		user_data.value = NULL;
@@ -7696,8 +7699,8 @@ search_modules (MonoImage *image, const char *name_space, const char *name)
 	return NULL;
 }
 
-MonoClass *
-mono_class_from_name_checked (MonoImage *image, const char* name_space, const char *name, MonoError *error)
+static MonoClass *
+mono_class_from_name_checked_aux (MonoImage *image, const char* name_space, const char *name, MonoError *error, GHashTable* visited_images)
 {
 	GHashTable *nspace_table;
 	MonoImage *loaded_image;
@@ -7708,6 +7711,12 @@ mono_class_from_name_checked (MonoImage *image, const char* name_space, const ch
 	char buf [1024];
 
 	mono_error_init (error);
+
+	// Checking visited images avoids stack overflows when cyclic references exist.
+	if (g_hash_table_lookup (visited_images, image))
+		return NULL;
+
+	g_hash_table_insert (visited_images, image, GUINT_TO_POINTER(1));
 
 	if ((nested = strchr (name, '/'))) {
 		int pos = nested - name;
@@ -7733,10 +7742,8 @@ mono_class_from_name_checked (MonoImage *image, const char* name_space, const ch
 		}
 	}
 
+	mono_image_init_name_cache (image);
 	mono_image_lock (image);
-
-	if (!image->name_cache)
-		mono_image_init_name_cache (image);
 
 	nspace_table = g_hash_table_lookup (image->name_cache, name_space);
 
@@ -7779,7 +7786,7 @@ mono_class_from_name_checked (MonoImage *image, const char* name_space, const ch
 			loaded_image = mono_assembly_load_module (image->assembly, impl >> MONO_IMPLEMENTATION_BITS);
 			if (!loaded_image)
 				return NULL;
-			class = mono_class_from_name (loaded_image, name_space, name);
+			class = mono_class_from_name_checked_aux (loaded_image, name_space, name, error, visited_images);
 			if (nested)
 				return return_nested_in (class, nested);
 			return class;
@@ -7793,8 +7800,7 @@ mono_class_from_name_checked (MonoImage *image, const char* name_space, const ch
 			if (image->references [assembly_idx - 1] == (gpointer)-1)
 				return NULL;			
 			else
-				/* FIXME: Cycle detection */
-				return mono_class_from_name (image->references [assembly_idx - 1]->image, name_space, name);
+				return mono_class_from_name_checked_aux (image->references [assembly_idx - 1]->image, name_space, name, error, visited_images);
 		} else {
 			g_error ("not yet implemented");
 		}
@@ -7806,6 +7812,21 @@ mono_class_from_name_checked (MonoImage *image, const char* name_space, const ch
 	if (nested)
 		return return_nested_in (class, nested);
 	return class;
+}
+
+MonoClass *
+mono_class_from_name_checked (MonoImage *image, const char* name_space, const char *name, MonoError *error)
+{
+	MonoClass *klass;
+	GHashTable *visited_images;
+
+	visited_images = g_hash_table_new (g_direct_hash, g_direct_equal);
+
+	klass = mono_class_from_name_checked_aux (image, name_space, name, error, visited_images);
+
+	g_hash_table_destroy (visited_images);
+
+	return klass;
 }
 
 /**

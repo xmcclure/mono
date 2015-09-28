@@ -33,6 +33,7 @@ using System.Threading;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Runtime.Serialization;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Globalization;
 using System.IO;
@@ -89,9 +90,62 @@ namespace System
 		*/
 		private List<KeyValuePair<DateTime, TimeType>> transitions;
 
-#if !MOBILE
+		private static bool libcNotFound;
+
+		[DllImport ("libc")]
+		private static extern int readlink (string path, byte[] buffer, int buflen);
+
+		private static string readlink (string path)
+		{
+			if (libcNotFound)
+				return null;
+
+			byte[] buf = new byte [512];
+			int ret;
+
+			try {
+				ret = readlink (path, buf, buf.Length);
+			} catch (DllNotFoundException e) {
+				libcNotFound = true;
+				return null;
+			}
+
+			if (ret == -1) return null;
+			char[] cbuf = new char [512];
+			int chars = System.Text.Encoding.Default.GetChars (buf, 0, ret, cbuf, 0);
+			return new String (cbuf, 0, chars);
+		}
+
+		private static bool TryGetNameFromPath (string path, out string name)
+		{
+			name = null;
+			var linkPath = readlink (path);
+			if (linkPath != null)
+				path = linkPath;
+
+			path = Path.GetFullPath (path);
+
+			if (string.IsNullOrEmpty (TimeZoneDirectory))
+				return false;
+
+			var baseDir = TimeZoneDirectory;
+			if (baseDir [baseDir.Length-1] != Path.DirectorySeparatorChar)
+				baseDir += Path.DirectorySeparatorChar;
+
+			if (!path.StartsWith (baseDir, StringComparison.InvariantCulture))
+				return false;
+
+			name = path.Substring (baseDir.Length);
+			if (name == "localtime")
+				name = "Local";
+
+			return true;
+		}
+
+#if !MOBILE || MOBILE_STATIC
 		static TimeZoneInfo CreateLocal ()
 		{
+#if !MOBILE_STATIC
 			if (IsWindows && LocalZoneKey != null) {
 				string name = (string)LocalZoneKey.GetValue ("TimeZoneKeyName");
 				if (name == null)
@@ -100,6 +154,7 @@ namespace System
 				if (name != null)
 					return TimeZoneInfo.FindSystemTimeZoneById (name);
 			}
+#endif
 
 			var tz = Environment.GetEnvironmentVariable ("TZ");
 			if (tz != null) {
@@ -112,15 +167,22 @@ namespace System
 				}
 			}
 
-			try {
-				return FindSystemTimeZoneByFileName ("Local", "/etc/localtime");	
-			} catch {
+			var tzFilePaths = new string [] {
+				"/etc/localtime",
+				Path.Combine (TimeZoneDirectory, "localtime")};
+
+			foreach (var tzFilePath in tzFilePaths) {
 				try {
-					return FindSystemTimeZoneByFileName ("Local", Path.Combine (TimeZoneDirectory, "localtime"));	
-				} catch {
-					return null;
+					string tzName = null;
+					if (!TryGetNameFromPath (tzFilePath, out tzName))
+						tzName = "Local";
+					return FindSystemTimeZoneByFileName (tzName, tzFilePath);
+				} catch (TimeZoneNotFoundException) {
+					continue;
 				}
 			}
+
+			return Utc;
 		}
 
 		static TimeZoneInfo FindSystemTimeZoneByIdCore (string id)
@@ -133,8 +195,9 @@ namespace System
 #endif
 		}
 
-		static void GetSystemTimeZones (List<TimeZoneInfo> systemTimeZones)
+		static void GetSystemTimeZonesCore (List<TimeZoneInfo> systemTimeZones)
 		{
+#if !MOBILE_STATIC
 			if (TimeZoneKey != null) {
 				foreach (string id in TimeZoneKey.GetSubKeyNames ()) {
 					try {
@@ -144,9 +207,10 @@ namespace System
 
 				return;
 			}
+#endif
 
 #if LIBC
-			string[] continents = new string [] {"Africa", "America", "Antarctica", "Arctic", "Asia", "Atlantic", "Brazil", "Canada", "Chile", "Europe", "Indian", "Mexico", "Mideast", "Pacific", "US"};
+			string[] continents = new string [] {"Africa", "America", "Antarctica", "Arctic", "Asia", "Atlantic", "Australia", "Brazil", "Canada", "Chile", "Europe", "Indian", "Mexico", "Mideast", "Pacific", "US"};
 			foreach (string continent in continents) {
 				try {
 					foreach (string zonepath in Directory.GetFiles (Path.Combine (TimeZoneDirectory, continent))) {
@@ -202,7 +266,7 @@ namespace System
 #endif
 		private AdjustmentRule [] adjustmentRules;
 
-#if !NET_2_1
+#if !NET_2_1 || MOBILE_STATIC
 		/// <summary>
 		/// Determine whether windows of not (taken Stephane Delcroix's code)
 		/// </summary>
@@ -229,6 +293,7 @@ namespace System
 			return str.Substring (Istart, Iend-Istart+1);
 		}
 		
+#if !MOBILE_STATIC
 		static RegistryKey timeZoneKey;
 		static RegistryKey TimeZoneKey {
 			get {
@@ -256,6 +321,7 @@ namespace System
 					"SYSTEM\\CurrentControlSet\\Control\\TimeZoneInformation", false);
 			}
 		}
+#endif
 #endif
 
 		private static bool TryAddTicks (DateTime date, long ticks, out DateTime result, DateTimeKind kind = DateTimeKind.Unspecified)
@@ -645,7 +711,7 @@ namespace System
 		{
 			if (systemTimeZones == null) {
 				var tz = new List<TimeZoneInfo> ();
-				GetSystemTimeZones (tz);
+				GetSystemTimeZonesCore (tz);
 				Interlocked.CompareExchange (ref systemTimeZones, new ReadOnlyCollection<TimeZoneInfo> (tz), null);
 			}
 
@@ -849,48 +915,45 @@ namespace System
 					DateTime ttime = pair.Key;
 					TimeType ttype = pair.Value;
 
+					if (ttime.Year > year)
+						continue;
+					if (ttime.Year < year)
+						break;
+
 					if (ttype.IsDst) {
 						// DaylightTime.Delta is relative to the current BaseUtcOffset.
-						var d =  new TimeSpan (0, 0, ttype.Offset) - BaseUtcOffset;
-						// Handle DST gradients
-						if (start != DateTime.MinValue && delta != d)
-							end = start;
-
+						delta =  new TimeSpan (0, 0, ttype.Offset) - BaseUtcOffset;
 						start = ttime;
-						delta = d;
-
-						if (ttime.Year <= year)
-							break;
 					} else {
-						if (ttime.Year < year)
-							break;
-
 						end = ttime;
-						start = DateTime.MinValue;
 					}
 				}
 
 				// DaylightTime.Start is relative to the Standard time.
-				if (start != DateTime.MinValue)
-					start += BaseUtcOffset;
+				if (!TryAddTicks (start, BaseUtcOffset.Ticks, out start))
+					start = DateTime.MinValue;
 
 				// DaylightTime.End is relative to the DST time.
-				if (end != DateTime.MaxValue)
-					end += BaseUtcOffset + delta;
+				if (!TryAddTicks (end, BaseUtcOffset.Ticks + delta.Ticks, out end))
+					end = DateTime.MinValue;
 			} else {
-				AdjustmentRule rule = null;
-				foreach (var r in GetAdjustmentRules ()) {
-					if (r.DateEnd.Year < year)
+				AdjustmentRule first = null, last = null;
+
+				foreach (var rule in GetAdjustmentRules ()) {
+					if (rule.DateStart.Year != year && rule.DateEnd.Year != year)
 						continue;
-					if (r.DateStart.Year > year)
-						break;
-					rule = r;
+					if (rule.DateStart.Year == year)
+						first = rule;
+					if (rule.DateEnd.Year == year)
+						last = rule;
 				}
-				if (rule != null) {
-					start = TransitionPoint (rule.DaylightTransitionStart, year);
-					end = TransitionPoint (rule.DaylightTransitionEnd, year);
-					delta = rule.DaylightDelta;
-				}
+
+				if (first == null || last == null)
+					return new DaylightTime (new DateTime (), new DateTime (), new TimeSpan ());
+
+				start = TransitionPoint (first.DaylightTransitionStart, year);
+				end = TransitionPoint (last.DaylightTransitionEnd, year);
+				delta = first.DaylightDelta;
 			}
 
 			if (start == DateTime.MinValue || end == DateTime.MinValue)
