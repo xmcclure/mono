@@ -1000,12 +1000,6 @@ namespace Mono.Tools.LocaleBuilder
 				nodes = node.SelectNodes ("months/monthContext[@type='stand-alone']/monthWidth[@type='wide']/month");
 				ProcessAllNodes (nodes, df.MonthNames, AddOrReplaceValue);
 
-				if (df.MonthNames != null) {
-					if (ci.Name == "sv" || ci.Name == "sv-SE") {
-						ToLower (df.MonthNames);
-					}
-				}
-
 				// Apply global rule first <alias source="locale" path="../../monthContext[@type='format']/monthWidth[@type='abbreviated']"/>
 				if (ci.Name == "ja" || ci.Name == "ja-JP") {
 					// Use common number style
@@ -1014,12 +1008,6 @@ namespace Mono.Tools.LocaleBuilder
 					ProcessAllNodes (nodes, df.AbbreviatedMonthNames, AddOrReplaceValue);
 					nodes = node.SelectNodes ("months/monthContext[@type='stand-alone']/monthWidth[@type='abbreviated']/month");
 					ProcessAllNodes (nodes, df.AbbreviatedMonthNames, AddOrReplaceValue);
-				}
-
-				if (df.AbbreviatedMonthNames != null) {
-					if (ci.Name == "sv" || ci.Name == "sv-SE") {
-						ToLower (df.AbbreviatedMonthNames);
-					}
 				}
 
 				nodes = node.SelectNodes ("months/monthContext[@type='format']/monthWidth[@type='wide']/month");
@@ -1038,12 +1026,6 @@ namespace Mono.Tools.LocaleBuilder
 				ProcessAllNodes (nodes, df.AbbreviatedDayNames, AddOrReplaceDayValue);
 				nodes = node.SelectNodes ("days/dayContext[@type='stand-alone']/dayWidth[@type='abbreviated']/day");
 				ProcessAllNodes (nodes, df.AbbreviatedDayNames, AddOrReplaceDayValue);
-
-				if (df.AbbreviatedDayNames != null) {
-					if (ci.Name == "sv" || ci.Name == "sv-SE") {
-						ToLower (df.AbbreviatedDayNames);
-					}
-				}
 
 				// TODO: This is not really ShortestDayNames as .NET uses it
 				// Apply global rules first <alias source="locale" path="../../dayContext[@type='stand-alone']/dayWidth[@type='narrow']"/>
@@ -1170,7 +1152,6 @@ namespace Mono.Tools.LocaleBuilder
 			// .net has incorrect separators for some countries and we want to be compatible
 			switch (ci.Name) {
 			case "es-ES":
-			case "es":
 				// es-ES does not have group separator but .net has '.'
 				value = ".";
 				break;
@@ -1187,19 +1168,6 @@ namespace Mono.Tools.LocaleBuilder
 					
 			if (value != null) {
 				ni.NumberGroupSeparator = ni.CurrencyGroupSeparator = value;
-			}
-		}
-
-		static void ToLower (string[] values)
-		{
-			if (values == null)
-				return;
-
-			for (int i = 0; i < values.Length; ++i) {
-				if (values [i] == null)
-					continue;
-
-				values [i] = values [i].ToLower ();
 			}
 		}
 

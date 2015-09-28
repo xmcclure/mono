@@ -26,6 +26,7 @@
 #include <mono/metadata/domain-internals.h>
 #include <mono/metadata/gc-internal.h>
 #include <mono/metadata/metadata.h>
+#include <mono/metadata/threadpool.h>
 
 #include <mono/metadata/console-io.h>
 #include <mono/metadata/exception.h>

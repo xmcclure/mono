@@ -313,7 +313,7 @@ namespace System.Net
 			lock (this) {
 				idleSince = outIdleSince;
 
-				if (removeList != null && groups != null) {
+				if (removeList != null) {
 					foreach (var group in removeList)
 						if (groups.ContainsKey (group.Name))
 							RemoveConnectionGroup (group);

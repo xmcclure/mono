@@ -1,9 +1,8 @@
 /*
  * decode.c: mprof-report program source: decode and analyze the log profiler data
  *
- * Authors:
+ * Author:
  *   Paolo Molaro (lupus@ximian.com)
- *   Alex Rønne Petersen (alexrp@xamarin.com)
  *
  * Copyright 2010 Novell, Inc (http://www.novell.com)
  */
@@ -570,29 +569,6 @@ add_image (intptr_t image, char *name)
 	cd->next = image_hash [slot];
 	image_hash [slot] = cd;
 	num_images++;
-}
-
-static int num_assemblies;
-
-typedef struct _AssemblyDesc AssemblyDesc;
-struct _AssemblyDesc {
-	AssemblyDesc *next;
-	intptr_t assembly;
-	char *asmname;
-};
-
-static AssemblyDesc* assembly_hash [SMALL_HASH_SIZE] = {0};
-
-static void
-add_assembly (intptr_t assembly, char *name)
-{
-	int slot = ((assembly >> 2) & 0xffff) % SMALL_HASH_SIZE;
-	AssemblyDesc *cd = malloc (sizeof (AssemblyDesc));
-	cd->assembly = assembly;
-	cd->asmname = pstrdup (name);
-	cd->next = assembly_hash [slot];
-	assembly_hash [slot] = cd;
-	num_assemblies++;
 }
 
 typedef struct _BackTrace BackTrace;
@@ -1499,8 +1475,6 @@ add_backtrace (int count, MethodDesc **methods)
 
 typedef struct _MonitorDesc MonitorDesc;
 typedef struct _ThreadContext ThreadContext;
-typedef struct _DomainContext DomainContext;
-typedef struct _RemCtxContext RemCtxContext;
 
 typedef struct {
 	FILE *file;
@@ -1517,11 +1491,7 @@ typedef struct {
 	int port;
 	uint64_t startup_time;
 	ThreadContext *threads;
-	ThreadContext *current_thread;
-	DomainContext *domains;
-	DomainContext *current_domain;
-	RemCtxContext *remctxs;
-	RemCtxContext *current_remctx;
+	ThreadContext *current;
 } ProfContext;
 
 struct _ThreadContext {
@@ -1544,18 +1514,6 @@ struct _ThreadContext {
 	uintptr_t *roots_extra;
 	int *roots_types;
 	uint64_t gc_start_times [3];
-};
-
-struct _DomainContext {
-	DomainContext *next;
-	intptr_t domain_id;
-	const char *friendly_name;
-};
-
-struct _RemCtxContext {
-	RemCtxContext *next;
-	intptr_t remctx_id;
-	intptr_t domain_id;
 };
 
 static void
@@ -1591,8 +1549,8 @@ static ThreadContext*
 get_thread (ProfContext *ctx, intptr_t thread_id)
 {
 	ThreadContext *thread;
-	if (ctx->current_thread && ctx->current_thread->thread_id == thread_id)
-		return ctx->current_thread;
+	if (ctx->current && ctx->current->thread_id == thread_id)
+		return ctx->current;
 	thread = ctx->threads;
 	while (thread) {
 		if (thread->thread_id == thread_id) {
@@ -1613,57 +1571,11 @@ get_thread (ProfContext *ctx, intptr_t thread_id)
 	return thread;
 }
 
-static DomainContext *
-get_domain (ProfContext *ctx, intptr_t domain_id)
-{
-	if (ctx->current_domain && ctx->current_domain->domain_id == domain_id)
-		return ctx->current_domain;
-
-	DomainContext *domain = ctx->domains;
-
-	while (domain) {
-		if (domain->domain_id == domain_id)
-			return domain;
-
-		domain = domain->next;
-	}
-
-	domain = calloc (sizeof (DomainContext), 1);
-	domain->next = ctx->domains;
-	ctx->domains = domain;
-	domain->domain_id = domain_id;
-
-	return domain;
-}
-
-static RemCtxContext *
-get_remctx (ProfContext *ctx, intptr_t remctx_id)
-{
-	if (ctx->current_remctx && ctx->current_remctx->remctx_id == remctx_id)
-		return ctx->current_remctx;
-
-	RemCtxContext *remctx = ctx->remctxs;
-
-	while (remctx) {
-		if (remctx->remctx_id == remctx_id)
-			return remctx;
-
-		remctx = remctx->next;
-	}
-
-	remctx = calloc (sizeof (RemCtxContext), 1);
-	remctx->next = ctx->remctxs;
-	ctx->remctxs = remctx;
-	remctx->remctx_id = remctx_id;
-
-	return remctx;
-}
-
 static ThreadContext*
 load_thread (ProfContext *ctx, intptr_t thread_id)
 {
 	ThreadContext *thread = get_thread (ctx, thread_id);
-	ctx->current_thread = thread;
+	ctx->current = thread;
 	return thread;
 }
 
@@ -1845,7 +1757,6 @@ typedef struct {
 	uint64_t live;
 	uint64_t max_live;
 	TraceDesc traces;
-	TraceDesc destroy_traces;
 } HandleInfo;
 static HandleInfo handle_info [4];
 
@@ -1992,18 +1903,12 @@ tracked_creation (uintptr_t obj, ClassDesc *cd, uint64_t size, BackTrace *bt, ui
 }
 
 static void
-track_handle (uintptr_t obj, int htype, uint32_t handle, BackTrace *bt, uint64_t timestamp)
+track_handle (uintptr_t obj, int htype, uint32_t handle)
 {
 	int i;
 	for (i = 0; i < num_tracked_objects; ++i) {
-		if (tracked_objects [i] != obj)
-			continue;
-		fprintf (outfile, "Object %p referenced from handle %u at %.3f secs.\n", (void*)obj, handle, (timestamp - startup_time) / 1000000000.0);
-		if (bt && bt->count) {
-			int k;
-			for (k = 0; k < bt->count; ++k)
-				fprintf (outfile, "\t%s\n", bt->methods [k]->name);
-		}
+		if (tracked_objects [i] == obj)
+			fprintf (outfile, "Object %p referenced from handle %u\n", (void*)obj, handle);
 	}
 }
 
@@ -2281,78 +2186,36 @@ decode_buffer (ProfContext *ctx)
 						fprintf (outfile, "moved obj %p to %p\n", (void*)OBJ_ADDR (obj1diff), (void*)OBJ_ADDR (obj2diff));
 					}
 				}
-			} else if (subtype == TYPE_GC_HANDLE_CREATED || subtype == TYPE_GC_HANDLE_CREATED_BT) {
-				int has_bt = subtype == TYPE_GC_HANDLE_CREATED_BT;
-				int num_bt = 0;
-				MethodDesc *sframes [8];
-				MethodDesc **frames = sframes;
+			} else if (subtype == TYPE_GC_HANDLE_CREATED) {
 				int htype = decode_uleb128 (p, &p);
 				uint32_t handle = decode_uleb128 (p, &p);
 				intptr_t objdiff = decode_sleb128 (p, &p);
-				if (has_bt) {
-					num_bt = 8;
-					frames = decode_bt (sframes, &num_bt, p, &p, ptr_base);
-					if (!frames) {
-						fprintf (outfile, "Cannot load backtrace\n");
-						return 0;
-					}
-				}
 				if (htype > 3)
 					return 0;
-				if ((thread_filter && thread_filter == thread->thread_id) || (time_base >= time_from && time_base < time_to)) {
-					handle_info [htype].created++;
-					handle_info [htype].live++;
-					if (handle_info [htype].live > handle_info [htype].max_live)
-						handle_info [htype].max_live = handle_info [htype].live;
-					BackTrace *bt;
-					if (has_bt)
-						bt = add_trace_methods (frames, num_bt, &handle_info [htype].traces, 1);
-					else
-						bt = add_trace_thread (thread, &handle_info [htype].traces, 1);
-					if (num_tracked_objects)
-						track_handle (OBJ_ADDR (objdiff), htype, handle, bt, time_base);
-				}
+				handle_info [htype].created++;
+				handle_info [htype].live++;
+				add_trace_thread (thread, &handle_info [htype].traces, 1);
+				/* FIXME: we don't take into account timing here */
+				if (handle_info [htype].live > handle_info [htype].max_live)
+					handle_info [htype].max_live = handle_info [htype].live;
+				if (num_tracked_objects)
+					track_handle (OBJ_ADDR (objdiff), htype, handle);
 				if (debug)
 					fprintf (outfile, "handle (%s) %u created for object %p\n", get_handle_name (htype), handle, (void*)OBJ_ADDR (objdiff));
-				if (frames != sframes)
-					free (frames);
-			} else if (subtype == TYPE_GC_HANDLE_DESTROYED || subtype == TYPE_GC_HANDLE_DESTROYED_BT) {
-				int has_bt = subtype == TYPE_GC_HANDLE_DESTROYED_BT;
-				int num_bt = 0;
-				MethodDesc *sframes [8];
-				MethodDesc **frames = sframes;
+			} else if (subtype == TYPE_GC_HANDLE_DESTROYED) {
 				int htype = decode_uleb128 (p, &p);
 				uint32_t handle = decode_uleb128 (p, &p);
-				if (has_bt) {
-					num_bt = 8;
-					frames = decode_bt (sframes, &num_bt, p, &p, ptr_base);
-					if (!frames) {
-						fprintf (outfile, "Cannot load backtrace\n");
-						return 0;
-					}
-				}
 				if (htype > 3)
 					return 0;
-				if ((thread_filter && thread_filter == thread->thread_id) || (time_base >= time_from && time_base < time_to)) {
-					handle_info [htype].destroyed ++;
-					handle_info [htype].live--;
-					BackTrace *bt;
-					if (has_bt)
-						bt = add_trace_methods (frames, num_bt, &handle_info [htype].destroy_traces, 1);
-					else
-						bt = add_trace_thread (thread, &handle_info [htype].destroy_traces, 1);
-					/* TODO: track_handle_free () - would need to record and keep track of the associated object address... */
-				}
+				handle_info [htype].destroyed ++;
+				handle_info [htype].live--;
 				if (debug)
 					fprintf (outfile, "handle (%s) %u destroyed\n", get_handle_name (htype), handle);
-				if (frames != sframes)
-					free (frames);
 			}
 			break;
 		}
 		case TYPE_METADATA: {
-			int subtype = *p & 0xf0;
-			const char *load_str = subtype == TYPE_END_LOAD ? "loaded" : "unloaded";
+			int error = *p & TYPE_LOAD_ERR;
 			uint64_t tdiff = decode_uleb128 (p + 1, &p);
 			int mtype = *p++;
 			intptr_t ptrdiff = decode_sleb128 (p, &p);
@@ -2366,8 +2229,8 @@ decode_buffer (ProfContext *ctx)
 					return 0;
 				}
 				if (debug)
-					fprintf (outfile, "%s class %p (%s in %p) at %llu\n", load_str, (void*)(ptr_base + ptrdiff), p, (void*)(ptr_base + imptrdiff), (unsigned long long) time_base);
-				if (subtype == TYPE_END_LOAD)
+					fprintf (outfile, "loaded class %p (%s in %p) at %llu\n", (void*)(ptr_base + ptrdiff), p, (void*)(ptr_base + imptrdiff), (unsigned long long) time_base);
+				if (!error)
 					add_class (ptr_base + ptrdiff, (char*)p);
 				while (*p) p++;
 				p++;
@@ -2378,74 +2241,24 @@ decode_buffer (ProfContext *ctx)
 					return 0;
 				}
 				if (debug)
-					fprintf (outfile, "%s image %p (%s) at %llu\n", load_str, (void*)(ptr_base + ptrdiff), p, (unsigned long long) time_base);
-				if (subtype == TYPE_END_LOAD)
+					fprintf (outfile, "loaded image %p (%s) at %llu\n", (void*)(ptr_base + ptrdiff), p, (unsigned long long) time_base);
+				if (!error)
 					add_image (ptr_base + ptrdiff, (char*)p);
 				while (*p) p++;
 				p++;
-			} else if (mtype == TYPE_ASSEMBLY) {
-				uint64_t flags = decode_uleb128 (p, &p);
-				if (flags) {
-					fprintf (outfile, "non-zero flags in assembly\n");
-					return 0;
-				}
-				if (debug)
-					fprintf (outfile, "%s assembly %p (%s) at %llu\n", load_str, (void*)(ptr_base + ptrdiff), p, (unsigned long long) time_base);
-				if (subtype == TYPE_END_LOAD)
-					add_assembly (ptr_base + ptrdiff, (char*)p);
-				while (*p) p++;
-				p++;
-			} else if (mtype == TYPE_DOMAIN) {
-				uint64_t flags = decode_uleb128 (p, &p);
-				if (flags) {
-					fprintf (outfile, "non-zero flags in domain\n");
-					return 0;
-				}
-				DomainContext *nd = get_domain (ctx, ptr_base + ptrdiff);
-				/* no subtype means it's a name event, rather than start/stop */
-				if (subtype == 0)
-					nd->friendly_name = pstrdup ((char *) p);
-				if (debug) {
-					if (subtype == 0)
-						fprintf (outfile, "domain %p named at %llu: %s\n", (void *) (ptr_base + ptrdiff), (unsigned long long) time_base, p);
-					else
-						fprintf (outfile, "%s thread %p at %llu\n", load_str, (void *) (ptr_base + ptrdiff), (unsigned long long) time_base);
-				}
-				if (subtype == 0) {
-					while (*p) p++;
-					p++;
-				}
-			} else if (mtype == TYPE_CONTEXT) {
-				uint64_t flags = decode_uleb128 (p, &p);
-				if (flags) {
-					fprintf (outfile, "non-zero flags in context\n");
-					return 0;
-				}
-				intptr_t domaindiff = decode_sleb128 (p, &p);
-				if (debug)
-					fprintf (outfile, "%s context %p (%p) at %llu\n", load_str, (void*)(ptr_base + ptrdiff), (void *) (ptr_base + domaindiff), (unsigned long long) time_base);
-				if (subtype == TYPE_END_LOAD)
-					get_remctx (ctx, ptr_base + ptrdiff)->domain_id = ptr_base + domaindiff;
 			} else if (mtype == TYPE_THREAD) {
+				ThreadContext *nt;
 				uint64_t flags = decode_uleb128 (p, &p);
 				if (flags) {
 					fprintf (outfile, "non-zero flags in thread\n");
 					return 0;
 				}
-				ThreadContext *nt = get_thread (ctx, ptr_base + ptrdiff);
-				/* no subtype means it's a name event, rather than start/stop */
-				if (subtype == 0)
-					nt->name = pstrdup ((char*)p);
-				if (debug) {
-					if (subtype == 0)
-						fprintf (outfile, "thread %p named at %llu: %s\n", (void*)(ptr_base + ptrdiff), (unsigned long long) time_base, p);
-					else
-						fprintf (outfile, "%s thread %p at %llu\n", load_str, (void *) (ptr_base + ptrdiff), (unsigned long long) time_base);
-				}
-				if (subtype == 0) {
-					while (*p) p++;
-					p++;
-				}
+				nt = get_thread (ctx, ptr_base + ptrdiff);
+				nt->name = pstrdup ((char*)p);
+				if (debug)
+					fprintf (outfile, "thread %p named: %s\n", (void*)(ptr_base + ptrdiff), p);
+				while (*p) p++;
+				p++;
 			}
 			break;
 		}
@@ -2760,16 +2573,13 @@ decode_buffer (ProfContext *ctx)
 				int i;
 				int sample_type = decode_uleb128 (p + 1, &p);
 				uint64_t tstamp = decode_uleb128 (p, &p);
-				void *tid = (void *) thread_id;
-				if (ctx->data_version > 10)
-					tid = (void *) (ptr_base + decode_sleb128 (p, &p));
 				int count = decode_uleb128 (p, &p);
 				for (i = 0; i < count; ++i) {
 					uintptr_t ip = ptr_base + decode_sleb128 (p, &p);
 					if ((tstamp >= time_from && tstamp < time_to))
 						add_stat_sample (sample_type, ip);
 					if (debug)
-						fprintf (outfile, "sample hit, type: %d at %p for thread %p\n", sample_type, (void*)ip, tid);
+						fprintf (outfile, "sample hit, type: %d at %p\n", sample_type, (void*)ip);
 				}
 				if (ctx->data_version > 5) {
 					count = decode_uleb128 (p, &p);
@@ -3128,24 +2938,6 @@ dump_threads (ProfContext *ctx)
 }
 
 static void
-dump_domains (ProfContext *ctx)
-{
-	fprintf (outfile, "\nDomain summary\n");
-
-	for (DomainContext *domain = ctx->domains; domain; domain = domain->next)
-		fprintf (outfile, "\tDomain: %p, friendly name: \"%s\"\n", (void *) domain->domain_id, domain->friendly_name);
-}
-
-static void
-dump_remctxs (ProfContext *ctx)
-{
-	fprintf (outfile, "\nContext summary\n");
-
-	for (RemCtxContext *remctx = ctx->remctxs; remctx; remctx = remctx->next)
-		fprintf (outfile, "\tContext: %p, domain: %p\n", (void *) remctx->remctx_id, (void *) remctx->domain_id);
-}
-
-static void
 dump_exceptions (void)
 {
 	int i;
@@ -3226,7 +3018,6 @@ dump_gcs (void)
 			(unsigned long long) (handle_info [i].destroyed),
 			(unsigned long long) (handle_info [i].max_live));
 		dump_traces (&handle_info [i].traces, "created");
-		dump_traces (&handle_info [i].destroy_traces, "destroyed");
 	}
 }
 
@@ -3339,18 +3130,7 @@ dump_metadata (void)
 			}
 		}
 	}
-	fprintf (outfile, "\tLoaded assemblies: %d\n", num_assemblies);
-	if (verbose) {
-		AssemblyDesc *assembly;
-		int i;
-		for (i = 0; i < SMALL_HASH_SIZE; ++i) {
-			assembly = assembly_hash [i];
-			while (assembly) {
-				fprintf (outfile, "\t\t%s\n", assembly->asmname);
-				assembly = assembly->next;
-			}
-		}
-	}
+
 }
 
 static void
@@ -3741,16 +3521,6 @@ print_reports (ProfContext *ctx, const char *reps, int parse_only)
 		if ((opt = match_option (p, "thread")) != p) {
 			if (!parse_only)
 				dump_threads (ctx);
-			continue;
-		}
-		if ((opt = match_option (p, "domain")) != p) {
-			if (!parse_only)
-				dump_domains (ctx);
-			continue;
-		}
-		if ((opt = match_option (p, "context")) != p) {
-			if (!parse_only)
-				dump_remctxs (ctx);
 			continue;
 		}
 		if ((opt = match_option (p, "gc")) != p) {

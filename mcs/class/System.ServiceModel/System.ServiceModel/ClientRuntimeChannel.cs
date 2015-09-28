@@ -461,6 +461,8 @@ namespace System.ServiceModel.MonoInternal
 			if (p == parameters)
 				return retval;
 
+			if (p.Length != parameters.Length)
+				throw new InvalidOperationException ();
 			Array.Copy (p, parameters, p.Length);
 			return retval;
 		}

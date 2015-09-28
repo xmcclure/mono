@@ -453,10 +453,6 @@ load_metadata_ptrs (MonoImage *image, MonoCLIImageInfo *iinfo)
 			ptr += 8 + 3;
 			image->uncompressed_metadata = TRUE;
 			mono_trace (G_LOG_LEVEL_INFO, MONO_TRACE_ASSEMBLY, "Assembly '%s' has the non-standard metadata heap #-.\nRecompile it correctly (without the /incremental switch or in Release mode).\n", image->name);
-		} else if (strncmp (ptr + 8, "#Pdb", 5) == 0) {
-			image->heap_pdb.data = image->raw_metadata + read32 (ptr);
-			image->heap_pdb.size = read32 (ptr + 4);
-			ptr += 8 + 5;
 		} else {
 			g_message ("Unknown heap type: %s\n", ptr + 8);
 			ptr += 8 + strlen (ptr + 8) + 1;
@@ -930,12 +926,9 @@ mono_image_load_names (MonoImage *image)
 					0, MONO_ASSEMBLY_NAME));
 	}
 
-	/* Portable pdb images don't have a MODULE row */
-	if (image->tables [MONO_TABLE_MODULE].rows) {
-		image->module_name = mono_metadata_string_heap (image,
+	image->module_name = mono_metadata_string_heap (image, 
 			mono_metadata_decode_row_col (&image->tables [MONO_TABLE_MODULE],
 					0, MONO_MODULE_NAME));
-	}
 }
 
 static MonoImage *
@@ -1145,7 +1138,7 @@ register_image (MonoImage *image)
 }
 
 MonoImage *
-mono_image_open_from_data_internal (char *data, guint32 data_len, gboolean need_copy, MonoImageOpenStatus *status, gboolean refonly, gboolean metadata_only, const char *name)
+mono_image_open_from_data_with_name (char *data, guint32 data_len, gboolean need_copy, MonoImageOpenStatus *status, gboolean refonly, const char *name)
 {
 	MonoCLIImageInfo *iinfo;
 	MonoImage *image;
@@ -1175,19 +1168,12 @@ mono_image_open_from_data_internal (char *data, guint32 data_len, gboolean need_
 	iinfo = g_new0 (MonoCLIImageInfo, 1);
 	image->image_info = iinfo;
 	image->ref_only = refonly;
-	image->metadata_only = metadata_only;
 
 	image = do_mono_image_load (image, status, TRUE, TRUE);
 	if (image == NULL)
 		return NULL;
 
 	return register_image (image);
-}
-
-MonoImage *
-mono_image_open_from_data_with_name (char *data, guint32 data_len, gboolean need_copy, MonoImageOpenStatus *status, gboolean refonly, const char *name)
-{
-	return mono_image_open_from_data_internal (data, data_len, need_copy, status, refonly, FALSE, name);
 }
 
 MonoImage *
@@ -2032,7 +2018,6 @@ mono_image_load_file_for_image (MonoImage *image, int fileidx)
 		mono_image_unlock (image);
 		return image->files [fileidx - 1];
 	}
-	mono_image_unlock (image);
 
 	fname_id = mono_metadata_decode_row_col (t, fileidx - 1, MONO_FILE_NAME);
 	fname = mono_metadata_string_heap (image, fname_id);
@@ -2046,7 +2031,7 @@ mono_image_load_file_for_image (MonoImage *image, int fileidx)
 	if (image->files && image->files [fileidx - 1]) {
 		MonoImage *old = res;
 		res = image->files [fileidx - 1];
-		mono_image_unlock (image);
+		mono_loader_unlock ();
 		mono_image_close (old);
 	} else {
 		int i;
@@ -2060,7 +2045,7 @@ mono_image_load_file_for_image (MonoImage *image, int fileidx)
 		if (!image->files)
 			image->files = g_new0 (MonoImage*, t->rows);
 		image->files [fileidx - 1] = res;
-		mono_image_unlock (image);
+		mono_loader_unlock ();
 		/* vtable fixup can't happen with the image lock held */
 #ifdef HOST_WIN32
 		if (res->is_module_handle)

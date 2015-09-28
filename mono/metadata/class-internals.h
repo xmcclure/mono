@@ -11,7 +11,6 @@
 #include <mono/io-layer/io-layer.h>
 #include "mono/utils/mono-compiler.h"
 #include "mono/utils/mono-error.h"
-#include "mono/sgen/gc-internal-agnostic.h"
 
 #define MONO_CLASS_IS_ARRAY(c) ((c)->rank)
 
@@ -395,7 +394,7 @@ struct _MonoClass {
 	MonoGenericClass *generic_class;
 	MonoGenericContainer *generic_container;
 
-	MonoGCDescriptor gc_descr;
+	void *gc_descr;
 
 	MonoClassRuntimeInfo *runtime_info;
 
@@ -453,7 +452,7 @@ struct MonoVTable {
 	 * According to comments in gc_gcj.h, this should be the second word in
 	 * the vtable.
 	 */
-	MonoGCDescriptor gc_descr;
+	void *gc_descr; 	
 	MonoDomain *domain;  /* each object/vtable belongs to exactly one domain */
         gpointer    type; /* System.Type type for klass */
 	guint8     *interface_bitmap;
@@ -862,6 +861,23 @@ typedef struct {
 	void       *handle;
 } MonoHandleRef;
 
+enum {
+	MONO_GENERIC_SHARING_NONE,
+	MONO_GENERIC_SHARING_COLLECTIONS,
+	MONO_GENERIC_SHARING_CORLIB,
+	MONO_GENERIC_SHARING_ALL
+};
+
+/*
+ * Flags for which contexts were used in inflating a generic.
+ */
+enum {
+	MONO_GENERIC_CONTEXT_USED_CLASS = 1,
+	MONO_GENERIC_CONTEXT_USED_METHOD = 2
+};
+
+#define MONO_GENERIC_CONTEXT_USED_BOTH		(MONO_GENERIC_CONTEXT_USED_CLASS | MONO_GENERIC_CONTEXT_USED_METHOD)
+
 extern MonoStats mono_stats;
 
 typedef gpointer (*MonoTrampoline)       (MonoMethod *method);
@@ -1107,8 +1123,6 @@ typedef struct {
 	MonoClass *customattribute_data_class;
 	MonoClass *critical_finalizer_object;
 	MonoClass *generic_ireadonlylist_class;
-	MonoClass *threadpool_wait_callback_class;
-	MonoMethod *threadpool_perform_wait_callback_method;
 } MonoDefaults;
 
 #ifdef DISABLE_REMOTING
@@ -1210,9 +1224,6 @@ void
 mono_loader_clear_error    (void);
 
 void
-mono_loader_assert_no_error (void);
-
-void
 mono_reflection_init       (void);
 
 void
@@ -1273,9 +1284,6 @@ mono_type_get_name_full (MonoType *type, MonoTypeNameFormat format);
 
 char*
 mono_type_get_full_name (MonoClass *klass);
-
-char *
-mono_method_get_name_full (MonoMethod *method, gboolean signature, MonoTypeNameFormat format);
 
 MonoArrayType *mono_dup_array_type (MonoImage *image, MonoArrayType *a);
 MonoMethodSignature *mono_metadata_signature_deep_dup (MonoImage *image, MonoMethodSignature *sig);

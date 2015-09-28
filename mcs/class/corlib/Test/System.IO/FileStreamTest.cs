@@ -87,13 +87,12 @@ namespace MonoTests.System.IO
 		[Test]
 		public void CtorFileNotFoundException_Mode_Open ()
 		{
-			const string file_name = "thisfileshouldnotexist.test";
 			// absolute path
-			string path = TempFolder + DSC + file_name;
+			string path = TempFolder + DSC + "thisfileshouldnotexists.test";
 			DeleteFile (path);
 			FileStream stream = null;
 			try {
-				stream = new FileStream (TempFolder + DSC + file_name, FileMode.Open);
+				stream = new FileStream (TempFolder + DSC + "thisfileshouldnotexists.test", FileMode.Open);
 				Assert.Fail ("#A1");
 			} catch (FileNotFoundException ex) {
 				Assert.AreEqual (typeof (FileNotFoundException), ex.GetType (), "#A2");
@@ -112,18 +111,14 @@ namespace MonoTests.System.IO
 			// relative path
 			string orignalCurrentDir = Directory.GetCurrentDirectory ();
 			Directory.SetCurrentDirectory (TempFolder);
-
-			// If TempFolder is a symlink, Mono will follow it and ex.FileName below will contain
-			// the real directory name, not that of the TempFolder symlink and the test will fail
-			// (happens e.g. on Android M)
-			string realTempDir = Directory.GetCurrentDirectory ();
-			path = realTempDir + DSC + file_name;
-
 			try {
-				stream = new FileStream (file_name, FileMode.Open);
+				stream = new FileStream ("thisfileshouldnotexists.test", FileMode.Open);
 				Assert.Fail ("#B1");
 			} catch (FileNotFoundException ex) {
 				Assert.AreEqual (typeof (FileNotFoundException), ex.GetType (), "#B2");
+				// under OSX 'var' is a symlink to 'private/var'
+				if (MacOSX)
+					path = "/private" + path;
 				Assert.AreEqual (path, ex.FileName, "#B3");
 				Assert.IsNull (ex.InnerException, "#B4");
 				Assert.IsNotNull (ex.Message, "#B5");
@@ -140,9 +135,8 @@ namespace MonoTests.System.IO
 		[Test]
 		public void CtorFileNotFoundException_Mode_Truncate ()
 		{
-			const string file_name = "thisfileshouldNOTexist.test";
 			// absolute path
-			string path = TempFolder + DSC + file_name;
+			string path = TempFolder + DSC + "thisfileshouldNOTexists.test";
 			DeleteFile (path);
 			FileStream stream = null;
 			try {
@@ -165,18 +159,14 @@ namespace MonoTests.System.IO
 			// relative path
 			string orignalCurrentDir = Directory.GetCurrentDirectory ();
 			Directory.SetCurrentDirectory (TempFolder);
-
-			// If TempFolder is a symlink, Mono will follow it and ex.FileName below will contain
-			// the real directory name, not that of the TempFolder symlink and the test will fail
-			// (happens e.g. on Android M)
-			string realTempDir = Directory.GetCurrentDirectory ();
-			path = realTempDir + DSC + file_name;
-
 			try {
-				stream = new FileStream (file_name, FileMode.Truncate);
+				stream = new FileStream ("thisfileshouldNOTexists.test", FileMode.Truncate);
 				Assert.Fail ("#B1");
 			} catch (FileNotFoundException ex) {
 				Assert.AreEqual (typeof (FileNotFoundException), ex.GetType (), "#B2");
+				// under OSX 'var' is a symlink to 'private/var'
+				if (MacOSX)
+					path = "/private" + path;
 				Assert.AreEqual (path, ex.FileName, "#B3");
 				Assert.IsNull (ex.InnerException, "#B4");
 				Assert.IsNotNull (ex.Message, "#B5");
@@ -193,9 +183,8 @@ namespace MonoTests.System.IO
 		[Test]
 		public void CtorIOException1 ()
 		{
-			const string file_name = "thisfileshouldexists.test";
 			// absolute path
-			string path = TempFolder + DSC + file_name;
+			string path = TempFolder + DSC + "thisfileshouldexists.test";
 			FileStream stream = null;
 			DeleteFile (path);
 			try {
@@ -220,18 +209,11 @@ namespace MonoTests.System.IO
 			// relative path
 			string orignalCurrentDir = Directory.GetCurrentDirectory ();
 			Directory.SetCurrentDirectory (TempFolder);
-
-			// If TempFolder is a symlink, Mono will follow it and ex.FileName below will contain
-			// the real directory name, not that of the TempFolder symlink and the test will fail
-			// (happens e.g. on Android M)
-			string realTempDir = Directory.GetCurrentDirectory ();
-			path = realTempDir + DSC + file_name;
-
 			try {
-				stream = new FileStream (file_name, FileMode.CreateNew);
+				stream = new FileStream ("thisfileshouldexists.test", FileMode.CreateNew);
 				stream.Close ();
 				stream = null;
-				stream = new FileStream (file_name, FileMode.CreateNew);
+				stream = new FileStream ("thisfileshouldexists.test", FileMode.CreateNew);
 				Assert.Fail ("#B1");
 			} catch (IOException ex) {
 				Assert.AreEqual (typeof (IOException), ex.GetType (), "#B2");
@@ -345,14 +327,8 @@ namespace MonoTests.System.IO
 		{
 			string orignalCurrentDir = Directory.GetCurrentDirectory ();
 			Directory.SetCurrentDirectory (TempFolder);
-
-			// If TempFolder is a symlink, Mono will follow it and ex.FileName below will contain
-			// the real directory name, not that of the TempFolder symlink and the test will fail
-			// (happens e.g. on Android M)
-			string realTempDir = Directory.GetCurrentDirectory ();
-			
 			string relativePath = "DirectoryDoesNotExist" + Path.DirectorySeparatorChar + "file.txt";
-			string fullPath = Path.Combine (realTempDir, relativePath);
+			string fullPath = Path.Combine (TempFolder, relativePath);
 			try {
 				new FileStream (relativePath, FileMode.Open);
 				Assert.Fail ("#A1");

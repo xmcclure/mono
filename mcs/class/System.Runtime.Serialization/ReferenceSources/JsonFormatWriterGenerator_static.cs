@@ -381,8 +381,7 @@ namespace System.Runtime.Serialization.Json
 
 		internal bool IsDefaultValue (Type type, object value)
 		{
-			var def = GetDefaultValue (type);
-			return def == null ? (object) value == null : def.Equals (value);
+			return GetDefaultValue (type).Equals (value);
 		}
 
 		internal object GetDefaultValue(Type type)

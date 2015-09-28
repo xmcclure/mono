@@ -25,7 +25,6 @@ namespace MonoTests.Mono.Unix {
 	public class UnixUserTest
 	{
 		[Test]
-		[Category ("AndroidNotWorking")] // setpwent is missing from bionic
 		public void ListAllUsers_ToString ()
 		{
 			try {
@@ -81,7 +80,6 @@ namespace MonoTests.Mono.Unix {
 
 		[Test]
 		[Category ("NotOnMac")]
-		[Category ("AndroidNotWorking")] // setpwent is missing from bionic
 		public void NonReentrantSyscalls ()
 		{
 			ArrayList user_ids = new ArrayList (4);
@@ -121,7 +119,6 @@ namespace MonoTests.Mono.Unix {
 		}
 
 		[Test]
-		[Category ("AndroidNotWorking")] // API 21 has getpwnam_r in the NDK headers, but bionic doesn't export it
 		public void InvalidUsers_Constructor_Name ()
 		{
 			string[] badUsers = new string[]{"i'm bad", "so am i", "does-not-exist"};

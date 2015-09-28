@@ -21,7 +21,6 @@ monoutils_sources = \
 	dlmalloc.c      	\
 	mono-counters.c		\
 	mono-compiler.h		\
-	mono-complex.h		\
 	mono-dl.c		\
 	mono-dl-windows.c	\
 	mono-dl-darwin.c	\
@@ -39,7 +38,6 @@ monoutils_sources = \
 	mono-mmap-internal.h	\
 	mono-mutex.c  		\
 	mono-mutex.h  		\
-	mono-lazy-init.h		\
 	mono-networkinterfaces.c		\
 	mono-networkinterfaces.h		\
 	mono-proclib.c		\

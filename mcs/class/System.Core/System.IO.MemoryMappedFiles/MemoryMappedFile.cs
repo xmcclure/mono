@@ -298,8 +298,7 @@ namespace System.IO.MemoryMappedFiles
 
 		public MemoryMappedViewStream CreateViewStream (long offset, long size, MemoryMappedFileAccess access)
 		{
-			var view = MemoryMappedView.Create (handle, offset, size, access);
-			return new MemoryMappedViewStream (view);
+			return new MemoryMappedViewStream (handle, offset, size, access);
 		}
 
 		public MemoryMappedViewAccessor CreateViewAccessor ()
@@ -314,8 +313,7 @@ namespace System.IO.MemoryMappedFiles
 
 		public MemoryMappedViewAccessor CreateViewAccessor (long offset, long size, MemoryMappedFileAccess access)
 		{
-			var view = MemoryMappedView.Create (handle, offset, size, access);
-			return new MemoryMappedViewAccessor (view);
+			return new MemoryMappedViewAccessor (handle, offset, size, access);
 		}
 
 		MemoryMappedFile ()
@@ -359,34 +357,6 @@ namespace System.IO.MemoryMappedFiles
 			get {
 				throw new NotImplementedException ();
 			}
-		}
-
-		// This converts a MemoryMappedFileAccess to a FileAccess. MemoryMappedViewStream and
-		// MemoryMappedViewAccessor subclass UnmanagedMemoryStream and UnmanagedMemoryAccessor, which both use
-		// FileAccess to determine whether they are writable and/or readable.
-		internal static FileAccess GetFileAccess (MemoryMappedFileAccess access) {
-
-			if (access == MemoryMappedFileAccess.Read) {
-				return FileAccess.Read;
-			}
-			if (access == MemoryMappedFileAccess.Write) {
-				return FileAccess.Write;
-			}
-			else if (access == MemoryMappedFileAccess.ReadWrite) {
-				return FileAccess.ReadWrite;
-			}
-			else if (access == MemoryMappedFileAccess.CopyOnWrite) {
-				return FileAccess.ReadWrite;
-			}
-			else if (access == MemoryMappedFileAccess.ReadExecute) {
-				return FileAccess.Read;
-			}
-			else if (access == MemoryMappedFileAccess.ReadWriteExecute) {
-				return FileAccess.ReadWrite;
-			}
-
-			// If we reached here, access was invalid.
-			throw new ArgumentOutOfRangeException ("access");
 		}
 	}
 }

@@ -39,7 +39,6 @@ using System.Threading;
 using System.Xml;
 using NUnit.Framework;
 
-using MonoTests.Helpers;
 
 namespace MonoTests.System.ServiceModel
 {
@@ -56,18 +55,17 @@ namespace MonoTests.System.ServiceModel
 		{
 			// Service
 			ServiceHost host = new ServiceHost (typeof (Foo));
-			int port = NetworkHelpers.FindFreePort ();
 			try {
 				Binding binding = new BasicHttpBinding ();
 				binding.SendTimeout = binding.ReceiveTimeout = TimeSpan.FromSeconds (5);
 				ServiceEndpoint se = host.AddServiceEndpoint ("MonoTests.System.ServiceModel.IFoo",
-					binding, new Uri ("http://localhost:" + port));
+					binding, new Uri ("http://localhost:37564"));
 				host.Open ();
 
 				// Client
 				ChannelFactory<IFoo> cf = new ChannelFactory<IFoo> (
 					new BasicHttpBinding (),
-					new EndpointAddress ("http://localhost:" + port + "/"));
+					new EndpointAddress ("http://localhost:37564/"));
 				IFoo foo  = cf.CreateChannel ();
 				Assert.AreEqual ("Test for EchoTest for Echo", foo.Echo ("Test for Echo"));
 			} finally {
@@ -82,18 +80,17 @@ namespace MonoTests.System.ServiceModel
 		{
 			// Service
 			ServiceHost host = new ServiceHost (typeof (Foo2));
-			int port = NetworkHelpers.FindFreePort ();
 			try {
 				Binding binding = new BasicHttpBinding ();
 				binding.SendTimeout = binding.ReceiveTimeout = TimeSpan.FromSeconds (5);
 				host.AddServiceEndpoint ("MonoTests.System.ServiceModel.IFoo2",
-				binding, new Uri ("http://localhost:" + port));
+				binding, new Uri ("http://localhost:37564"));
 				host.Open ();
 
 				// Client
 				Foo2Proxy proxy = new Foo2Proxy (
 					new BasicHttpBinding (),
-					new EndpointAddress ("http://localhost:" + port + "/"));
+					new EndpointAddress ("http://localhost:37564/"));
 				proxy.Open ();
 				try {
 					Assert.AreEqual ("TEST FOR ECHOTEST FOR ECHO",
@@ -114,18 +111,17 @@ namespace MonoTests.System.ServiceModel
 		{
 			// Service
 			ServiceHost host = new ServiceHost (typeof (MetadataExchange));
-			int port = NetworkHelpers.FindFreePort ();
 			try {
 				Binding binding = new BasicHttpBinding ();
 				binding.ReceiveTimeout = TimeSpan.FromSeconds (5);
 				host.AddServiceEndpoint ("IMetadataExchange",
-				binding, new Uri ("http://localhost:" + port));
+				binding, new Uri ("http://localhost:37564"));
 				host.Open ();
 				// Client
 
 				MetadataExchangeProxy proxy = new MetadataExchangeProxy (
 					new BasicHttpBinding (),
-					new EndpointAddress ("http://localhost:" + port + "/"));
+					new EndpointAddress ("http://localhost:37564/"));
 				proxy.Open ();
 
 				try {

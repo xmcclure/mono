@@ -90,6 +90,7 @@ namespace System.Threading {
 		private IntPtr interrupt_on_stop;
 		private IntPtr flags;
 		private IntPtr thread_pinning_ref;
+		private IntPtr async_invoke_method;
 		/* 
 		 * These fields are used to avoid having to increment corlib versions
 		 * when a new field is added to the unmanaged MonoThread structure.
@@ -505,9 +506,7 @@ namespace System.Threading {
 
 		void StartInternal (IPrincipal principal, ref StackCrawlMark stackMark)
 		{
-#if FEATURE_ROLE_BASED_SECURITY
 			Internal._serialized_principal = CurrentThread.Internal._serialized_principal;
-#endif
 
 			// Thread_internal creates and starts the new thread, 
 			if (Thread_internal(m_Delegate) == IntPtr.Zero)

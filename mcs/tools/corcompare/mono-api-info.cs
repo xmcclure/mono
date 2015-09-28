@@ -228,7 +228,7 @@ namespace CorCompare
 			var typesCollection = ass.MainModule.Types;
 			if (typesCollection == null || typesCollection.Count == 0)
 				return;
-			var typesArray = new TypeDefinition [typesCollection.Count];
+			object [] typesArray = new object [typesCollection.Count];
 			for (int i = 0; i < typesCollection.Count; i++) {
 				typesArray [i] = typesCollection [i];
 			}
@@ -416,7 +416,7 @@ namespace CorCompare
 
 			XmlNode ifaces = null;
 
-			foreach (TypeReference iface in TypeHelper.GetInterfaces (type).OrderBy (s => s.FullName)) {
+			foreach (TypeReference iface in  TypeHelper.GetInterfaces (type)) {
 				if (!TypeHelper.IsPublic (iface))
 					// we're only interested in public interfaces
 					continue;
@@ -454,7 +454,7 @@ namespace CorCompare
 
 				MethodDefinition [] ctors = GetConstructors (type);
 				if (ctors.Length > 0) {
-					Array.Sort (ctors, MethodDefinitionComparer.Default);
+					Array.Sort (ctors, MemberReferenceComparer.Default);
 					members.Add (new ConstructorData (document, nclass, ctors));
 				}
 
@@ -472,7 +472,7 @@ namespace CorCompare
 
 				MethodDefinition [] methods = GetMethods (type);
 				if (methods.Length > 0) {
-					Array.Sort (methods, MethodDefinitionComparer.Default);
+					Array.Sort (methods, MemberReferenceComparer.Default);
 					members.Add (new MethodData (document, nclass, methods));
 				}
 			}
@@ -495,13 +495,11 @@ namespace CorCompare
 				nested.RemoveAt (i);
 			}
 
-			if (nested.Count > 0) {
-				var nestedArray = nested.ToArray ();
-				Array.Sort (nestedArray, TypeReferenceComparer.Default);
 
+			if (nested.Count > 0) {
 				XmlNode classes = document.CreateElement ("classes", null);
 				nclass.AppendChild (classes);
-				foreach (TypeDefinition t in nestedArray) {
+				foreach (TypeDefinition t in nested) {
 					TypeData td = new TypeData (document, classes, t);
 					td.DoOutput ();
 				}

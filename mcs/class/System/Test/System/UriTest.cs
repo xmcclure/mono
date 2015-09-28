@@ -1940,52 +1940,6 @@ namespace MonoTests.System
 			Assert.AreEqual ("id=1%262&sort=asc", escaped, "UriEscaped");
 		}
 
-		// When used, paths such as "/foo" are assumed relative.
-		static UriKind DotNetRelativeOrAbsolute = (Type.GetType ("Mono.Runtime") == null)? UriKind.RelativeOrAbsolute : (UriKind) 300;
-
-		[Test]
-		public void DotNetRelativeOrAbsoluteTest ()
-		{
-			FieldInfo useDotNetRelativeOrAbsoluteField = null;
-			bool useDotNetRelativeOrAbsoluteOld = false;
-
-			if (Type.GetType ("Mono.Runtime") != null) {
-				useDotNetRelativeOrAbsoluteField = typeof (Uri).GetField ("useDotNetRelativeOrAbsolute",
-					BindingFlags.Static | BindingFlags.GetField | BindingFlags.NonPublic);
-				useDotNetRelativeOrAbsoluteOld = (bool) useDotNetRelativeOrAbsoluteField.GetValue (null);
-				useDotNetRelativeOrAbsoluteField.SetValue (null, false);
-			}
-
-			try {
-				Uri uri;
-
-				uri = new Uri ("/foo", DotNetRelativeOrAbsolute);
-				Assert.IsFalse (uri.IsAbsoluteUri);
-				
-				Uri.TryCreate("/foo", DotNetRelativeOrAbsolute, out uri);
-				Assert.IsFalse (uri.IsAbsoluteUri);
-
-				if (useDotNetRelativeOrAbsoluteField != null) {
-					uri = new Uri ("/foo", UriKind.RelativeOrAbsolute);
-					Assert.IsTrue (uri.IsAbsoluteUri);
-
-					Uri.TryCreate("/foo", UriKind.RelativeOrAbsolute, out uri);
-					Assert.IsTrue (uri.IsAbsoluteUri);
-
-					useDotNetRelativeOrAbsoluteField.SetValue (null, true);
-				}
-
-				uri = new Uri ("/foo", UriKind.RelativeOrAbsolute);
-				Assert.IsFalse (uri.IsAbsoluteUri);
-
-				Uri.TryCreate("/foo", DotNetRelativeOrAbsolute, out uri);
-				Assert.IsFalse (uri.IsAbsoluteUri);
-			} finally {
-				if (useDotNetRelativeOrAbsoluteField != null)
-					useDotNetRelativeOrAbsoluteField.SetValue (null, useDotNetRelativeOrAbsoluteOld);
-			}
-		}
-
 		[Test]
 		// Bug #12631
 		public void LocalPathWithBaseUrl ()

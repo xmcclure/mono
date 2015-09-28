@@ -106,8 +106,8 @@ namespace System.IO.Compression
 				zipFile = mode == ZipArchiveMode.Create ? 
 					SharpCompress.Archive.Zip.ZipArchive.Create() :
 					SharpCompress.Archive.Zip.ZipArchive.Open(stream);
-			} catch (Exception e) {
-				throw new InvalidDataException("The contents of the stream are not in the zip archive format.", e);
+			} catch (Exception) {
+				throw new InvalidDataException("The contents of the stream are not in the zip archive format.");
 			}
 
 			entries = new Dictionary<string, ZipArchiveEntry>();
@@ -202,7 +202,7 @@ namespace System.IO.Compression
 		private void Save()
 		{
 			using (var newZip = new MemoryStream()) {
-				zipFile.SaveTo(newZip, CompressionType.Deflate, entryNameEncoding ?? Encoding.UTF8);
+				zipFile.SaveTo(newZip, CompressionType.Deflate);
 
 				stream.SetLength(0);
 				stream.Position = 0;

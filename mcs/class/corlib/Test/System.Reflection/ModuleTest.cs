@@ -193,19 +193,19 @@ public class ModuleTest
 
 		try {
 			module.ResolveMethod (1234);
-			Assert.Fail ("1234");
+			Assert.Fail ();
 		} catch (ArgumentException) {
 		}
 
 		try {
 			module.ResolveMethod (t.MetadataToken);
-			Assert.Fail ("MetadataToken");
+			Assert.Fail ();
 		} catch (ArgumentException) {
 		}
 
 		try {
-			module.ResolveMethod (t.GetMethod ("ResolveMethod").MetadataToken + 100000);
-			Assert.Fail ("GetMethod");
+			module.ResolveMethod (t.GetMethod ("ResolveMethod").MetadataToken + 10000);
+			Assert.Fail ();
 		} catch (ArgumentOutOfRangeException) {
 		}
 	}
@@ -330,7 +330,6 @@ public class ModuleTest
 	}
 #if !MONOTOUCH
 	[Test]
-	[Category ("AndroidNotWorking")] // Mono.CompilerServices.SymbolWriter not available for Xamarin.Android
 	public void GetTypes ()
 	{
 		AssemblyName newName = new AssemblyName ();

@@ -15,25 +15,20 @@
 static gint kqueue_fd;
 static struct kevent *kqueue_events;
 
-static gint
-KQUEUE_INIT_FD (gint fd, gint events, gint flags)
-{
-	struct kevent event;
-	EV_SET (&event, fd, events, flags, 0, 0, 0);
-	return kevent (kqueue_fd, &event, 1, NULL, 0, NULL);
-}
-
 static gboolean
 kqueue_init (gint wakeup_pipe_fd)
 {
+	struct kevent event;
+
 	kqueue_fd = kqueue ();
 	if (kqueue_fd == -1) {
-		g_error ("kqueue_init: kqueue () failed, error (%d) %s", errno, g_strerror (errno));
+		g_warning ("kqueue_init: kqueue () failed, error (%d) %s", errno, g_strerror (errno));
 		return FALSE;
 	}
 
-	if (KQUEUE_INIT_FD (wakeup_pipe_fd, EVFILT_READ, EV_ADD | EV_ENABLE) == -1) {
-		g_error ("kqueue_init: kevent () failed, error (%d) %s", errno, g_strerror (errno));
+	EV_SET (&event, wakeup_pipe_fd, EVFILT_READ, EV_ADD | EV_ENABLE, 0, 0, 0);
+	if (kevent (kqueue_fd, &event, 1, NULL, 0, NULL) == -1) {
+		g_warning ("kqueue_init: kevent () failed, error (%d) %s", errno, g_strerror (errno));
 		close (kqueue_fd);
 		return FALSE;
 	}
@@ -51,83 +46,100 @@ kqueue_cleanup (void)
 }
 
 static void
-kqueue_register_fd (gint fd, gint events, gboolean is_new)
+kqueue_update_add (ThreadPoolIOUpdate *update)
 {
-	if (events & EVENT_IN) {
-		if (KQUEUE_INIT_FD (fd, EVFILT_READ, EV_ADD | EV_ENABLE) == -1)
-			g_error ("kqueue_register_fd: kevent(read,enable) failed, error (%d) %s", errno, g_strerror (errno));
-	} else {
-		if (KQUEUE_INIT_FD (fd, EVFILT_READ, EV_ADD | EV_DISABLE) == -1)
-			g_error ("kqueue_register_fd: kevent(read,disable) failed, error (%d) %s", errno, g_strerror (errno));
-	}
-	if (events & EVENT_OUT) {
-		if (KQUEUE_INIT_FD (fd, EVFILT_WRITE, EV_ADD | EV_ENABLE) == -1)
-			g_error ("kqueue_register_fd: kevent(write,enable) failed, error (%d) %s", errno, g_strerror (errno));
-	} else {
-		if (KQUEUE_INIT_FD (fd, EVFILT_WRITE, EV_ADD | EV_DISABLE) == -1)
-			g_error ("kqueue_register_fd: kevent(write,disable) failed, error (%d) %s", errno, g_strerror (errno));
-	}
-}
+	struct kevent event;
 
-static void
-kqueue_remove_fd (gint fd)
-{
-	/* FIXME: a race between closing and adding operation in the Socket managed code trigger a ENOENT error */
-	if (KQUEUE_INIT_FD (fd, EVFILT_READ, EV_DELETE) == -1)
-		g_error ("kqueue_register_fd: kevent(read,delete) failed, error (%d) %s", errno, g_strerror (errno));
-	if (KQUEUE_INIT_FD (fd, EVFILT_WRITE, EV_DELETE) == -1)
-		g_error ("kqueue_register_fd: kevent(write,delete) failed, error (%d) %s", errno, g_strerror (errno));
+	if ((update->events & MONO_POLLIN) != 0)
+		EV_SET (&event, update->fd, EVFILT_READ, EV_ADD | EV_ENABLE | EV_ONESHOT, 0, 0, 0);
+	if ((update->events & MONO_POLLOUT) != 0)
+		EV_SET (&event, update->fd, EVFILT_WRITE, EV_ADD | EV_ENABLE | EV_ONESHOT, 0, 0, 0);
+
+	if (kevent (kqueue_fd, &event, 1, NULL, 0, NULL) == -1)
+		g_warning ("kqueue_update_add: kevent(update) failed, error (%d) %s", errno, g_strerror (errno));
 }
 
 static gint
-kqueue_event_wait (void (*callback) (gint fd, gint events, gpointer user_data), gpointer user_data)
+kqueue_event_wait (void)
 {
-	gint i, ready;
-
-	memset (kqueue_events, 0, sizeof (struct kevent) * KQUEUE_NEVENTS);
-
-	mono_gc_set_skip_thread (TRUE);
+	gint ready;
 
 	ready = kevent (kqueue_fd, NULL, 0, kqueue_events, KQUEUE_NEVENTS, NULL);
-
-	mono_gc_set_skip_thread (FALSE);
-
 	if (ready == -1) {
 		switch (errno) {
 		case EINTR:
-			mono_thread_internal_check_for_interruption_critical (mono_thread_internal_current ());
+			check_for_interruption_critical ();
 			ready = 0;
 			break;
 		default:
-			g_error ("kqueue_event_wait: kevent () failed, error (%d) %s", errno, g_strerror (errno));
+			g_warning ("kqueue_event_wait: kevent () failed, error (%d) %s", errno, g_strerror (errno));
 			break;
 		}
 	}
 
-	if (ready == -1)
-		return -1;
+	return ready;
+}
 
-	for (i = 0; i < ready; ++i) {
-		gint fd, events = 0;
+static inline gint
+kqueue_event_fd_at (guint i)
+{
+	return kqueue_events [i].ident;
+}
 
-		fd = kqueue_events [i].ident;
-		if (kqueue_events [i].filter == EVFILT_READ || (kqueue_events [i].flags & EV_ERROR) != 0)
-			events |= EVENT_IN;
-		if (kqueue_events [i].filter == EVFILT_WRITE || (kqueue_events [i].flags & EV_ERROR) != 0)
-			events |= EVENT_OUT;
+static gint
+kqueue_event_max (void)
+{
+	return KQUEUE_NEVENTS;
+}
 
-		callback (fd, events, user_data);
+static gboolean
+kqueue_event_create_sockares_at (guint i, gint fd, MonoMList **list)
+{
+	struct kevent *kqueue_event;
+
+	g_assert (list);
+
+	kqueue_event = &kqueue_events [i];
+	g_assert (kqueue_event);
+
+	g_assert (fd == kqueue_event->ident);
+
+	if (*list && (kqueue_event->filter == EVFILT_READ || (kqueue_event->flags & EV_ERROR) != 0)) {
+		MonoSocketAsyncResult *io_event = get_sockares_for_event (list, MONO_POLLIN);
+		if (io_event)
+			mono_threadpool_ms_enqueue_work_item (((MonoObject*) io_event)->vtable->domain, (MonoObject*) io_event);
+	}
+	if (*list && (kqueue_event->filter == EVFILT_WRITE || (kqueue_event->flags & EV_ERROR) != 0)) {
+		MonoSocketAsyncResult *io_event = get_sockares_for_event (list, MONO_POLLOUT);
+		if (io_event)
+			mono_threadpool_ms_enqueue_work_item (((MonoObject*) io_event)->vtable->domain, (MonoObject*) io_event);
 	}
 
-	return 0;
+	if (*list) {
+		gint events = get_events (*list);
+		if (kqueue_event->filter == EVFILT_READ && (events & MONO_POLLIN) != 0) {
+			EV_SET (kqueue_event, fd, EVFILT_READ, EV_ADD | EV_ENABLE | EV_ONESHOT, 0, 0, 0);
+			if (kevent (kqueue_fd, kqueue_event, 1, NULL, 0, NULL) == -1)
+				g_warning ("kqueue_event_create_sockares_at: kevent (read) failed, error (%d) %s", errno, g_strerror (errno));
+		}
+		if (kqueue_event->filter == EVFILT_WRITE && (events & MONO_POLLOUT) != 0) {
+			EV_SET (kqueue_event, fd, EVFILT_WRITE, EV_ADD | EV_ENABLE | EV_ONESHOT, 0, 0, 0);
+			if (kevent (kqueue_fd, kqueue_event, 1, NULL, 0, NULL) == -1)
+				g_warning ("kqueue_event_create_sockares_at: kevent (write) failed, error (%d) %s", errno, g_strerror (errno));
+		}
+	}
+
+	return TRUE;
 }
 
 static ThreadPoolIOBackend backend_kqueue = {
 	.init = kqueue_init,
 	.cleanup = kqueue_cleanup,
-	.register_fd = kqueue_register_fd,
-	.remove_fd = kqueue_remove_fd,
+	.update_add = kqueue_update_add,
 	.event_wait = kqueue_event_wait,
+	.event_max = kqueue_event_max,
+	.event_fd_at = kqueue_event_fd_at,
+	.event_create_sockares_at = kqueue_event_create_sockares_at,
 };
 
 #endif

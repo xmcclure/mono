@@ -1,7 +1,7 @@
 AM_CPPFLAGS = -I$(top_srcdir) -I$(top_srcdir)/mono $(LIBGC_CPPFLAGS) $(GLIB_CFLAGS) -DMONO_BINDIR=\"$(bindir)/\" -DMONO_ASSEMBLIES=\"$(assembliesdir)\" -DMONO_CFG_DIR=\"$(confdir)\"
 
 test_cflags = $(AM_CFLAGS) $(SGEN_DEFINES)
-test_ldadd = libtestlib.la \
+test_ldadd = ../metadata/libmonoruntimesgen.la ../sgen/libmonosgen.la ../io-layer/libwapi.la ../utils/libmonoutils.la \
 	$(LIBGC_LIBS) $(GLIB_LIBS) -lm $(LIBICONV)
 if PLATFORM_DARWIN
 test_ldflags = -framework CoreFoundation -framework Foundation
@@ -11,10 +11,7 @@ endif
 if !CROSS_COMPILE
 if !HOST_WIN32
 if SUPPORT_BOEHM
-
-noinst_LTLIBRARIES = libtestlib.la
-libtestlib_la_SOURCES =
-libtestlib_la_LIBADD = ../metadata/libmonoruntimesgen.la ../sgen/libmonosgen.la ../utils/libmonoutils.la ../io-layer/libwapi.la 
+if !PLATFORM_GNU
 
 test_sgen_qsort_SOURCES = test-sgen-qsort.c
 test_sgen_qsort_CFLAGS = $(test_cflags)
@@ -40,6 +37,7 @@ noinst_PROGRAMS = test-sgen-qsort test-memfuncs test-mono-linked-list-set test-c
 
 TESTS = test-sgen-qsort test-memfuncs test-mono-linked-list-set test-conc-hashtable
 
+endif !PLATFORM_GNU
 endif SUPPORT_BOEHM
 endif !HOST_WIN32
 endif !CROSS_COMPILE

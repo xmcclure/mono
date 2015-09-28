@@ -476,7 +476,6 @@ namespace MonoTests.System.Net {
 		}
 
 		[Test]
-		[Category ("AndroidNotWorking")] // Fails ("reuse1") when ran as part of the entire BCL test suite. Works when only this fixture is ran
 		public void ConnectionReuse ()
 		{
 			var uri = "http://localhost:" + NetworkHelpers.FindFreePort () + "/";

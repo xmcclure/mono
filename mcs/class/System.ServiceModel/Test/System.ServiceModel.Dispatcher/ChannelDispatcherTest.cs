@@ -10,8 +10,6 @@ using System.ServiceModel.Channels;
 using System.ServiceModel.Description;
 using System.ServiceModel.Dispatcher;
 
-using MonoTests.Helpers;
-
 namespace MonoTests.System.ServiceModel.Dispatcher
 {
 	[TestFixture]
@@ -44,7 +42,7 @@ namespace MonoTests.System.ServiceModel.Dispatcher
 			var st = cd.ServiceThrottle;
 			Assert.IsNull (st, "#0");
 
-			var uri = CreateAvailableUri ("http://localhost:" + NetworkHelpers.FindFreePort ());
+			var uri = CreateAvailableUri ("http://localhost:37564");
 			ServiceHost h = new ServiceHost (typeof (TestContract), uri);
 			h.AddServiceEndpoint (typeof (TestContract).FullName, new BasicHttpBinding (), "address");
 			h.ChannelDispatchers.Add (cd);
@@ -71,7 +69,7 @@ namespace MonoTests.System.ServiceModel.Dispatcher
 		[Test]			
 		public void Collection_Add_Remove () {
 			Console.WriteLine ("STart test Collection_Add_Remove");
-			var uri = CreateAvailableUri ("http://localhost:" + NetworkHelpers.FindFreePort ());
+			var uri = CreateAvailableUri ("http://localhost:37564");
 			ServiceHost h = new ServiceHost (typeof (TestContract), uri);
 			h.AddServiceEndpoint (typeof (TestContract).FullName, new BasicHttpBinding (), "address");
 			MyChannelDispatcher d = new MyChannelDispatcher (new MyChannelListener (uri));
@@ -89,7 +87,7 @@ namespace MonoTests.System.ServiceModel.Dispatcher
 		[Test]
 		public void EndpointDispatcherAddTest ()
 		{
-			var uri = CreateAvailableUri ("http://localhost:" + NetworkHelpers.FindFreePort ());
+			var uri = CreateAvailableUri ("http://localhost:37564");
 			MyChannelDispatcher d = new MyChannelDispatcher (new MyChannelListener (uri));
 			d.Endpoints.Add (new EndpointDispatcher (new EndpointAddress (uri), "", ""));
 		}
@@ -97,7 +95,7 @@ namespace MonoTests.System.ServiceModel.Dispatcher
 		[Test]
 		[ExpectedException (typeof (InvalidOperationException))] 
 		public void EndpointDispatcherAddTest2 () {
-			var uri = CreateAvailableUri ("http://localhost:" + NetworkHelpers.FindFreePort ());
+			var uri = CreateAvailableUri ("http://localhost:37564");
 			MyChannelDispatcher d = new MyChannelDispatcher (new MyChannelListener (uri));
 			d.Endpoints.Add (new EndpointDispatcher (new EndpointAddress (uri), "", ""));
 			d.Open (); // the dispatcher must be attached.
@@ -107,7 +105,7 @@ namespace MonoTests.System.ServiceModel.Dispatcher
 		[ExpectedException (typeof (InvalidOperationException))]
 		public void EndpointDispatcherAddTest3 ()
 		{
-			var uri = CreateAvailableUri ("http://localhost:" + NetworkHelpers.FindFreePort ());
+			var uri = CreateAvailableUri ("http://localhost:37564");
 			ServiceHost h = new ServiceHost (typeof (TestContract), uri);
 			MyChannelDispatcher d = new MyChannelDispatcher (new MyChannelListener (uri));
 			d.Endpoints.Add (new EndpointDispatcher (new EndpointAddress (uri), "", ""));
@@ -119,7 +117,7 @@ namespace MonoTests.System.ServiceModel.Dispatcher
 		[ExpectedException (typeof (InvalidOperationException))] // i.e. it is thrown synchronously in current thread.
 		public void EndpointDispatcherAddTest4 ()
 		{
-			var uri = CreateAvailableUri ("http://localhost:" + NetworkHelpers.FindFreePort ());
+			var uri = CreateAvailableUri ("http://localhost:37564");
 			ServiceHost h = new ServiceHost (typeof (TestContract), uri);
 			var listener = new MyChannelListener (uri);
 			MyChannelDispatcher d = new MyChannelDispatcher (listener);
@@ -151,7 +149,7 @@ namespace MonoTests.System.ServiceModel.Dispatcher
 		[ExpectedException (typeof (InvalidOperationException))] // i.e. it is thrown synchronously in current thread.
 		public void EndpointDispatcherAddTest5 ()
 		{
-			var uri = CreateAvailableUri ("http://localhost:" + NetworkHelpers.FindFreePort ());
+			var uri = CreateAvailableUri ("http://localhost:37564");
 			ServiceHost h = new ServiceHost (typeof (TestContract), uri);
 			var binding = new BasicHttpBinding ();
 			var listener = new MyChannelListener (uri);
@@ -173,7 +171,7 @@ namespace MonoTests.System.ServiceModel.Dispatcher
 		[Test]
 		public void EndpointDispatcherAddTest6 ()
 		{
-			var uri = CreateAvailableUri ("http://localhost:" + NetworkHelpers.FindFreePort ());
+			var uri = CreateAvailableUri ("http://localhost:37564");
 			ServiceHost h = new ServiceHost (typeof (TestContract), uri);
 			var binding = new BasicHttpBinding ();
 			var listener = new MyChannelListener<IReplyChannel> (uri);
@@ -204,7 +202,7 @@ namespace MonoTests.System.ServiceModel.Dispatcher
 		[ExpectedException (typeof (InvalidOperationException))]
 		public void EndpointDispatcherAddTest7 ()
 		{
-			var uri = CreateAvailableUri ("http://localhost:" + NetworkHelpers.FindFreePort ());
+			var uri = CreateAvailableUri ("http://localhost:37564");
 			ServiceHost h = new ServiceHost (typeof (TestContract), uri);
 			var binding = new BasicHttpBinding ();
 			var listener = new MyChannelListener<IReplyChannel> (uri);
@@ -239,7 +237,7 @@ namespace MonoTests.System.ServiceModel.Dispatcher
 		// but it makes little sense especially for checking duplicate listen URIs. Duplicate listen URIs should be rejected anyways.
 		public void EndpointDispatcherAddTest8 ()
 		{
-			var uri = CreateAvailableUri ("http://localhost:" + NetworkHelpers.FindFreePort ());
+			var uri = CreateAvailableUri ("http://localhost:37564");
 			ServiceHost h = new ServiceHost (typeof (TestContract), uri);
 			var listener = new MyChannelListener<IReplyChannel> (uri);
 			MyChannelDispatcher d = new MyChannelDispatcher (listener);
@@ -284,7 +282,7 @@ namespace MonoTests.System.ServiceModel.Dispatcher
 //		[Test]
 		public void EndpointDispatcherAddTest9 () // test singleton service
 		{
-			var uri = CreateAvailableUri ("http://localhost:" + NetworkHelpers.FindFreePort ());
+			var uri = CreateAvailableUri ("http://localhost:37564");
 			ServiceHost h = new ServiceHost (new TestContract (), uri);
 			h.Description.Behaviors.Find<ServiceBehaviorAttribute> ().InstanceContextMode = InstanceContextMode.Single;
 			var listener = new MyChannelListener<IReplyChannel> (uri);

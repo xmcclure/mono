@@ -280,7 +280,7 @@ done:
 			mono_error_set_type_load_name (error, name, assembly, "Could not resolve type with token %08x", type_token);
 		}
 	}
-	mono_loader_assert_no_error ();
+	g_assert (!mono_loader_get_last_error ());
 	return res;
 }
 
@@ -632,7 +632,7 @@ inflate_generic_type (MonoImage *image, MonoType *type, MonoGenericContext *cont
 		MonoType *nt;
 		int num = mono_type_get_generic_param_num (type);
 		MonoGenericInst *inst = context->method_inst;
-		if (!inst)
+		if (!inst || !inst->type_argv)
 			return NULL;
 		if (num >= inst->type_argc) {
 			MonoGenericParamInfo *info = mono_generic_param_info (type->data.generic_param);
@@ -1335,7 +1335,7 @@ mono_class_find_enum_basetype (MonoClass *class, MonoError *error)
 	mono_error_set_type_load_class (error, class, "Could not find base type");
 
 fail:
-	mono_loader_assert_no_error ();
+	g_assert (!mono_loader_get_last_error ());
 	return NULL;
 }
 
@@ -1597,7 +1597,7 @@ mono_class_setup_fields (MonoClass *class)
 		return;
 	}
 
-	if (layout == TYPE_ATTRIBUTE_AUTO_LAYOUT && !(mono_is_corlib_image (class->image) && !strcmp (class->name_space, "System") && !strcmp (class->name, "ValueType")))
+	if (layout == TYPE_ATTRIBUTE_AUTO_LAYOUT && !(class->image == mono_defaults.corlib && !strcmp (class->name_space, "System") && !strcmp (class->name, "ValueType")))
 		blittable = FALSE;
 
 	/* Prevent infinite loops if the class references itself */
@@ -1772,20 +1772,6 @@ mono_type_get_basic_type_from_generic (MonoType *type)
 	return type;
 }
 
-static gboolean
-type_has_references (MonoClass *klass, MonoType *ftype)
-{
-	if (MONO_TYPE_IS_REFERENCE (ftype) || IS_GC_REFERENCE (klass, ftype) || ((MONO_TYPE_ISSTRUCT (ftype) && mono_class_has_references (mono_class_from_mono_type (ftype)))))
-		return TRUE;
-	if (!ftype->byref && (ftype->type == MONO_TYPE_VAR || ftype->type == MONO_TYPE_MVAR)) {
-		MonoGenericParam *gparam = ftype->data.generic_param;
-
-		if (gparam->gshared_constraint)
-			return mono_class_has_references (mono_class_from_mono_type (gparam->gshared_constraint));
-	}
-	return FALSE;
-}
-
 /*
  * mono_class_layout_fields:
  * @class: a class
@@ -1846,7 +1832,7 @@ mono_class_layout_fields (MonoClass *class)
 		if (!(field->type->attrs & FIELD_ATTRIBUTE_STATIC)) {
 			ftype = mono_type_get_underlying_type (field->type);
 			ftype = mono_type_get_basic_type_from_generic (ftype);
-			if (type_has_references (class, ftype))
+			if (MONO_TYPE_IS_REFERENCE (ftype) || IS_GC_REFERENCE (ftype) || ((MONO_TYPE_ISSTRUCT (ftype) && mono_class_has_references (mono_class_from_mono_type (ftype)))))
 				class->has_references = TRUE;
 		}
 	}
@@ -1859,7 +1845,7 @@ mono_class_layout_fields (MonoClass *class)
 		if (field->type->attrs & FIELD_ATTRIBUTE_STATIC) {
 			ftype = mono_type_get_underlying_type (field->type);
 			ftype = mono_type_get_basic_type_from_generic (ftype);
-			if (type_has_references (class, ftype))
+			if (MONO_TYPE_IS_REFERENCE (ftype) || IS_GC_REFERENCE (ftype) || ((MONO_TYPE_ISSTRUCT (ftype) && mono_class_has_references (mono_class_from_mono_type (ftype)))))
 				class->has_static_refs = TRUE;
 		}
 	}
@@ -1871,7 +1857,7 @@ mono_class_layout_fields (MonoClass *class)
 
 		ftype = mono_type_get_underlying_type (field->type);
 		ftype = mono_type_get_basic_type_from_generic (ftype);
-		if (type_has_references (class, ftype)) {
+		if (MONO_TYPE_IS_REFERENCE (ftype) || IS_GC_REFERENCE (ftype) || ((MONO_TYPE_ISSTRUCT (ftype) && mono_class_has_references (mono_class_from_mono_type (ftype))))) {
 			if (field->type->attrs & FIELD_ATTRIBUTE_STATIC)
 				class->has_static_refs = TRUE;
 			else
@@ -1922,7 +1908,7 @@ mono_class_layout_fields (MonoClass *class)
 				ftype = mono_type_get_underlying_type (field->type);
 				ftype = mono_type_get_basic_type_from_generic (ftype);
 				if (gc_aware_layout) {
-					if (type_has_references (class, ftype)) {
+					if (MONO_TYPE_IS_REFERENCE (ftype) || IS_GC_REFERENCE (ftype) || ((MONO_TYPE_ISSTRUCT (ftype) && mono_class_has_references (mono_class_from_mono_type (ftype))))) {
 						if (pass == 1)
 							continue;
 					} else {
@@ -1944,7 +1930,7 @@ mono_class_layout_fields (MonoClass *class)
 				/* if the field has managed references, we need to force-align it
 				 * see bug #77788
 				 */
-				if (type_has_references (class, ftype))
+				if (MONO_TYPE_IS_REFERENCE (ftype) || IS_GC_REFERENCE (ftype) || ((MONO_TYPE_ISSTRUCT (ftype) && mono_class_has_references (mono_class_from_mono_type (ftype)))))
 					align = MAX (align, sizeof (gpointer));
 
 				class->min_align = MAX (align, class->min_align);
@@ -1999,7 +1985,7 @@ mono_class_layout_fields (MonoClass *class)
 			field->offset += sizeof (MonoObject);
 			ftype = mono_type_get_underlying_type (field->type);
 			ftype = mono_type_get_basic_type_from_generic (ftype);
-			if (type_has_references (class, ftype)) {
+			if (MONO_TYPE_IS_REFERENCE (ftype) || ((MONO_TYPE_ISSTRUCT (ftype) && mono_class_has_references (mono_class_from_mono_type (ftype))))) {
 				if (field->offset % sizeof (gpointer)) {
 					mono_class_set_failure (class, MONO_EXCEPTION_TYPE_LOAD, NULL);
 				}
@@ -5744,7 +5730,7 @@ mono_class_create_from_typedef (MonoImage *image, guint32 type_token, MonoError 
 
 	if (mono_metadata_token_table (type_token) != MONO_TABLE_TYPEDEF || tidx > tt->rows) {
 		mono_error_set_bad_image (error, image, "Invalid typedef token %x", type_token);
-		mono_loader_assert_no_error ();
+		g_assert (!mono_loader_get_last_error ());
 		return NULL;
 	}
 
@@ -5752,7 +5738,7 @@ mono_class_create_from_typedef (MonoImage *image, guint32 type_token, MonoError 
 
 	if ((class = mono_internal_hash_table_lookup (&image->class_cache, GUINT_TO_POINTER (type_token)))) {
 		mono_loader_unlock ();
-		mono_loader_assert_no_error ();
+		g_assert (!mono_loader_get_last_error ());
 		return class;
 	}
 
@@ -5841,7 +5827,7 @@ mono_class_create_from_typedef (MonoImage *image, guint32 type_token, MonoError 
 			mono_class_set_failure (class, MONO_EXCEPTION_TYPE_LOAD, g_strdup (mono_error_get_message (error)));
 			mono_loader_unlock ();
 			mono_profiler_class_loaded (class, MONO_PROFILE_FAILED);
-			mono_loader_assert_no_error ();
+			g_assert (!mono_loader_get_last_error ());
 			return NULL;
 		}
 	}
@@ -5913,7 +5899,7 @@ mono_class_create_from_typedef (MonoImage *image, guint32 type_token, MonoError 
 			mono_class_set_failure (class, MONO_EXCEPTION_TYPE_LOAD, g_strdup (mono_error_get_message (error)));
 			mono_loader_unlock ();
 			mono_profiler_class_loaded (class, MONO_PROFILE_FAILED);
-			mono_loader_assert_no_error ();
+			g_assert (!mono_loader_get_last_error ());
 			return NULL;
 		}
 		class->cast_class = class->element_class = mono_class_from_mono_type (enum_basetype);
@@ -5928,7 +5914,7 @@ mono_class_create_from_typedef (MonoImage *image, guint32 type_token, MonoError 
 		mono_class_set_failure (class, MONO_EXCEPTION_TYPE_LOAD, g_strdup_printf ("Could not load generic parameter constrains due to %s", mono_error_get_message (error)));
 		mono_loader_unlock ();
 		mono_profiler_class_loaded (class, MONO_PROFILE_FAILED);
-		mono_loader_assert_no_error ();
+		g_assert (!mono_loader_get_last_error ());
 		return NULL;
 	}
 
@@ -5940,7 +5926,7 @@ mono_class_create_from_typedef (MonoImage *image, guint32 type_token, MonoError 
 	mono_loader_unlock ();
 
 	mono_profiler_class_loaded (class, MONO_PROFILE_OK);
-	mono_loader_assert_no_error ();
+	g_assert (!mono_loader_get_last_error ());
 
 	return class;
 
@@ -5948,7 +5934,7 @@ parent_failure:
 	mono_class_setup_mono_type (class);
 	mono_loader_unlock ();
 	mono_profiler_class_loaded (class, MONO_PROFILE_FAILED);
-	mono_loader_assert_no_error ();
+	g_assert (!mono_loader_get_last_error ());
 	return NULL;
 }
 
@@ -6546,7 +6532,7 @@ mono_type_retrieve_from_typespec (MonoImage *image, guint32 type_spec, MonoGener
 		MonoType *inflated = inflate_generic_type (NULL, t, context, error);
 
 		if (!mono_error_ok (error)) {
-			mono_loader_assert_no_error ();
+			g_assert (!mono_loader_get_last_error ());
 			return NULL;
 		}
 
@@ -7408,7 +7394,7 @@ mono_type_get_checked (MonoImage *image, guint32 type_token, MonoGenericContext 
 		MonoClass *class = mono_class_get_checked (image, type_token, error);
 
 		if (!class) {
-			mono_loader_assert_no_error ();
+			g_assert (!mono_loader_get_last_error ());
 			return NULL;
 		}
 
@@ -7419,7 +7405,7 @@ mono_type_get_checked (MonoImage *image, guint32 type_token, MonoGenericContext 
 	type = mono_type_retrieve_from_typespec (image, type_token, context, &inflated, error);
 
 	if (!type) {
-		mono_loader_assert_no_error ();
+		g_assert (!mono_loader_get_last_error ());
 		return NULL;
 	}
 
@@ -7462,10 +7448,7 @@ mono_image_init_name_cache (MonoImage *image)
 	const char *name;
 	const char *nspace;
 	guint32 i, visib, nspace_index;
-	GHashTable *name_cache2, *nspace_table, *the_name_cache;
-
-	if (image->name_cache)
-		return;
+	GHashTable *name_cache2, *nspace_table;
 
 	mono_image_lock (image);
 
@@ -7474,10 +7457,9 @@ mono_image_init_name_cache (MonoImage *image)
 		return;
 	}
 
-	the_name_cache = g_hash_table_new (g_str_hash, g_str_equal);
+	image->name_cache = g_hash_table_new (g_str_hash, g_str_equal);
 
 	if (image_is_dynamic (image)) {
-		mono_atomic_store_release (&image->name_cache, the_name_cache);
 		mono_image_unlock (image);
 		return;
 	}
@@ -7501,7 +7483,7 @@ mono_image_init_name_cache (MonoImage *image)
 		nspace_table = g_hash_table_lookup (name_cache2, GUINT_TO_POINTER (nspace_index));
 		if (!nspace_table) {
 			nspace_table = g_hash_table_new (g_str_hash, g_str_equal);
-			g_hash_table_insert (the_name_cache, (char*)nspace, nspace_table);
+			g_hash_table_insert (image->name_cache, (char*)nspace, nspace_table);
 			g_hash_table_insert (name_cache2, GUINT_TO_POINTER (nspace_index),
 								 nspace_table);
 		}
@@ -7523,7 +7505,7 @@ mono_image_init_name_cache (MonoImage *image)
 			nspace_table = g_hash_table_lookup (name_cache2, GUINT_TO_POINTER (nspace_index));
 			if (!nspace_table) {
 				nspace_table = g_hash_table_new (g_str_hash, g_str_equal);
-				g_hash_table_insert (the_name_cache, (char*)nspace, nspace_table);
+				g_hash_table_insert (image->name_cache, (char*)nspace, nspace_table);
 				g_hash_table_insert (name_cache2, GUINT_TO_POINTER (nspace_index),
 									 nspace_table);
 			}
@@ -7532,7 +7514,6 @@ mono_image_init_name_cache (MonoImage *image)
 	}
 
 	g_hash_table_destroy (name_cache2);
-	mono_atomic_store_release (&image->name_cache, the_name_cache);
 	mono_image_unlock (image);
 }
 
@@ -7545,8 +7526,10 @@ mono_image_add_to_name_cache (MonoImage *image, const char *nspace,
 	GHashTable *name_cache;
 	guint32 old_index;
 
-	mono_image_init_name_cache (image);
 	mono_image_lock (image);
+
+	if (!image->name_cache)
+		mono_image_init_name_cache (image);
 
 	name_cache = image->name_cache;
 	if (!(nspace_table = g_hash_table_lookup (name_cache, nspace))) {
@@ -7612,8 +7595,10 @@ mono_class_from_name_case_checked (MonoImage *image, const char* name_space, con
 		guint32 token = 0;
 		FindUserData user_data;
 
-		mono_image_init_name_cache (image);
 		mono_image_lock (image);
+
+		if (!image->name_cache)
+			mono_image_init_name_cache (image);
 
 		user_data.key = name_space;
 		user_data.value = NULL;
@@ -7711,8 +7696,8 @@ search_modules (MonoImage *image, const char *name_space, const char *name)
 	return NULL;
 }
 
-static MonoClass *
-mono_class_from_name_checked_aux (MonoImage *image, const char* name_space, const char *name, MonoError *error, MonoGHashTable* visited_images)
+MonoClass *
+mono_class_from_name_checked (MonoImage *image, const char* name_space, const char *name, MonoError *error)
 {
 	GHashTable *nspace_table;
 	MonoImage *loaded_image;
@@ -7723,12 +7708,6 @@ mono_class_from_name_checked_aux (MonoImage *image, const char* name_space, cons
 	char buf [1024];
 
 	mono_error_init (error);
-
-	// Checking visited images avoids stack overflows when cyclic references exist.
-	if (mono_g_hash_table_lookup (visited_images, image))
-		return NULL;
-
-	mono_g_hash_table_insert (visited_images, image, GUINT_TO_POINTER(1));
 
 	if ((nested = strchr (name, '/'))) {
 		int pos = nested - name;
@@ -7754,8 +7733,10 @@ mono_class_from_name_checked_aux (MonoImage *image, const char* name_space, cons
 		}
 	}
 
-	mono_image_init_name_cache (image);
 	mono_image_lock (image);
+
+	if (!image->name_cache)
+		mono_image_init_name_cache (image);
 
 	nspace_table = g_hash_table_lookup (image->name_cache, name_space);
 
@@ -7798,7 +7779,7 @@ mono_class_from_name_checked_aux (MonoImage *image, const char* name_space, cons
 			loaded_image = mono_assembly_load_module (image->assembly, impl >> MONO_IMPLEMENTATION_BITS);
 			if (!loaded_image)
 				return NULL;
-			class = mono_class_from_name_checked_aux (loaded_image, name_space, name, error, visited_images);
+			class = mono_class_from_name (loaded_image, name_space, name);
 			if (nested)
 				return return_nested_in (class, nested);
 			return class;
@@ -7812,7 +7793,8 @@ mono_class_from_name_checked_aux (MonoImage *image, const char* name_space, cons
 			if (image->references [assembly_idx - 1] == (gpointer)-1)
 				return NULL;			
 			else
-				return mono_class_from_name_checked_aux (image->references [assembly_idx - 1]->image, name_space, name, error, visited_images);
+				/* FIXME: Cycle detection */
+				return mono_class_from_name (image->references [assembly_idx - 1]->image, name_space, name);
 		} else {
 			g_error ("not yet implemented");
 		}
@@ -7824,21 +7806,6 @@ mono_class_from_name_checked_aux (MonoImage *image, const char* name_space, cons
 	if (nested)
 		return return_nested_in (class, nested);
 	return class;
-}
-
-MonoClass *
-mono_class_from_name_checked (MonoImage *image, const char* name_space, const char *name, MonoError *error)
-{
-	MonoClass *klass;
-	MonoGHashTable *visited_images;
-
-	visited_images = mono_g_hash_table_new (g_direct_hash, g_direct_equal);
-
-	klass = mono_class_from_name_checked_aux (image, name_space, name, error, visited_images);
-
-	mono_g_hash_table_destroy (visited_images);
-
-	return klass;
 }
 
 /**

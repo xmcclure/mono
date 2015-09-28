@@ -2,7 +2,7 @@ using System;
 
 namespace System.Runtime.Serialization
 {
-	class BitFlagsGenerator
+	public class BitFlagsGenerator
 	{
 		int bitCount;
 		byte [] locals;

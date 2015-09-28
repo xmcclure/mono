@@ -32,7 +32,6 @@ using NUnit.Framework;
 
 namespace MonoTests.System
 {
-#if !MONODROID // Type load segfaults the runtime on ARM64 (https://gist.github.com/grendello/334d06c45376602a9afc)
 	[TestFixture]
 	public class TypedReferenceTest
 	{
@@ -66,5 +65,4 @@ namespace MonoTests.System
 			Assert.AreEqual ("5", TypedReference.ToObject (r));
 		}
 	}
-#endif
 }

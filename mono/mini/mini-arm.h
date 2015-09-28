@@ -179,7 +179,7 @@ typedef struct {
 
 
 #define PARAM_REGS 4
-#define DYN_CALL_STACK_ARGS 10
+#define DYN_CALL_STACK_ARGS 6
 
 typedef struct {
 	mgreg_t regs [PARAM_REGS + DYN_CALL_STACK_ARGS];
@@ -260,6 +260,7 @@ typedef struct MonoCompileArch {
 
 #define MONO_ARCH_NEED_DIV_CHECK 1
 
+#define MONO_ARCH_HAVE_CREATE_DELEGATE_TRAMPOLINE
 #define MONO_ARCH_HAVE_GENERALIZED_IMT_THUNK 1
 
 #define MONO_ARCH_HAVE_FULL_AOT_TRAMPOLINES 1
@@ -270,7 +271,7 @@ typedef struct MonoCompileArch {
 
 #define MONO_ARCH_GSHARED_SUPPORTED 1
 #define MONO_ARCH_DYN_CALL_SUPPORTED 1
-#define MONO_ARCH_DYN_CALL_PARAM_AREA (DYN_CALL_STACK_ARGS * sizeof (mgreg_t))
+#define MONO_ARCH_DYN_CALL_PARAM_AREA 24
 
 #ifndef MONO_CROSS_COMPILE
 #define MONO_ARCH_SOFT_DEBUG_SUPPORTED 1

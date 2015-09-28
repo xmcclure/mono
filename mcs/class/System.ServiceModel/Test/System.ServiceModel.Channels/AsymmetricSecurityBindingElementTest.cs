@@ -43,8 +43,6 @@ using System.Threading;
 using System.Xml;
 using NUnit.Framework;
 
-using MonoTests.Helpers;
-
 namespace MonoTests.System.ServiceModel.Channels
 {
 	[TestFixture]
@@ -133,7 +131,7 @@ namespace MonoTests.System.ServiceModel.Channels
 			CustomBinding binding = new CustomBinding (sbe,
 				new HttpTransportBindingElement ());
 			IChannelListener<IReplyChannel> l =
-				binding.BuildChannelListener<IReplyChannel> (new Uri ("http://localhost:" + NetworkHelpers.FindFreePort ()), new BindingParameterCollection ());
+				binding.BuildChannelListener<IReplyChannel> (new Uri ("http://localhost:37564"), new BindingParameterCollection ());
 			try {
 				l.Open ();
 			} finally {
@@ -173,11 +171,11 @@ namespace MonoTests.System.ServiceModel.Channels
 			b_res.ReceiveTimeout = b_res.SendTimeout = TimeSpan.FromSeconds (10);
 
 			EndpointAddress remaddr = new EndpointAddress (
-				new Uri ("http://localhost:" + NetworkHelpers.FindFreePort ()),
+				new Uri ("http://localhost:37564"),
 				new X509CertificateEndpointIdentity (cert2));
 			CalcProxy proxy = null;
 			ServiceHost host = new ServiceHost (typeof (CalcService));
-			host.AddServiceEndpoint (typeof (ICalc), b_res, "http://localhost:" + NetworkHelpers.FindFreePort ());
+			host.AddServiceEndpoint (typeof (ICalc), b_res, "http://localhost:37564");
 
 			ServiceCredentials cred = new ServiceCredentials ();
 			cred.ServiceCertificate.Certificate = cert;
@@ -242,7 +240,7 @@ namespace MonoTests.System.ServiceModel.Channels
 				new HttpTransportBindingElement ();
 			CustomBinding binding = new CustomBinding (sbe, hbe);
 			host.AddServiceEndpoint (typeof (IFoo),
-				binding, new Uri ("http://localhost:" + NetworkHelpers.FindFreePort ()));
+				binding, new Uri ("http://localhost:37564"));
 			ServiceCredentials cred = new ServiceCredentials ();
 			cred.ServiceCertificate.Certificate =
 				new X509Certificate2 ("Test/Resources/test.pfx", "mono");

@@ -43,12 +43,11 @@ namespace MonoTests.System.Security.Cryptography {
 		}
 
 		[Test]
-		[Category ("AndroidNotWorking")] // Exception is thrown: CryptographicException : Bad PKCS7 padding. Invalid length 236.
 		public void Roundtrip ()
 		{
 			// that will return a AesCryptoServiceProvider
 			var aes = GetInstance ();
-#if MONOTOUCH
+#if MOBILE
 			Assert.AreEqual ("System.Security.Cryptography.AesManaged", aes.ToString (), "Default");
 			Assert.AreEqual (128, aes.FeedbackSize, "FeedbackSize");
 #else

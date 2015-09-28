@@ -33,12 +33,6 @@ using System.Net.Sockets;
 
 namespace Mono.Unix
 {
-	internal struct PeerCredData {
-		public int pid;
-		public int uid;
-		public int gid;
-	}
-
 	public class PeerCred
 	{
 		/* Make sure this doesn't clash with anything in
@@ -46,14 +40,14 @@ namespace Mono.Unix
 		 * runtime
 		 */
 		private const int so_peercred=10001;
-		private PeerCredData data;
+		private Mono.Posix.PeerCredData data;
 		
 		public PeerCred (Socket sock) {
 			if (sock.AddressFamily != AddressFamily.Unix) {
 				throw new ArgumentException ("Only Unix sockets are supported", "sock");
 			}
 
-			data = (PeerCredData)
+			data = (Mono.Posix.PeerCredData)
 				sock.GetSocketOption (SocketOptionLevel.Socket, (SocketOptionName)so_peercred);
 		}
 		

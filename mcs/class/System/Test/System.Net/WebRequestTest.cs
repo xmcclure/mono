@@ -316,9 +316,6 @@ namespace MonoTests.System.Net {
 	}
 
 	[Test] //BNC#323452
-	// Throws exception with Status == Timeout. The same code behaves as the test expects when run from a regular app.
-	// Might be an issue with the test suite. To investigate.
-	[Category("AndroidNotWorking")] 
 	public void TestFailedConnection ()
 	{
 		try {
@@ -329,7 +326,7 @@ namespace MonoTests.System.Net {
 			//#if NET_2_0 e.Message == "Unable to connect to the remote server"
 			//#if NET_1_1 e.Message == "The underlying connection was closed: Unable to connect to the remote server."
 
-			Assert.AreEqual (WebExceptionStatus.ConnectFailure, ((WebException)e).Status);
+			Assert.AreEqual (((WebException)e).Status, WebExceptionStatus.ConnectFailure);
 
 			//#if !NET_1_1 (this is not true in .NET 1.x)
 			Assert.IsNotNull (e.InnerException);
@@ -340,7 +337,6 @@ namespace MonoTests.System.Net {
 	}
 
 	[Test] //BNC#323452
-	[Category ("AndroidNotWorking")] // Fails when ran as part of the entire BCL test suite. Works when only this fixture is ran
 	public void TestFailedResolution ()
 	{
 		try {

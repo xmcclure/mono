@@ -1222,7 +1222,7 @@ namespace Mono.CSharp {
 						//
 						// The return type is actually Task<T> type argument
 						//
-						if (expr.Type == async_type && async_type.TypeArguments [0] != ec.Module.PredefinedTypes.Task.TypeSpec) {
+						if (expr.Type == async_type) {
 							ec.Report.Error (4016, loc,
 								"`{0}': The return expression type of async method must be `{1}' rather than `Task<{1}>'",
 								ec.GetSignatureForError (), async_type.TypeArguments[0].GetSignatureForError ());
@@ -2346,7 +2346,6 @@ namespace Mono.CSharp {
 			FixedVariable = 1 << 6,
 			UsingVariable = 1 << 7,
 			IsLocked = 1 << 8,
-			SymbolFileHidden = 1 << 9,
 
 			ReadonlyMask = ForeachVariable | FixedVariable | UsingVariable
 		}
@@ -2522,16 +2521,13 @@ namespace Mono.CSharp {
 			// All fixed variabled are pinned, a slot has to be alocated
 			//
 			builder = ec.DeclareLocal (Type, IsFixed);
-			if ((flags & Flags.SymbolFileHidden) == 0)
+			if (!ec.HasSet (BuilderContext.Options.OmitDebugInfo) && (flags & Flags.CompilerGenerated) == 0)
 				ec.DefineLocalVariable (name, builder);
 		}
 
-		public static LocalVariable CreateCompilerGenerated (TypeSpec type, Block block, Location loc, bool writeToSymbolFile = false)
+		public static LocalVariable CreateCompilerGenerated (TypeSpec type, Block block, Location loc)
 		{
 			LocalVariable li = new LocalVariable (block, GetCompilerGeneratedName (block), Flags.CompilerGenerated | Flags.Used, loc);
-			if (!writeToSymbolFile)
-				li.flags |= Flags.SymbolFileHidden;
-			
 			li.Type = type;
 			return li;
 		}
@@ -5866,11 +5862,6 @@ namespace Mono.CSharp {
 			this.loc = loc;
 		}
 
-		protected virtual void EmitBeginException (EmitContext ec)
-		{
-			ec.BeginExceptionBlock ();
-		}
-
 		protected virtual void EmitTryBodyPrepare (EmitContext ec)
 		{
 			StateMachineInitializer state_machine = null;
@@ -5881,7 +5872,7 @@ namespace Mono.CSharp {
 				ec.Emit (OpCodes.Stloc, state_machine.CurrentPC);
 			}
 
-			EmitBeginException (ec);
+			ec.BeginExceptionBlock ();
 
 			if (resume_points != null) {
 				ec.MarkLabel (resume_point);
@@ -6248,9 +6239,9 @@ namespace Mono.CSharp {
 			}
 		}
 
-		sealed class ExpressionEmitter : Emitter {
-			public ExpressionEmitter (Expression converted, LocalVariable li)
-				: base (converted, li)
+		class ExpressionEmitter : Emitter {
+			public ExpressionEmitter (Expression converted, LocalVariable li) :
+				base (converted, li)
 			{
 			}
 
@@ -6348,24 +6339,14 @@ namespace Mono.CSharp {
 				//
 				// Case 1: Array
 				//
-				var ac = res.Type as ArrayContainer;
-				if (ac != null) {
-					TypeSpec array_type = ac.Element;
+				if (res.Type.IsArray) {
+					TypeSpec array_type = TypeManager.GetElementType (res.Type);
 
 					//
 					// Provided that array_type is unmanaged,
 					//
 					if (!TypeManager.VerifyUnmanaged (bc.Module, array_type, loc))
 						return null;
-
-					Expression res_init;
-					if (ExpressionAnalyzer.IsInexpensiveLoad (res)) {
-						res_init = res;
-					} else {
-						var expr_variable = LocalVariable.CreateCompilerGenerated (ac, bc.CurrentBlock, loc);
-						res_init = new CompilerAssign (expr_variable.CreateReferenceExpression (bc, loc), res, loc);
-						res = expr_variable.CreateReferenceExpression (bc, loc);
-					}
 
 					//
 					// and T* is implicitly convertible to the
@@ -6381,7 +6362,7 @@ namespace Mono.CSharp {
 					// fixed (T* e_ptr = (e == null || e.Length == 0) ? null : converted [0])
 					//
 					converted = new Conditional (new BooleanExpression (new Binary (Binary.Operator.LogicalOr,
-						new Binary (Binary.Operator.Equality, res_init, new NullLiteral (loc)),
+						new Binary (Binary.Operator.Equality, res, new NullLiteral (loc)),
 						new Binary (Binary.Operator.Equality, new MemberAccess (res, "Length"), new IntConstant (bc.BuiltinTypes, 0, loc)))),
 							new NullLiteral (loc),
 							converted, loc);
@@ -6864,14 +6845,6 @@ namespace Mono.CSharp {
 			return ok;
 		}
 
-		protected override void EmitBeginException (EmitContext ec)
-		{
-			if (fini.HasAwait && stmt is TryCatch)
-				ec.BeginExceptionBlock ();
-
-			base.EmitBeginException (ec);
-		}
-
 		protected override void EmitTryBody (EmitContext ec)
 		{
 			if (fini.HasAwait) {
@@ -6880,10 +6853,6 @@ namespace Mono.CSharp {
 
 				ec.TryFinallyUnwind.Add (this);
 				stmt.Emit (ec);
-
-				if (stmt is TryCatch)
-					ec.EndExceptionBlock ();
-
 				ec.TryFinallyUnwind.Remove (this);
 
 				if (start_fin_label != null)

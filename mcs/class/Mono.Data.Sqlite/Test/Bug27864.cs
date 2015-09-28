@@ -92,12 +92,14 @@ namespace MonoTests.Mono.Data.Sqlite {
 							Assert.AreEqual(dr["Company.Name"], "Test CO");
 							i += 2;
 						}
-						Assert.IsTrue(dr.FieldCount>0, i.ToString ());
+						Assert.IsTrue(dr.FieldCount>0);
 					}
+					if (BCL.Tests.TestRuntime.CheckSystemVersion (8, 2))
+						Assert.IsTrue (false, "Apple fixed bug 27864, this check can now be removed");
 				}
 			} catch (SqliteException ex) {
-				// Expected Exception from iOS 8.2 (broken) to 9.0 (fixed)
-				if (BCL.Tests.TestRuntime.CheckSystemVersion (8,2) && !BCL.Tests.TestRuntime.CheckSystemVersion (9,0)) 
+
+				if (BCL.Tests.TestRuntime.CheckSystemVersion (8, 2)) // Expected Exception on iOS 8.2+, if this does not happen anymore it means apple fixed it
 					Assert.That (ex.Message.Contains ("no such column: com.Name"));
 				else
 					throw new AssertionException ("Unexpected Sqlite Error", ex); // This should not happen

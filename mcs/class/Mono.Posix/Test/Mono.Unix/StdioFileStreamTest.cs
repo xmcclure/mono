@@ -226,22 +226,21 @@ namespace MonoTests.System.IO
 		{
 			StdioFileStream fs = null;
 			StdioFileStream fs2 = null;
-			string tempPath = Path.Combine (Path.GetTempPath (), "temp");
 			try {
-				if (!File.Exists (tempPath)) {
-					TextWriter tw = File.CreateText (tempPath);
+				if (!File.Exists ("temp")) {
+					TextWriter tw = File.CreateText ("temp");
 					tw.Write ("FOO");
 					tw.Close ();
 				}
-				fs = new StdioFileStream (tempPath, FileMode.Open, FileAccess.Read);
-				fs2 = new StdioFileStream (tempPath, FileMode.Open, FileAccess.Read);
+				fs = new StdioFileStream ("temp", FileMode.Open, FileAccess.Read);
+				fs2 = new StdioFileStream ("temp", FileMode.Open, FileAccess.Read);
 			} finally {
 				if (fs != null)
 					fs.Close ();
 				if (fs2 != null)
 					fs2.Close ();
-				if (File.Exists (tempPath))
-					File.Delete (tempPath);
+				if (File.Exists ("temp"))
+					File.Delete ("temp");
 			}
 		}
 
@@ -857,8 +856,7 @@ namespace MonoTests.System.IO
 		[ExpectedException (typeof (NotSupportedException))]
 		public void SetLengthWithClosedBaseStream ()
 		{
-			string path = TempFolder + Path.DirectorySeparatorChar + "temp";
-			StdioFileStream fs = new StdioFileStream (path, FileMode.Create);
+			StdioFileStream fs = new StdioFileStream ("temp", FileMode.Create);
 			BufferedStream bs = new BufferedStream (fs);
 			fs.Close ();
 

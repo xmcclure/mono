@@ -88,8 +88,6 @@ static const AssemblyVersionMap framework_assemblies [] = {
 	{"I18N.Other", 0},
 	{"I18N.Rare", 0},
 	{"I18N.West", 0},
-	{"Microsoft.Build.Engine", 2},
-	{"Microsoft.Build.Framework", 2},
 	{"Microsoft.VisualBasic", 1},
 	{"Microsoft.VisualC", 1},
 	{"Mono.Cairo", 0},
@@ -3254,18 +3252,6 @@ MonoImage*
 mono_assembly_get_image (MonoAssembly *assembly)
 {
 	return assembly->image;
-}
-
-/**
- * mono_assembly_get_name:
- * @assembly: The assembly to retrieve the name from
- *
- * Returns: the MonoAssemblyName associated with this assembly.
- */
-MonoAssemblyName *
-mono_assembly_get_name (MonoAssembly *assembly)
-{
-	return &assembly->aname;
 }
 
 void

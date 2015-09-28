@@ -81,12 +81,6 @@ namespace System.Net.Http
 			}
 		}
 
-		// Only used by HttpWebRequest internals which is not async friendly
-		internal void CopyTo (Stream stream)
-		{
-			CopyToAsync (stream).Wait ();
-		}
-
 		public Task CopyToAsync (Stream stream)
 		{
 			return CopyToAsync (stream, null);

@@ -19,7 +19,4 @@ mono_threadpool_ms_io_remove_domain_jobs (MonoDomain *domain);
 void
 mono_threadpool_ms_io_cleanup (void);
 
-void
-icall_append_io_job (MonoObject *target, MonoSocketAsyncResult *state);
-
 #endif /* _MONO_THREADPOOL_MS_IO_H_ */

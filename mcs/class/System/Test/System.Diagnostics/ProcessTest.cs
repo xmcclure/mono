@@ -838,18 +838,9 @@ namespace MonoTests.System.Diagnostics
 		}
 
 		
-		ProcessStartInfo GetCrossPlatformStartInfo ()
+		private ProcessStartInfo GetCrossPlatformStartInfo ()
 		{
-			if (RunningOnUnix) {
-				string path;
-#if MONODROID
-				path = "/system/bin/ls";
-#else
-				path = "/bin/ls";
-#endif
-				return new ProcessStartInfo (path, "/");
-			} else
-				return new ProcessStartInfo ("help", "");
+			return RunningOnUnix ? new ProcessStartInfo ("/bin/ls", "/") : new ProcessStartInfo ("help", "");
 		}
 
 		[Test]
@@ -917,56 +908,6 @@ namespace MonoTests.System.Diagnostics
 		[Test]
 		public void HasExitedCurrent () {
 			Assert.IsFalse (Process.GetCurrentProcess ().HasExited);
-		}
-
-		[Test]
-		[NUnit.Framework.Category ("MobileNotWorking")]
-		public void DisposeWithDisposedStreams ()
-		{
-			var psi = GetCrossPlatformStartInfo ();
-			psi.RedirectStandardInput = true;
-			psi.RedirectStandardOutput = true;
-			psi.UseShellExecute = false;
-
-			var p = Process.Start (psi);
-			p.StandardInput.BaseStream.Dispose ();
-			p.StandardOutput.BaseStream.Dispose ();
-			p.Dispose ();
-		}
-
-		[Test]
-		public void Modules () {
-			var modules = Process.GetCurrentProcess ().Modules;
-			foreach (var a in AppDomain.CurrentDomain.GetAssemblies ()) {
-				var found = false;
-				var name = a.GetName ();
-
-				StringBuilder sb = new StringBuilder ();
-				sb.AppendFormat ("Could not found: {0} {1}\n", name.Name, name.Version);
-				sb.AppendLine ("Looked in assemblies:");
-
-				foreach (var o in modules) {
-					var m = (ProcessModule) o;
-
-					sb.AppendFormat ("   {0} {1}.{2}.{3}\n", m.FileName.ToString (),
-							m.FileVersionInfo.FileMajorPart,
-							m.FileVersionInfo.FileMinorPart,
-							m.FileVersionInfo.FileBuildPart);
-
-					if (!m.FileName.StartsWith ("[In Memory] " + name.Name))
-						continue;
-
-					var fv = m.FileVersionInfo;
-					if (fv.FileBuildPart != name.Version.Build ||
-						fv.FileMinorPart != name.Version.Minor ||
-						fv.FileMajorPart != name.Version.Major)
-						continue;
-
-					found = true;
-				}
-
-				Assert.IsTrue (found, sb.ToString ());
-			}
 		}
 	}
 }

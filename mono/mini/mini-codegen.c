@@ -702,7 +702,7 @@ mono_print_ins_index (int i, MonoInst *ins)
 		break;
 	case OP_IL_SEQ_POINT:
 	case OP_SEQ_POINT:
-		printf (" il: 0x%x%s", (int)ins->inst_imm, ins->flags & MONO_INST_NONEMPTY_STACK ? ", nonempty-stack" : "");
+		printf (" il: %x", (int)ins->inst_imm);
 		break;
 	default:
 		break;

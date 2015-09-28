@@ -35,8 +35,6 @@ using System.ServiceModel;
 using System.Xml;
 using NUnit.Framework;
 
-using MonoTests.Helpers;
-
 namespace MonoTests.System.ServiceModel
 {
 	[TestFixture]
@@ -52,7 +50,7 @@ namespace MonoTests.System.ServiceModel
 		[Test]
 		public void UserContextProperties ()
 		{
-			var ch = ChannelFactory<IFooChannel>.CreateChannel (new BasicHttpBinding (), new EndpointAddress ("http://localhost:" + NetworkHelpers.FindFreePort ()));
+			var ch = ChannelFactory<IFooChannel>.CreateChannel (new BasicHttpBinding (), new EndpointAddress ("http://localhost:37564"));
 			var o = new OperationContext (ch);
 
 			// FIXME: this is strange. It should return non-null value.
@@ -93,7 +91,7 @@ namespace MonoTests.System.ServiceModel
 			Assert.IsNull (OperationContext.Current, "Current-1");
 
 			try {
-				var ch = ChannelFactory<IFooChannel>.CreateChannel (new BasicHttpBinding (), new EndpointAddress ("http://localhost:" + NetworkHelpers.FindFreePort ()));
+				var ch = ChannelFactory<IFooChannel>.CreateChannel (new BasicHttpBinding (), new EndpointAddress ("http://localhost:37564"));
 				OperationContext.Current = new OperationContext (ch);
 				Assert.IsNotNull (OperationContext.Current, "Current-2");
 			}

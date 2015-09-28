@@ -220,38 +220,6 @@ mono_reflection_init (void)
 {
 }
 
-static inline void
-dynamic_image_lock (MonoDynamicImage *image)
-{
-	mono_image_lock ((MonoImage*)image);
-}
-
-static inline void
-dynamic_image_unlock (MonoDynamicImage *image)
-{
-	mono_image_unlock ((MonoImage*)image);
-}
-
-static void
-register_dyn_token (MonoDynamicImage *assembly, guint32 token, MonoObject *obj)
-{
-	dynamic_image_lock (assembly);
-	mono_g_hash_table_insert (assembly->tokens, GUINT_TO_POINTER (token), obj);
-	dynamic_image_unlock (assembly);
-}
-
-static MonoObject*
-lookup_dyn_token (MonoDynamicImage *assembly, guint32 token)
-{
-	MonoObject *obj;
-
-	dynamic_image_lock (assembly);
-	obj = mono_g_hash_table_lookup (assembly->tokens, GUINT_TO_POINTER (token));
-	dynamic_image_unlock (assembly);
-
-	return obj;
-}
-
 static void
 sigbuffer_init (SigBuffer *buf, int size)
 {
@@ -2414,7 +2382,7 @@ mono_image_typedef_or_ref_full (MonoDynamicImage *assembly, MonoType *type, gboo
 			(type->type != MONO_TYPE_MVAR)) {
 		MonoReflectionTypeBuilder *tb = mono_class_get_ref_info (klass);
 		token = MONO_TYPEDEFORREF_TYPEDEF | (tb->table_idx << MONO_TYPEDEFORREF_BITS);
-		register_dyn_token (assembly, token, mono_class_get_ref_info (klass));
+		mono_g_hash_table_insert (assembly->tokens, GUINT_TO_POINTER (token), mono_class_get_ref_info (klass));
 		return token;
 	}
 
@@ -2437,7 +2405,7 @@ mono_image_typedef_or_ref_full (MonoDynamicImage *assembly, MonoType *type, gboo
 	token = MONO_TYPEDEFORREF_TYPEREF | (table->next_idx << MONO_TYPEDEFORREF_BITS); /* typeref */
 	g_hash_table_insert (assembly->typeref, type, GUINT_TO_POINTER(token));
 	table->next_idx ++;
-	register_dyn_token (assembly, token, mono_class_get_ref_info (klass));
+	mono_g_hash_table_insert (assembly->tokens, GUINT_TO_POINTER (token), mono_class_get_ref_info (klass));
 	return token;
 }
 
@@ -4820,7 +4788,7 @@ mono_image_insert_string (MonoReflectionModuleBuilder *module, MonoString *str)
 		idx = assembly->us.index ++;
 	}
 
-	register_dyn_token (assembly, MONO_TOKEN_STRING | idx, (MonoObject*)str);
+	mono_g_hash_table_insert (assembly->tokens, GUINT_TO_POINTER (MONO_TOKEN_STRING | idx), str);
 
 	return MONO_TOKEN_STRING | idx;
 }
@@ -4920,7 +4888,7 @@ mono_image_create_method_token (MonoDynamicImage *assembly, MonoObject *obj, Mon
 	}
 
 	g_hash_table_insert (assembly->vararg_aux_hash, GUINT_TO_POINTER (token), sig);
-	register_dyn_token (assembly, token, obj);
+	mono_g_hash_table_insert (assembly->tokens, GUINT_TO_POINTER (token), obj);
 	return token;
 }
 
@@ -5091,17 +5059,13 @@ mono_image_create_token (MonoDynamicImage *assembly, MonoObject *obj,
 void
 mono_image_register_token (MonoDynamicImage *assembly, guint32 token, MonoObject *obj)
 {
-	MonoObject *prev;
-
-	dynamic_image_lock (assembly);
-	prev = mono_g_hash_table_lookup (assembly->tokens, GUINT_TO_POINTER (token));
+	MonoObject *prev = mono_g_hash_table_lookup (assembly->tokens, GUINT_TO_POINTER (token));
 	if (prev) {
 		/* There could be multiple MethodInfo objects with the same token */
 		//g_assert (prev == obj);
 	} else {
 		mono_g_hash_table_insert (assembly->tokens, GUINT_TO_POINTER (token), obj);
 	}
-	dynamic_image_unlock (assembly);
 }
 
 static MonoDynamicImage*
@@ -7520,9 +7484,6 @@ mono_reflection_get_type_internal (MonoImage *rootimage, MonoImage* image, MonoT
 	if (!image)
 		image = mono_defaults.corlib;
 
-	if (!rootimage)
-		rootimage = mono_defaults.corlib;
-
 	if (ignorecase) {
 		MonoError error;
 		klass = mono_class_from_name_case_checked (image, info->name_space, info->name, &error);
@@ -8304,7 +8265,7 @@ create_custom_attr (MonoImage *image, MonoMethod *method, const guchar *data, gu
 		memset (params, 0, sizeof (void*) * sig->param_count);
 	} else {
 		/* Allocate using GC so it gets GC tracking */
-		params = mono_gc_alloc_fixed (sig->param_count * sizeof (void*), MONO_GC_DESCRIPTOR_NULL);
+		params = mono_gc_alloc_fixed (sig->param_count * sizeof (void*), NULL);
 	}
 
 	/* skip prolog */
@@ -10064,7 +10025,8 @@ mono_reflection_setup_internal_class (MonoReflectionTypeBuilder *tb)
 		g_assert (mono_class_get_ref_info (klass) == tb);
 	}
 
-	register_dyn_token (tb->module->dynamic_image, MONO_TOKEN_TYPE_DEF | tb->table_idx, (MonoObject*)tb);
+	mono_g_hash_table_insert (tb->module->dynamic_image->tokens,
+		GUINT_TO_POINTER (MONO_TOKEN_TYPE_DEF | tb->table_idx), tb);
 
 	if (parent != NULL) {
 		mono_class_setup_parent (klass, parent);
@@ -11863,7 +11825,7 @@ mono_reflection_create_dynamic_method (MonoReflectionDynamicMethod *mb)
 gboolean
 mono_reflection_is_valid_dynamic_token (MonoDynamicImage *image, guint32 token)
 {
-	return lookup_dyn_token (image, token) != NULL;
+	return mono_g_hash_table_lookup (image->tokens, GUINT_TO_POINTER (token)) != NULL;
 }
 
 MonoMethodSignature *
@@ -11900,7 +11862,9 @@ mono_reflection_lookup_dynamic_token (MonoImage *image, guint32 token, gboolean 
 	MonoObject *obj;
 	MonoClass *klass;
 
-	obj = lookup_dyn_token (assembly, token);
+	mono_loader_lock ();
+	obj = mono_g_hash_table_lookup (assembly->tokens, GUINT_TO_POINTER (token));
+	mono_loader_unlock ();
 	if (!obj) {
 		if (valid_token)
 			g_error ("Could not find required dynamic token 0x%08x", token);

@@ -82,26 +82,10 @@ namespace System.Reflection {
 			}
 		}
 
-		public override Module Module {
-			get {
-				return GetRuntimeModule ();
-			}
-		}
-
-		internal RuntimeType GetDeclaringTypeInternal ()
-		{
-			return (RuntimeType) DeclaringType;
-		}
-
 		RuntimeType ReflectedTypeInternal {
 			get {
 				return (RuntimeType) ReflectedType;
 			}
-		}
-
-		internal RuntimeModule GetRuntimeModule ()
-		{
-			return GetDeclaringTypeInternal ().GetRuntimeModule ();
 		}
 
         #region Object Overrides

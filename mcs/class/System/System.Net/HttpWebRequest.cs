@@ -126,9 +126,6 @@ namespace System.Net
 		AuthorizationState auth_state, proxy_auth_state;
 		string host;
 
-		[NonSerialized]
-		internal Action<Stream> ResendContentFactory;
-
 		// Constructors
 		static HttpWebRequest ()
 		{
@@ -254,15 +251,9 @@ namespace System.Net
 		
 		internal bool InternalAllowBuffering {
 			get {
-				return allowBuffering && MethodWithBuffer;
-			}
-		}
-
-		bool MethodWithBuffer {
-			get {
-				return method != "HEAD" && method != "GET" &&
-				method != "MKCOL" && method != "CONNECT" &&
-				method != "TRACE";
+				return (allowBuffering && (method != "HEAD" && method != "GET" &&
+							method != "MKCOL" && method != "CONNECT" &&
+							method != "TRACE"));
 			}
 		}
 
@@ -1164,7 +1155,7 @@ namespace System.Net
 			if (e != null)
 				throw e;
 
-			if (AllowWriteStreamBuffering || method == "GET")
+			if (AllowWriteStreamBuffering)
 				contentLength = -1;
 
 			uriString = webResponse.Headers ["Location"];
@@ -1369,7 +1360,8 @@ namespace System.Net
 						bodyBuffer = null;
 						writeStream.Close ();
 					}
-				} else if (MethodWithBuffer) {
+				} else if (method != "HEAD" && method != "GET" && method != "MKCOL" && method != "CONNECT" &&
+				          method != "TRACE") {
 					if (getResponseCalled && !writeStream.RequestWritten)
 						return writeStream.WriteRequestAsync (result);
 				}
@@ -1668,28 +1660,12 @@ namespace System.Net
 					(ProxyQuery && !proxy_auth_state.IsCompleted && code == HttpStatusCode.ProxyAuthenticationRequired)) {
 					if (!usedPreAuth && CheckAuthorization (webResponse, code)) {
 						// Keep the written body, so it can be rewritten in the retry
-						if (MethodWithBuffer) {
-							if (AllowWriteStreamBuffering) {
-								if (writeStream.WriteBufferLength > 0) {
-									bodyBuffer = writeStream.WriteBuffer;
-									bodyBufferLength = writeStream.WriteBufferLength;
-								}
-
-								return true;
+						if (InternalAllowBuffering) {
+							if (writeStream.WriteBufferLength > 0) {
+								bodyBuffer = writeStream.WriteBuffer;
+								bodyBufferLength = writeStream.WriteBufferLength;
 							}
-
-							//
-							// Buffering is not allowed but we have alternative way to get same content (we
-							// need to resent it due to NTLM Authentication).
-					 		//
-							if (ResendContentFactory != null) {
-								using (var ms = new MemoryStream ()) {
-									ResendContentFactory (ms);
-									bodyBuffer = ms.ToArray ();
-									bodyBufferLength = bodyBuffer.Length;
-								}
-								return true;
-							}
+							return true;
 						} else if (method != "PUT" && method != "POST") {
 							bodyBuffer = null;
 							return true;

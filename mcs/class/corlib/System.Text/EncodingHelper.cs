@@ -7,7 +7,7 @@ using System.Security;
 namespace System.Text
 {
 
-internal static partial class EncodingHelper
+internal static class EncodingHelper
 {
 	//
 	// Only internal, to be used by the class libraries: Unmarked and non-input-validating
@@ -71,10 +71,12 @@ internal static partial class EncodingHelper
 	[MethodImpl (MethodImplOptions.InternalCall)]
 	extern internal static string InternalCodePage (ref int code_page);
 
-#if !MONOTOUCH
 	internal static Encoding GetDefaultEncoding ()
 	{
 		Encoding enc = null;
+#if (MONOTOUCH || XAMMAC)
+		enc = EncodingHelper.UTF8Unmarked;
+#else
 						// See if the underlying system knows what
 						// code page handler we should be using.
 						int code_page = 1;
@@ -104,9 +106,9 @@ internal static partial class EncodingHelper
 							// not supported by underlying OS
 							enc = EncodingHelper.UTF8Unmarked;
 						}
+#endif
 		return enc;
 	}
-#endif
 
 	// Loaded copy of the "I18N" assembly.  We need to move
 	// this into a class in "System.Private" eventually.

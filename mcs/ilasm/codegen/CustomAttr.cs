@@ -20,17 +20,18 @@ namespace Mono.ILASM {
         public class CustomAttr {
 
                 private BaseMethodRef method_ref;
-                PEAPI.Constant constant;
-                public CustomAttr (BaseMethodRef method_ref, PEAPI.Constant constant)
+                private byte[] data;
+
+                public CustomAttr (BaseMethodRef method_ref, byte[] data)
                 {
-                    this.method_ref = method_ref;
-                    this.constant = constant;
+                        this.method_ref = method_ref;
+                        this.data = data;
                 }
 
                 public void AddTo (CodeGen code_gen, PEAPI.MetaDataElement elem)
                 {
                         method_ref.Resolve (code_gen);
-                        code_gen.PEFile.AddCustomAttribute (method_ref.PeapiMethod, constant, elem);
+                        code_gen.PEFile.AddCustomAttribute (method_ref.PeapiMethod, data, elem);
                 }
 
                 public bool IsSuppressUnmanaged (CodeGen codegen)

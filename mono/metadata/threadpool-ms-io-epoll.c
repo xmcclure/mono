@@ -27,9 +27,9 @@ epoll_init (gint wakeup_pipe_fd)
 
 	if (epoll_fd == -1) {
 #ifdef EPOOL_CLOEXEC
-		g_error ("epoll_init: epoll (EPOLL_CLOEXEC) failed, error (%d) %s\n", errno, g_strerror (errno));
+		g_warning ("epoll_init: epoll (EPOLL_CLOEXEC) failed, error (%d) %s\n", errno, g_strerror (errno));
 #else
-		g_error ("epoll_init: epoll (256) failed, error (%d) %s\n", errno, g_strerror (errno));
+		g_warning ("epoll_init: epoll (256) failed, error (%d) %s\n", errno, g_strerror (errno));
 #endif
 		return FALSE;
 	}
@@ -37,7 +37,7 @@ epoll_init (gint wakeup_pipe_fd)
 	event.events = EPOLLIN;
 	event.data.fd = wakeup_pipe_fd;
 	if (epoll_ctl (epoll_fd, EPOLL_CTL_ADD, event.data.fd, &event) == -1) {
-		g_error ("epoll_init: epoll_ctl () failed, error (%d) %s", errno, g_strerror (errno));
+		g_warning ("epoll_init: epoll_ctl () failed, error (%d) %s", errno, g_strerror (errno));
 		close (epoll_fd);
 		return FALSE;
 	}
@@ -55,82 +55,99 @@ epoll_cleanup (void)
 }
 
 static void
-epoll_register_fd (gint fd, gint events, gboolean is_new)
+epoll_update_add (ThreadPoolIOUpdate *update)
 {
 	struct epoll_event event;
 
-#ifndef EPOLLONESHOT
-/* it was only defined on android in May 2013 */
-#define EPOLLONESHOT 0x40000000
-#endif
-
-	event.data.fd = fd;
-	event.events = EPOLLONESHOT;
-	if ((events & EVENT_IN) != 0)
+	event.data.fd = update->fd;
+	if ((update->events & MONO_POLLIN) != 0)
 		event.events |= EPOLLIN;
-	if ((events & EVENT_OUT) != 0)
+	if ((update->events & MONO_POLLOUT) != 0)
 		event.events |= EPOLLOUT;
 
-	if (epoll_ctl (epoll_fd, is_new ? EPOLL_CTL_ADD : EPOLL_CTL_MOD, event.data.fd, &event) == -1)
-		g_error ("epoll_register_fd: epoll_ctl(%s) failed, error (%d) %s", is_new ? "EPOLL_CTL_ADD" : "EPOLL_CTL_MOD", errno, g_strerror (errno));
-}
-
-static void
-epoll_remove_fd (gint fd)
-{
-	if (epoll_ctl (epoll_fd, EPOLL_CTL_DEL, fd, NULL) == -1)
-			g_error ("epoll_remove_fd: epoll_ctl (EPOLL_CTL_DEL) failed, error (%d) %s", errno, g_strerror (errno));
+	if (epoll_ctl (epoll_fd, update->is_new ? EPOLL_CTL_ADD : EPOLL_CTL_MOD, event.data.fd, &event) == -1)
+		g_warning ("epoll_update_add: epoll_ctl(%s) failed, error (%d) %s", update->is_new ? "EPOLL_CTL_ADD" : "EPOLL_CTL_MOD", errno, g_strerror (errno));
 }
 
 static gint
-epoll_event_wait (void (*callback) (gint fd, gint events, gpointer user_data), gpointer user_data)
+epoll_event_wait (void)
 {
-	gint i, ready;
-
-	memset (epoll_events, 0, sizeof (struct epoll_event) * EPOLL_NEVENTS);
-
-	mono_gc_set_skip_thread (TRUE);
+	gint ready;
 
 	ready = epoll_wait (epoll_fd, epoll_events, EPOLL_NEVENTS, -1);
-
-	mono_gc_set_skip_thread (FALSE);
-
 	if (ready == -1) {
 		switch (errno) {
 		case EINTR:
-			mono_thread_internal_check_for_interruption_critical (mono_thread_internal_current ());
+			check_for_interruption_critical ();
 			ready = 0;
 			break;
 		default:
-			g_error ("epoll_event_wait: epoll_wait () failed, error (%d) %s", errno, g_strerror (errno));
+			g_warning ("epoll_event_wait: epoll_wait () failed, error (%d) %s", errno, g_strerror (errno));
 			break;
 		}
 	}
 
-	if (ready == -1)
-		return -1;
+	return ready;
+}
 
-	for (i = 0; i < ready; ++i) {
-		gint fd, events = 0;
+static gint
+epoll_event_max (void)
+{
+	return EPOLL_NEVENTS;
+}
 
-		fd = epoll_events [i].data.fd;
-		if (epoll_events [i].events & (EPOLLIN | EPOLLERR | EPOLLHUP))
-			events |= EVENT_IN;
-		if (epoll_events [i].events & (EPOLLOUT | EPOLLERR | EPOLLHUP))
-			events |= EVENT_OUT;
+static gint
+epoll_event_fd_at (guint i)
+{
+	return epoll_events [i].data.fd;
+}
 
-		callback (fd, events, user_data);
+static gboolean
+epoll_event_create_sockares_at (guint i, gint fd, MonoMList **list)
+{
+	struct epoll_event *epoll_event;
+
+	g_assert (list);
+
+	epoll_event = &epoll_events [i];
+	g_assert (epoll_event);
+
+	g_assert (fd == epoll_event->data.fd);
+
+	if (*list && (epoll_event->events & (EPOLLIN | EPOLLERR | EPOLLHUP)) != 0) {
+		MonoSocketAsyncResult *io_event = get_sockares_for_event (list, MONO_POLLIN);
+		if (io_event)
+			mono_threadpool_ms_enqueue_work_item (((MonoObject*) io_event)->vtable->domain, (MonoObject*) io_event);
+	}
+	if (*list && (epoll_event->events & (EPOLLOUT | EPOLLERR | EPOLLHUP)) != 0) {
+		MonoSocketAsyncResult *io_event = get_sockares_for_event (list, MONO_POLLOUT);
+		if (io_event)
+			mono_threadpool_ms_enqueue_work_item (((MonoObject*) io_event)->vtable->domain, (MonoObject*) io_event);
 	}
 
-	return 0;
+	if (*list) {
+		gint events = get_events (*list);
+
+		epoll_event->events = ((events & MONO_POLLOUT) ? EPOLLOUT : 0) | ((events & MONO_POLLIN) ? EPOLLIN : 0);
+		if (epoll_ctl (epoll_fd, EPOLL_CTL_MOD, fd, epoll_event) == -1) {
+			if (epoll_ctl (epoll_fd, EPOLL_CTL_ADD, fd, epoll_event) == -1)
+				g_warning ("epoll_event_create_sockares_at: epoll_ctl () failed, error (%d) %s", errno, g_strerror (errno));
+		}
+	} else {
+		epoll_ctl (epoll_fd, EPOLL_CTL_DEL, fd, epoll_event);
+	}
+
+	return TRUE;
 }
 
 static ThreadPoolIOBackend backend_epoll = {
 	.init = epoll_init,
 	.cleanup = epoll_cleanup,
-	.register_fd = epoll_register_fd,
-	.remove_fd = epoll_remove_fd,
+	.update_add = epoll_update_add,
 	.event_wait = epoll_event_wait,
+	.event_max = epoll_event_max,
+	.event_fd_at = epoll_event_fd_at,
+	.event_create_sockares_at = epoll_event_create_sockares_at,
 };
 
 #endif

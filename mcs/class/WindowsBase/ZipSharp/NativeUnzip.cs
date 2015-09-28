@@ -68,7 +68,8 @@ namespace zipsharp
 		public static long CurrentFileLength (UnzipHandle handle)
 		{
 			UnzipFileInfo info;
-			int result = unzGetCurrentFileInfo (handle, out info, null, IntPtr.Zero, IntPtr.Zero, IntPtr.Zero, null,  IntPtr.Zero);
+			StringBuilder sbName = new StringBuilder (128);
+			int result = unzGetCurrentFileInfo (handle, out info, sbName, new IntPtr (sbName.Capacity), IntPtr.Zero, IntPtr.Zero, null,  IntPtr.Zero);
 			
 			if (result != 0)
 				return -1;
@@ -79,13 +80,8 @@ namespace zipsharp
 		static string GetCurrentFileName (UnzipHandle handle)
 		{
 			UnzipFileInfo info;
-			int result = unzGetCurrentFileInfo (handle, out info, null, IntPtr.Zero, IntPtr.Zero, new IntPtr (0), null,  IntPtr.Zero);
-
-			if (result != 0)
-				return null;
-			
-			StringBuilder sbName = new StringBuilder ((int)info.SizeFilename+1); // +1 to account for extra \0 at the end
-			result = unzGetCurrentFileInfo (handle, out info, sbName, new IntPtr (sbName.Capacity), IntPtr.Zero, new IntPtr (0), null,  IntPtr.Zero);
+			StringBuilder sbName = new StringBuilder (128);
+			int result = unzGetCurrentFileInfo (handle, out info, sbName, new IntPtr (sbName.Capacity), IntPtr.Zero, new IntPtr (0), null,  IntPtr.Zero);
 			
 			if (result != 0)
 				return null;

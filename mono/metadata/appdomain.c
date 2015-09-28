@@ -39,13 +39,13 @@
 #include <mono/metadata/assembly.h>
 #include <mono/metadata/exception.h>
 #include <mono/metadata/threads.h>
-#include <mono/metadata/threadpool-ms.h>
 #include <mono/metadata/socket-io.h>
 #include <mono/metadata/tabledefs.h>
 #include <mono/metadata/gc-internal.h>
 #include <mono/metadata/mono-gc.h>
 #include <mono/metadata/marshal.h>
 #include <mono/metadata/monitor.h>
+#include <mono/metadata/threadpool.h>
 #include <mono/metadata/mono-debug.h>
 #include <mono/metadata/mono-debug-debugger.h>
 #include <mono/metadata/attach.h>
@@ -54,7 +54,6 @@
 #include <mono/metadata/console-io.h>
 #include <mono/metadata/threads-types.h>
 #include <mono/metadata/tokentype.h>
-#include <mono/metadata/profiler-private.h>
 #include <mono/utils/mono-uri.h>
 #include <mono/utils/mono-logger-internal.h>
 #include <mono/utils/mono-path.h>
@@ -79,7 +78,7 @@
  * Changes which are already detected at runtime, like the addition
  * of icalls, do not require an increment.
  */
-#define MONO_CORLIB_VERSION 138
+#define MONO_CORLIB_VERSION 134
 
 typedef struct
 {
@@ -233,6 +232,7 @@ mono_runtime_init (MonoDomain *domain, MonoThreadStartCB start_cb,
 	
 	mono_gc_base_init ();
 	mono_monitor_init ();
+	mono_thread_pool_init ();
 	mono_marshal_init ();
 
 	mono_install_assembly_preload_hook (mono_domain_assembly_preload, GUINT_TO_POINTER (FALSE));
@@ -481,8 +481,6 @@ mono_domain_create_appdomain_internal (char *friendly_name, MonoAppDomainSetup *
 	ad->data = data;
 	data->domain = ad;
 	data->friendly_name = g_strdup (friendly_name);
-
-	mono_profiler_appdomain_name (data, data->friendly_name);
 
 	if (!setup->application_base) {
 		/* Inherit from the root domain since MS.NET does this */
@@ -2279,7 +2277,7 @@ unload_thread_main (void *arg)
 		goto failure;
 	}
 
-	if (!mono_threadpool_ms_remove_domain_jobs (domain, -1)) {
+	if (!mono_thread_pool_remove_domain_jobs (domain, -1)) {
 		data->failure_reason = g_strdup_printf ("Cleanup of threadpool jobs of domain %s timed out.", domain->friendly_name);
 		goto failure;
 	}

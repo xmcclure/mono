@@ -100,7 +100,7 @@ namespace System.ServiceModel.Description
 			set { type = value; }
 		}
 
-#if !NET_2_1 && !XAMMAC_4_5
+#if !NET_2_1
 		internal XsdDataContractImporter DataContractImporter { get; set; }
 		internal XmlSerializerMessageContractImporterInternal XmlSerializationImporter { get; set; }
 		internal System.CodeDom.CodeTypeReference CodeTypeReference { get; set; }

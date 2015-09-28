@@ -34,8 +34,6 @@ using System.ServiceModel.Description;
 using System.ServiceModel.Dispatcher;
 using NUnit.Framework;
 
-using MonoTests.Helpers;
-
 namespace MonoTests.System.ServiceModel
 {
 	[TestFixture]
@@ -174,11 +172,10 @@ namespace MonoTests.System.ServiceModel
 		[Test]
 		public void AddServiceEndpoint2_4 ()
 		{
-			var ep = "http://" + NetworkHelpers.LocalEphemeralEndPoint().ToString();
-			ServiceHost host = new ServiceHost (typeof (HogeFuga), new Uri (ep));
+			ServiceHost host = new ServiceHost (typeof (HogeFuga), new Uri ("http://localhost:37564"));
 			var binding = new BasicHttpBinding ();
-			host.AddServiceEndpoint (typeof (IHoge), binding, new Uri (ep));
-			host.AddServiceEndpoint (typeof (IFuga), binding, new Uri (ep));
+			host.AddServiceEndpoint (typeof (IHoge), binding, new Uri ("http://localhost:37564"));
+			host.AddServiceEndpoint (typeof (IFuga), binding, new Uri ("http://localhost:37564"));
 
 			// Use the same binding, results in one ChannelDispatcher (actually two, for metadata/debug behavior).
 			host.Open ();
@@ -299,14 +296,13 @@ namespace MonoTests.System.ServiceModel
 		[Test]
 		public void InstanceWithNonSingletonMode ()
 		{
-			var ep = NetworkHelpers.LocalEphemeralEndPoint().ToString();
 			ServiceHost host = new ServiceHost (
 				new NonSingletonService ());
 			Assert.IsNotNull (host.Description.Behaviors.Find<ServiceBehaviorAttribute> ().GetWellKnownSingleton (), "premise1");
 			host.AddServiceEndpoint (
 				typeof (NonSingletonService),
 				new BasicHttpBinding (),
-				new Uri ("http://" + ep + "/s1"));
+				new Uri ("http://localhost:37564/s1"));
 
 			// in case Open() didn't fail, we need to close the host.
 			// And even if Close() caused the expected exception,
@@ -327,14 +323,13 @@ namespace MonoTests.System.ServiceModel
 		[Test]
 		public void InstanceWithSingletonMode ()
 		{
-            var ep = NetworkHelpers.LocalEphemeralEndPoint().ToString();
 			SingletonService instance = new SingletonService ();
 			ServiceHost host = new ServiceHost (instance);
 			Assert.IsNotNull (host.Description.Behaviors.Find<ServiceBehaviorAttribute> ().GetWellKnownSingleton (), "#1");
 			host.AddServiceEndpoint (
 				typeof (SingletonService),
 				new BasicHttpBinding (),
-				new Uri ("http://" + ep + "/s2"));
+				new Uri ("http://localhost:37564/s2"));
 
 			// in case Open() didn't fail, we need to close the host.
 			// And even if Close() caused the expected exception,

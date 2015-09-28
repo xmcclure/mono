@@ -57,7 +57,6 @@ namespace System.Diagnostics {
 		public const int METHODS_TO_SKIP = 0;
 
 		private StackFrame[] frames;
-		readonly StackTrace[] captured_traces;
 		private bool debug_info;
 
 		public StackTrace ()
@@ -120,6 +119,11 @@ namespace System.Diagnostics {
 		}
 
 		public StackTrace (Exception e, int skipFrames, bool fNeedFileInfo)
+			: this (e, skipFrames, fNeedFileInfo, false)
+		{
+		}
+
+		internal StackTrace (Exception e, int skipFrames, bool fNeedFileInfo, bool returnNativeFrames)
 		{
 			if (e == null)
 				throw new ArgumentNullException ("e");
@@ -128,7 +132,22 @@ namespace System.Diagnostics {
 
 			frames = get_trace (e, skipFrames, fNeedFileInfo);
 
-			captured_traces = e.captured_traces;
+			if (!returnNativeFrames) {
+				bool resize = false;
+				for (int i = 0; i < frames.Length; ++i)
+					if (frames [i].GetMethod () == null)
+						resize = true;
+
+				if (resize) {
+					var l = new List<StackFrame> ();
+
+					for (int i = 0; i < frames.Length; ++i)
+						if (frames [i].GetMethod () != null)
+							l.Add (frames [i]);
+
+					frames = l.ToArray ();
+				}
+			}
 		}
 
 		public StackTrace (StackFrame frame)
@@ -170,7 +189,7 @@ namespace System.Diagnostics {
 			return frames;
 		}
 
-		bool AddFrames (StringBuilder sb, bool isException = false)
+		internal bool AddFrames (StringBuilder sb, bool isException = false)
 		{
 			bool printOffset;
 			string debugInfo, indentation;
@@ -287,21 +306,6 @@ namespace System.Diagnostics {
 		public override string ToString ()
 		{
 			StringBuilder sb = new StringBuilder ();
-
-			//
-			// Add traces captured using ExceptionDispatchInfo
-			//
-			if (captured_traces != null) {
-				foreach (var t in captured_traces) {
-					if (!t.AddFrames (sb, true))
-						continue;
-
-					sb.Append (Environment.NewLine);
-					sb.Append ("--- End of stack trace from previous location where exception was thrown ---");
-					sb.Append (Environment.NewLine);
-				}
-			}
-
 			AddFrames (sb);
 			return sb.ToString ();
 		}

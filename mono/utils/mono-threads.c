@@ -422,7 +422,7 @@ mono_threads_unregister_current_thread (MonoThreadInfo *info)
 MonoThreadInfo*
 mono_thread_info_current_unchecked (void)
 {
-	return mono_threads_inited ? (MonoThreadInfo*)mono_native_tls_get_value (thread_info_key) : NULL;
+	return (MonoThreadInfo*)mono_native_tls_get_value (thread_info_key);
 }
 
 
@@ -578,7 +578,6 @@ mono_threads_init (MonoThreadInfoCallbacks *callbacks, size_t info_size)
 	res = mono_native_tls_alloc (&thread_info_key, (void *) unregister_thread);
 	res = mono_native_tls_alloc (&thread_exited_key, (void *) thread_exited_dtor);
 #endif
-
 	g_assert (res);
 
 #ifndef HAVE_KW_THREAD
@@ -800,6 +799,10 @@ is_thread_in_critical_region (MonoThreadInfo *info)
 	/* Are we inside a system critical region? */
 	if (info->inside_critical_region)
 		return TRUE;
+
+	if (threads_callbacks.mono_thread_in_critical_region && threads_callbacks.mono_thread_in_critical_region (info)) {
+		return TRUE;
+	}
 
 	/* Are we inside a GC critical region? */
 	if (threads_callbacks.mono_thread_in_critical_region && threads_callbacks.mono_thread_in_critical_region (info)) {

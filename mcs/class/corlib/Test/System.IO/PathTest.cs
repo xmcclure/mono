@@ -173,10 +173,9 @@ namespace MonoTests.System.IO
 			Assert.AreEqual ("one", testPath, "Combine #03");
 
 			string current = Directory.GetCurrentDirectory ();
-			bool currentIsDSC = current.Length == 1 && current [0] == DSC;
 			testPath = Path.Combine (current, "one");
 
-			string expected = (currentIsDSC ? String.Empty : current) + DSC + "one";
+			string expected = current + DSC + "one";
 			Assert.AreEqual (expected, testPath, "Combine #04");
 
 			testPath = Path.Combine ("one", current);
@@ -485,9 +484,9 @@ namespace MonoTests.System.IO
 		public void GetFullPath ()
 		{
 			string current = Directory.GetCurrentDirectory ();
-			bool currentIsDSC = current.Length == 1 && current [0] == DSC;
+
 			string testFullPath = Path.GetFullPath ("foo.txt");
-			string expected = (currentIsDSC ? String.Empty : current) + DSC + "foo.txt";
+			string expected = current + DSC + "foo.txt";
 			Assert.AreEqual (expected, testFullPath, "GetFullPath #01");
 
 			testFullPath = Path.GetFullPath ("a//./.././foo.txt");

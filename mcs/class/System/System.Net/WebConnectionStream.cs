@@ -641,8 +641,7 @@ namespace System.Net
 			if (setInternalLength && !no_writestream && writeBuffer != null)
 				request.InternalContentLength = writeBuffer.Length;
 
-			bool has_content = !no_writestream && (writeBuffer == null || request.ContentLength > -1);
-			if (!(sendChunked || has_content || no_writestream || webdav))
+			if (!(sendChunked || request.ContentLength > -1 || no_writestream || webdav))
 				return false;
 
 			headersSent = true;

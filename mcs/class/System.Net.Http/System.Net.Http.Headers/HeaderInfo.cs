@@ -134,11 +134,9 @@ namespace System.Net.Http.Headers
 			this.HeaderKind = headerKind;
 		}
 
-		public static HeaderInfo CreateSingle<T> (string name, TryParseDelegate<T> parser, HttpHeaderKind headerKind, Func<object, string> toString = null)
+		public static HeaderInfo CreateSingle<T> (string name, TryParseDelegate<T> parser, HttpHeaderKind headerKind)
 		{
-			return new HeaderTypeInfo<T, object> (name, parser, headerKind) {
-				CustomToString = toString
-			};
+			return new HeaderTypeInfo<T, object> (name, parser, headerKind);
 		}
 
 		//
@@ -152,10 +150,6 @@ namespace System.Net.Http.Headers
 		public object CreateCollection (HttpHeaders headers)
 		{
 			return CreateCollection (headers, this);
-		}
-
-		public Func<object, string> CustomToString {
-			get; private set;
 		}
 
 		public virtual string Separator {

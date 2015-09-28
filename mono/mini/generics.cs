@@ -711,7 +711,6 @@ class Tests
 		return 0;
 	}
 
-	[Category ("GSHAREDVT")]
 	public static int test_6_partial_sharing_linq () {
 		var messages = new List<Message> ();
 
@@ -950,7 +949,6 @@ class Tests
 	}
 
 	// #2155
-	[Category ("GSHAREDVT")]
 	public static int test_0_fullaot_sflda_cctor () {
 		List<Doc> documents = new List<Doc>();
 		documents.Add(new Doc { Name = "Doc1", Type = DocType.One } );

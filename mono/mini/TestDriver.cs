@@ -2,7 +2,6 @@ using System;
 using System.Reflection;
 using System.Collections.Generic;
 
-[AttributeUsageAttribute(AttributeTargets.All, Inherited = true, AllowMultiple = true)]
 public class CategoryAttribute : Attribute
 {
 	public CategoryAttribute (string category) {

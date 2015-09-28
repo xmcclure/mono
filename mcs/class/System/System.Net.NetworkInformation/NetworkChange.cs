@@ -404,15 +404,13 @@ namespace System.Net.NetworkInformation {
 		void OnAvailabilityChanged (object unused)
 		{
 			NetworkAvailabilityChangedEventHandler d = AvailabilityChanged;
-			if (d != null)
-				d (null, new NetworkAvailabilityEventArgs (GetAvailability ()));
+			d (null, new NetworkAvailabilityEventArgs (GetAvailability ()));
 		}
 
 		void OnAddressChanged (object unused)
 		{
 			NetworkAddressChangedEventHandler d = AddressChanged;
-			if (d != null)
-				d (null, EventArgs.Empty);
+			d (null, EventArgs.Empty);
 		}
 
 		void OnEventDue (object unused)
@@ -442,10 +440,8 @@ namespace System.Net.NetworkInformation {
 
 		unsafe void OnDataAvailable (object sender, SocketAsyncEventArgs args)
 		{
-			if (nl_sock == null) // Recent changes in Mono cause MaybeCloseSocket to be called before OnDataAvailable
-				return;
 			EventType type;
-			fixed (byte *ptr = args.Buffer) {
+			fixed (byte *ptr = args.Buffer) {	
 				type = ReadEvents (nl_sock.Handle, new IntPtr (ptr), args.BytesTransferred, 8192);
 			}
 			nl_sock.ReceiveAsync (nl_args);

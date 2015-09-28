@@ -411,7 +411,10 @@ namespace System.Globalization
 		public override bool Equals (object value)
 		{
 			CultureInfo b = value as CultureInfo;
-			return b != null && b.cultureID == cultureID && b.m_name == m_name;
+			
+			if (b != null)
+				return b.cultureID == cultureID;
+			return false;
 		}
 
 		public static CultureInfo[] GetCultures(CultureTypes types)
@@ -816,15 +819,8 @@ namespace System.Globalization
 			CultureInfo ci = new CultureInfo ();
 
 			if (!ci.construct_internal_locale_from_name (name)) {
-				int idx = name.Length - 1;
-				if (idx > 0) {
-					while ((idx = name.LastIndexOf ('-', idx - 1)) > 0) {
-						if (ci.construct_internal_locale_from_name (name.Substring (0, idx)))
-							break;
-					}
-				}
-
-				if (idx <= 0)
+				int idx = name.IndexOf ('-');
+				if (idx < 1 || !ci.construct_internal_locale_from_name (name.Substring (0, idx)))
 					throw CreateNotFoundException (src_name);
 			}
 

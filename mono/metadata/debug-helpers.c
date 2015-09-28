@@ -82,11 +82,9 @@ append_class_name (GString *res, MonoClass *class, gboolean include_namespace)
 		append_class_name (res, class->nested_in, include_namespace);
 		g_string_append_c (res, '/');
 	}
-	if (include_namespace && *(class->name_space)) {
-		g_string_append (res, class->name_space);
-		g_string_append_c (res, '.');
-	}
-	g_string_append (res, class->name);
+	if (include_namespace && *(class->name_space))
+		g_string_append_printf (res, "%s.", class->name_space);
+	g_string_append_printf (res, "%s", class->name);
 }
 
 static MonoClass*
@@ -750,29 +748,18 @@ mono_field_full_name (MonoClassField *field)
 }
 
 char *
-mono_method_get_name_full (MonoMethod *method, gboolean signature, MonoTypeNameFormat format)
+mono_method_full_name (MonoMethod *method, gboolean signature)
 {
 	char *res;
 	char wrapper [64];
-	char *klass_desc;
+	char *klass_desc = mono_type_full_name (&method->klass->byval_arg);
 	char *inst_desc = NULL;
-
-	if (format == MONO_TYPE_NAME_FORMAT_IL)
-		klass_desc = mono_type_full_name (&method->klass->byval_arg);
-	else
-		klass_desc = mono_type_get_name_full (&method->klass->byval_arg, format);
 
 	if (method->is_inflated && ((MonoMethodInflated*)method)->context.method_inst) {
 		GString *str = g_string_new ("");
-		if (format == MONO_TYPE_NAME_FORMAT_IL)
-			g_string_append (str, "<");
-		else
-			g_string_append (str, "[");
+		g_string_append (str, "<");
 		ginst_get_desc (str, ((MonoMethodInflated*)method)->context.method_inst);
-		if (format == MONO_TYPE_NAME_FORMAT_IL)
-			g_string_append_c (str, '>');
-		else
-			g_string_append_c (str, ']');
+		g_string_append (str, ">");
 
 		inst_desc = str->str;
 		g_string_free (str, FALSE);
@@ -780,15 +767,9 @@ mono_method_get_name_full (MonoMethod *method, gboolean signature, MonoTypeNameF
 		MonoGenericContainer *container = mono_method_get_generic_container (method);
 
 		GString *str = g_string_new ("");
-		if (format == MONO_TYPE_NAME_FORMAT_IL)
-			g_string_append (str, "<");
-		else
-			g_string_append (str, "[");
+		g_string_append (str, "<");
 		ginst_get_desc (str, container->context.method_inst);
-		if (format == MONO_TYPE_NAME_FORMAT_IL)
-			g_string_append_c (str, '>');
-		else
-			g_string_append_c (str, ']');
+		g_string_append (str, ">");
 
 		inst_desc = str->str;
 		g_string_free (str, FALSE);
@@ -818,12 +799,6 @@ mono_method_get_name_full (MonoMethod *method, gboolean signature, MonoTypeNameF
 	g_free (inst_desc);
 
 	return res;
-}
-
-char *
-mono_method_full_name (MonoMethod *method, gboolean signature)
-{
-	return mono_method_get_name_full (method, signature, MONO_TYPE_NAME_FORMAT_IL);
 }
 
 static const char*

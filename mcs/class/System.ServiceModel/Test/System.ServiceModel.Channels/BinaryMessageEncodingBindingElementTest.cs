@@ -36,8 +36,6 @@ using System.Text;
 using System.Xml;
 using NUnit.Framework;
 
-using MonoTests.Helpers;
-
 using Element = System.ServiceModel.Channels.BinaryMessageEncodingBindingElement;
 
 namespace MonoTests.System.ServiceModel.Channels
@@ -193,15 +191,14 @@ namespace MonoTests.System.ServiceModel.Channels
 			var bindingsvc = new CustomBinding (new BindingElement [] {
 				new BinaryMessageEncodingBindingElement (),
 				new TcpTransportBindingElement () });
-			int port = NetworkHelpers.FindFreePort ();
-			host.AddServiceEndpoint (typeof (IFoo), bindingsvc, "net.tcp://localhost:" + port + "/");
+			host.AddServiceEndpoint (typeof (IFoo), bindingsvc, "net.tcp://localhost:37564/");
 			host.Description.Behaviors.Find<ServiceBehaviorAttribute> ().IncludeExceptionDetailInFaults = true;
 			host.Open (TimeSpan.FromSeconds (5));
 			try {
 				for (int i = 0; i < 2; i++) {
 					var bindingcli = new NetTcpBinding ();
 					bindingcli.Security.Mode = SecurityMode.None;
-					var cli = new ChannelFactory<IFooClient> (bindingcli, new EndpointAddress ("net.tcp://localhost:" + port + "/")).CreateChannel ();
+					var cli = new ChannelFactory<IFooClient> (bindingcli, new EndpointAddress ("net.tcp://localhost:37564/")).CreateChannel ();
 					Assert.AreEqual ("test for echo", cli.Echo ("TEST FOR ECHO"), "#1");
 					var sid = cli.SessionId;
 					Assert.AreEqual (3000, cli.Add (1000, 2000), "#2");
@@ -210,7 +207,7 @@ namespace MonoTests.System.ServiceModel.Channels
 				}
 			} finally {
 				host.Close (TimeSpan.FromSeconds (5));
-				var t = new TcpListener (port);
+				var t = new TcpListener (37564);
 				t.Start ();
 				t.Stop ();
 			}
@@ -223,8 +220,7 @@ namespace MonoTests.System.ServiceModel.Channels
 			var bindingsvc = new CustomBinding (new BindingElement [] {
 				new BinaryMessageEncodingBindingElement (),
 				new HttpTransportBindingElement () });
-			int port = NetworkHelpers.FindFreePort ();
-			host.AddServiceEndpoint (typeof (IFoo), bindingsvc, "http://localhost:" + port + "/");
+			host.AddServiceEndpoint (typeof (IFoo), bindingsvc, "http://localhost:37564/");
 			host.Description.Behaviors.Find<ServiceBehaviorAttribute> ().IncludeExceptionDetailInFaults = true;
 			host.Open (TimeSpan.FromSeconds (5));
 			try {
@@ -232,7 +228,7 @@ namespace MonoTests.System.ServiceModel.Channels
 					var bindingcli = new CustomBinding (new BindingElement [] {
 						new BinaryMessageEncodingBindingElement (),
 						new HttpTransportBindingElement () });
-					var cli = new ChannelFactory<IFooClient> (bindingcli, new EndpointAddress ("http://localhost:" + port + "/")).CreateChannel ();
+					var cli = new ChannelFactory<IFooClient> (bindingcli, new EndpointAddress ("http://localhost:37564/")).CreateChannel ();
 					Assert.AreEqual ("test for echo", cli.Echo ("TEST FOR ECHO"), "#1");
 					var sid = cli.SessionId;
 					Assert.AreEqual (3000, cli.Add (1000, 2000), "#2");
@@ -241,7 +237,7 @@ namespace MonoTests.System.ServiceModel.Channels
 				}
 			} finally {
 				host.Close (TimeSpan.FromSeconds (5));
-				var t = new TcpListener (port);
+				var t = new TcpListener (37564);
 				t.Start ();
 				t.Stop ();
 			}

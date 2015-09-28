@@ -25,6 +25,7 @@
 #include "metadata/appdomain.h"
 #include "mono/metadata/abi-details.h"
 #include "mono/metadata/debug-helpers.h"
+#include "mono/metadata/threadpool.h"
 #include "mono/metadata/threads.h"
 #include "mono/metadata/monitor.h"
 #include "mono/metadata/metadata-internals.h"
@@ -37,7 +38,6 @@
 #include "mono/metadata/cominterop.h"
 #include "mono/metadata/remoting.h"
 #include "mono/metadata/reflection-internals.h"
-#include "mono/metadata/threadpool-ms.h"
 #include "mono/utils/mono-counters.h"
 #include "mono/utils/mono-tls.h"
 #include "mono/utils/mono-memory-model.h"
@@ -2108,7 +2108,7 @@ mono_delegate_begin_invoke (MonoDelegate *delegate, gpointer *params)
 		method = mono_get_delegate_invoke (klass);
 	g_assert (method);
 
-	return mono_threadpool_ms_begin_invoke (mono_domain_get (), (MonoObject*) delegate, method, params);
+	return mono_thread_pool_begin_invoke (mono_domain_get (), (MonoObject*) delegate, method, params);
 }
 
 #ifndef DISABLE_JIT
@@ -2823,7 +2823,7 @@ mono_delegate_end_invoke (MonoDelegate *delegate, gpointer *params)
 	} else
 #endif
 	{
-		res = mono_threadpool_ms_end_invoke (ares, &out_args, &exc);
+		res = mono_thread_pool_end_invoke (ares, &out_args, &exc);
 	}
 
 	if (exc) {
@@ -5680,8 +5680,6 @@ emit_marshal_object (EmitMarshalContext *m, int argnum, MonoType *t,
 			emit_struct_conv (mb, klass, FALSE);
 
 			mono_mb_patch_branch (mb, pos2);
-		} else if (klass == mono_defaults.stringbuilder_class) {
-			// FIXME: What to do here ?
 		} else {
 			/* byval [Out] marshalling */
 

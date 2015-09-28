@@ -38,10 +38,6 @@
 #include <sys/syscall.h>
 #endif
 
-#ifdef HAVE_SYS_PRCTL_H
-#include <sys/prctl.h>
-#endif
-
 #include <mono/metadata/appdomain.h>
 #include <mono/metadata/tabledefs.h>
 #include <mono/metadata/threads.h>
@@ -451,9 +447,6 @@ mono_find_jit_info_ext (MonoDomain *domain, MonoJitTlsData *jit_tls,
 	return TRUE;
 }
 
-/*
- * This function is async-safe.
- */
 static gpointer
 get_generic_info_from_stack_frame (MonoJitInfo *ji, MonoContext *ctx)
 {
@@ -618,6 +611,50 @@ mono_exception_walk_trace (MonoException *ex, MonoExceptionFrameWalk func, gpoin
 	return len > 0;
 }
 
+MonoString *
+ves_icall_System_Exception_get_trace (MonoException *ex)
+{
+	MonoDomain *domain = mono_domain_get ();
+	MonoString *res;
+	MonoArray *ta = ex->trace_ips;
+	int i, len;
+	GString *trace_str;
+
+	if (ta == NULL)
+		/* Exception is not thrown yet */
+		return NULL;
+
+	len = mono_array_length (ta) >> 1;
+	trace_str = g_string_new ("");
+	for (i = 0; i < len; i++) {
+		MonoJitInfo *ji;
+		gpointer ip = mono_array_get (ta, gpointer, i * 2 + 0);
+		gpointer generic_info = mono_array_get (ta, gpointer, i * 2 + 1);
+
+		ji = mono_jit_info_table_find (domain, ip);
+		if (ji == NULL) {
+			/* Unmanaged frame */
+			g_string_append_printf (trace_str, "in (unmanaged) %p\n", ip);
+		} else {
+			gchar *location;
+			gint32 address;
+			MonoMethod *method = get_method_from_stack_frame (ji, generic_info);
+
+			address = (char *)ip - (char *)ji->code_start;
+			location = mono_debug_print_stack_frame (
+				method, address, ex->object.vtable->domain);
+
+			g_string_append_printf (trace_str, "%s\n", location);
+			g_free (location);
+		}
+	}
+
+	res = mono_string_new (ex->object.vtable->domain, trace_str->str);
+	g_string_free (trace_str, TRUE);
+
+	return res;
+}
+
 MonoArray *
 ves_icall_get_trace (MonoException *exc, gint32 skip, MonoBoolean need_file_info)
 {
@@ -657,7 +694,7 @@ ves_icall_get_trace (MonoException *exc, gint32 skip, MonoBoolean need_file_info
 			char *s;
 
 			sf->method = NULL;
-			s = mono_method_get_name_full (method, TRUE, MONO_TYPE_NAME_FORMAT_REFLECTION);
+			s = mono_method_full_name (method, TRUE);
 			MONO_OBJECT_SETREF (sf, internal_method_name, mono_string_new (domain, s));
 			g_free (s);
 		}
@@ -1147,6 +1184,9 @@ build_native_trace (void)
 		trace_ips = g_list_reverse (trace_ips);	\
 		MONO_OBJECT_SETREF (mono_ex, trace_ips, glist_to_array (trace_ips, mono_defaults.int_class));	\
 		MONO_OBJECT_SETREF (mono_ex, native_trace_ips, build_native_trace ());	\
+		if (has_dynamic_methods)	\
+			/* These methods could go away anytime, so compute the stack trace now */	\
+			MONO_OBJECT_SETREF (mono_ex, stack_trace, ves_icall_System_Exception_get_trace (mono_ex));	\
 	}	\
 	g_list_free (trace_ips);	\
 	trace_ips = NULL;	\
@@ -1516,17 +1556,18 @@ mono_handle_exception_internal (MonoContext *ctx, gpointer obj, gboolean resume,
 			gboolean unhandled = FALSE;
 
 			/*
-			 * The exceptions caught by the mono_runtime_invoke () calls
-			 * in the threadpool needs to be treated as unhandled (#669836).
-			 *
-			 * FIXME: The check below is hackish, but its hard to distinguish
-			 * these runtime invoke calls from others in the runtime.
+			 * The exceptions caught by the mono_runtime_invoke () calls in mono_async_invoke () needs to be treated as
+			 * unhandled (#669836).
+			 * FIXME: The check below is hackish, but its hard to distinguish these runtime invoke calls from others
+			 * in the runtime.
 			 */
 			if (ji && jinfo_get_method (ji)->wrapper_type == MONO_WRAPPER_RUNTIME_INVOKE) {
-				if (prev_ji && jinfo_get_method (prev_ji) == mono_defaults.threadpool_perform_wait_callback_method)
-					unhandled = TRUE;
+				if (prev_ji) {
+					MonoInternalThread *thread = mono_thread_internal_current ();
+					if (jinfo_get_method (prev_ji) == thread->async_invoke_method)
+						unhandled = TRUE;
+				}
 			}
-
 			if (unhandled)
 				mono_debugger_agent_handle_exception (obj, ctx, NULL);
 			else
@@ -2173,15 +2214,7 @@ mono_handle_native_sigsegv (int signal, void *ctx, MONO_SIG_HANDLER_INFO_TYPE *i
 		 * it will deadlock. Call the syscall directly instead.
 		 */
 		pid = mono_runtime_syscall_fork ();
-#if defined (HAVE_PRCTL) && defined(PR_SET_PTRACER)
-		if (pid > 0) {
-			// Allow gdb to attach to the process even if ptrace_scope sysctl variable is set to
-			// a value other than 0 (the most permissive ptrace scope). Most modern Linux
-			// distributions set the scope to 1 which allows attaching only to direct children of
-			// the current process
-			prctl (PR_SET_PTRACER, pid, 0, 0, 0);
-		}
-#endif
+
 		if (pid == 0) {
 			dup2 (STDERR_FILENO, STDOUT_FILENO);
 

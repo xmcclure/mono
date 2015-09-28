@@ -185,19 +185,14 @@ void ves_icall_System_Threading_Thread_Interrupt_internal (MonoThread *this);
 void ves_icall_System_Threading_Thread_SpinWait_nop (void);
 
 void ves_icall_System_Runtime_Remoting_Contexts_Context_RegisterContext (MonoAppContext *ctx);
-void ves_icall_System_Runtime_Remoting_Contexts_Context_ReleaseContext (MonoAppContext *ctx);
 
 MonoInternalThread *mono_thread_internal_current (void);
-
-void mono_thread_internal_check_for_interruption_critical (MonoInternalThread *thread);
 
 void mono_thread_internal_stop (MonoInternalThread *thread);
 
 gboolean mono_thread_internal_has_appdomain_ref (MonoInternalThread *thread, MonoDomain *domain);
 
 void mono_thread_internal_reset_abort (MonoInternalThread *thread);
-
-void mono_thread_internal_unhandled_exception (MonoObject* exc);
 
 void mono_alloc_special_static_data_free (GHashTable *special_static_fields);
 void mono_thread_current_check_pending_interrupt (void);

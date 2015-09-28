@@ -37,6 +37,7 @@
 #include <mono/metadata/object.h>
 #include <mono/metadata/threads.h>
 #include <mono/metadata/threads-types.h>
+#include <mono/metadata/threadpool.h>
 #include <mono/metadata/threadpool-ms.h>
 #include <mono/metadata/threadpool-ms-io.h>
 #include <mono/metadata/monitor.h>
@@ -2025,14 +2026,6 @@ fill_iface_array (gpointer key, gpointer value, gpointer user_data)
 		mono_metadata_free_type (inflated);
 }
 
-static guint
-get_interfaces_hash (gconstpointer v1)
-{
-	MonoClass *k = (MonoClass*)v1;
-
-	return k->type_token;
-}
-
 ICALL_EXPORT MonoArray*
 ves_icall_Type_GetInterfaces (MonoReflectionType* type)
 {
@@ -2042,7 +2035,7 @@ ves_icall_Type_GetInterfaces (MonoReflectionType* type)
 	FillIfaceArrayData data = { 0 };
 	int len;
 
-	GHashTable *iface_hash = g_hash_table_new (get_interfaces_hash, NULL);
+	GHashTable *iface_hash = g_hash_table_new (NULL, NULL);
 
 	if (class->generic_class && class->generic_class->context.class_inst->is_open) {
 		data.context = mono_class_get_context (class);
@@ -4911,7 +4904,7 @@ mono_module_get_types (MonoDomain *domain, MonoImage *image, MonoArray **excepti
 		if (!exportedOnly || mono_module_type_is_visible (tdef, image, i + 1)) {
 			MonoError error;
 			klass = mono_class_get_checked (image, (i + 1) | MONO_TOKEN_TYPE_DEF, &error);
-			mono_loader_assert_no_error (); /* Plug any leaks */
+			g_assert (!mono_loader_get_last_error ()); /* Plug any leaks */
 			
 			if (klass) {
 				mono_array_setref (res, count, mono_type_get_object (domain, &klass->byval_arg));
@@ -5610,12 +5603,6 @@ ves_icall_System_Delegate_AllocDelegateLike_internal (MonoDelegate *delegate)
 	return ret;
 }
 
-ICALL_EXPORT MonoReflectionMethod*
-ves_icall_System_Delegate_GetVirtualMethod_internal (MonoDelegate *delegate)
-{
-	return mono_method_get_object (mono_domain_get (), mono_object_get_virtual_method (delegate->target, delegate->method), mono_object_class (delegate->target));
-}
-
 /* System.Buffer */
 
 static inline gint32 
@@ -5682,13 +5669,6 @@ ICALL_EXPORT MonoBoolean
 ves_icall_System_Buffer_BlockCopyInternal (MonoArray *src, gint32 src_offset, MonoArray *dest, gint32 dest_offset, gint32 count) 
 {
 	guint8 *src_buf, *dest_buf;
-
-	if (count < 0) {
-		mono_set_pending_exception (mono_get_exception_argument ("count", "is negative"));
-		return FALSE;
-	}
-
-	g_assert (count >= 0);
 
 	/* This is called directly from the class libraries without going through the managed wrapper */
 	MONO_CHECK_ARG_NULL (src, FALSE);

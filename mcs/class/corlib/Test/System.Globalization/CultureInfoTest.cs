@@ -171,21 +171,6 @@ namespace MonoTests.System.Globalization
 
 			ci = CultureInfo.CreateSpecificCulture ("");
 			Assert.AreEqual (CultureInfo.InvariantCulture, ci, "#5");
-
-			ci = CultureInfo.CreateSpecificCulture ("zh-hant");
-			Assert.AreEqual ("zh-HK", ci.Name, "#6");
-
-			ci = CultureInfo.CreateSpecificCulture ("zh-hans");
-			Assert.AreEqual ("zh-CN", ci.Name, "#7");
-
-			ci = CultureInfo.CreateSpecificCulture ("zh-hans-CN");
-			Assert.AreEqual ("zh-CN", ci.Name, "#8");
-
-			ci = CultureInfo.CreateSpecificCulture ("zh-hant-US");
-			Assert.AreEqual ("zh-HK", ci.Name, "#9");
-
-			ci = CultureInfo.CreateSpecificCulture ("az-CyrlM-BR");
-			Assert.AreEqual ("az-Latn-AZ", ci.Name, "#10");
 		}
 
 		[Test]
@@ -638,16 +623,6 @@ namespace MonoTests.System.Globalization
 			// and it's international settings set for Hong Kong
 			// https://bugzilla.xamarin.com/show_bug.cgi?id=3471
 			new CultureInfo ("en-HK");
-		}
-
-		[Test]
-		public void ChineseSimplifiedDontEqual ()
-		{
-			CultureInfo zh1 = new CultureInfo ("zh-Hans");
-			CultureInfo zh2 = new CultureInfo ("zh-CHS");
-
-			Assert.IsFalse (zh1.Equals (zh2), "#1");
-			Assert.IsFalse (zh2.Equals (zh1), "#2");
 		}
 
 #if NET_4_5

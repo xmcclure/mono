@@ -55,7 +55,7 @@ br: len:16
 switch: src1:i len:12
 # See the comment in resume_from_signal_handler, we can't copy the fp regs from sigctx to MonoContext on linux,
 # since the corresponding sigctx structures are not well defined.
-seq_point: len:52 clob:c
+seq_point: len:38 clob:c
 il_seq_point: len:0
 
 throw: src1:i len:24
@@ -204,7 +204,6 @@ float_cle: dest:y src1:f src2:f len:20
 float_conv_to_u: dest:i src1:f len:36
 
 # R4 opcodes
-rmove: dest:f src1:f len:4
 r4_conv_to_i1: dest:i src1:f len:88
 r4_conv_to_i2: dest:i src1:f len:88
 r4_conv_to_i4: dest:i src1:f len:88
@@ -358,7 +357,7 @@ long_conv_to_ovf_i4_2: dest:i src1:i src2:i len:36
 vcall2: len:64 clob:c
 vcall2_reg: src1:i len:64 clob:c
 vcall2_membase: src1:b len:64 clob:c
-dyn_call: src1:i src2:i len:136 clob:c
+dyn_call: src1:i src2:i len:120 clob:c
 
 # This is different from the original JIT opcodes
 float_beq: len:32

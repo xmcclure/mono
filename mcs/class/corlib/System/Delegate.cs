@@ -60,7 +60,6 @@ namespace System
 		private object m_target;
 		private IntPtr method;
 		private IntPtr delegate_trampoline;
-		private IntPtr rgctx;
 		private IntPtr method_code;
 		private MethodInfo method_info;
 
@@ -69,8 +68,6 @@ namespace System
 		private MethodInfo original_method_info;
 
 		private DelegateData data;
-
-		private bool method_is_virtual;
 #pragma warning restore 169, 414, 649
 		#endregion
 
@@ -106,18 +103,12 @@ namespace System
 					return method_info;
 				} else {
 					if (method != IntPtr.Zero) {
-						if (!method_is_virtual)
-							method_info = (MethodInfo)MethodBase.GetMethodFromHandleNoGenericCheck (new RuntimeMethodHandle (method));
-						else
-							method_info = GetVirtualMethod_internal ();
+						method_info = (MethodInfo)MethodBase.GetMethodFromHandleNoGenericCheck (new RuntimeMethodHandle (method));
 					}
 					return method_info;
 				}
 			}
 		}
-
-		[MethodImplAttribute (MethodImplOptions.InternalCall)]
-		extern MethodInfo GetVirtualMethod_internal ();
 
 		public object Target {
 			get {
@@ -476,15 +467,13 @@ namespace System
 			return MemberwiseClone ();
 		}
 
-		public override bool Equals (object obj)
+		internal bool Compare (Delegate d)
 		{
-			Delegate d = obj as Delegate;
-
 			if (d == null)
 				return false;
-
+			
 			// Do not compare method_ptr, since it can point to a trampoline
-			if (d.m_target == m_target && d.Method == Method) {
+			if (d.m_target == m_target && d.method == method) {
 				if (d.data != null || data != null) {
 					/* Uncommon case */
 					if (d.data != null && data != null)
@@ -503,10 +492,14 @@ namespace System
 			return false;
 		}
 
+		public override bool Equals (object obj)
+		{
+			return Compare (obj as Delegate);
+		}
+
 		public override int GetHashCode ()
 		{
-			/* same implementation as CoreCLR */
-			return GetType ().GetHashCode ();
+			return method.GetHashCode () ^ (m_target != null ? m_target.GetHashCode () : 0);
 		}
 
 		protected virtual MethodInfo GetMethodImpl ()

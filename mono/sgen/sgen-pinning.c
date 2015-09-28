@@ -180,7 +180,7 @@ sgen_dump_pin_queue (void)
 
 typedef struct _CementHashEntry CementHashEntry;
 struct _CementHashEntry {
-	GCObject *obj;
+	char *obj;
 	unsigned int count;
 };
 
@@ -202,7 +202,7 @@ sgen_cement_reset (void)
 }
 
 gboolean
-sgen_cement_lookup (GCObject *obj)
+sgen_cement_lookup (char *obj)
 {
 	guint hv = sgen_aligned_addr_hash (obj);
 	int i = SGEN_CEMENT_HASH (hv);
@@ -221,7 +221,7 @@ sgen_cement_lookup (GCObject *obj)
 }
 
 gboolean
-sgen_cement_lookup_or_register (GCObject *obj)
+sgen_cement_lookup_or_register (char *obj)
 {
 	guint hv;
 	int i;
@@ -252,7 +252,7 @@ sgen_cement_lookup_or_register (GCObject *obj)
 		SGEN_CEMENT_OBJECT (obj);
 
 		binary_protocol_cement (obj, (gpointer)SGEN_LOAD_VTABLE (obj),
-				(int)sgen_safe_object_get_size (obj));
+				(int)sgen_safe_object_get_size ((GCObject*)obj));
 	}
 
 	return FALSE;

@@ -42,8 +42,6 @@ using NUnit.Framework;
 
 using MonoTests.System.ServiceModel.Channels;
 
-using MonoTests.Helpers;
-
 namespace MonoTests.System.ServiceModel.Security
 {
 	[TestFixture]
@@ -192,7 +190,7 @@ namespace MonoTests.System.ServiceModel.Security
 					sintercept,
 					transport);
 				b_res.ReceiveTimeout = b_res.SendTimeout = TimeSpan.FromSeconds (5);
-				host.AddServiceEndpoint (typeof (ICalc), b_res, "http://localhost:" + NetworkHelpers.FindFreePort ());
+				host.AddServiceEndpoint (typeof (ICalc), b_res, "http://localhost:37564");
 
 				ServiceCredentials cred = new ServiceCredentials ();
 				cred.ServiceCertificate.Certificate = cert;
@@ -225,7 +223,7 @@ namespace MonoTests.System.ServiceModel.Security
 
 			b_req.ReceiveTimeout = b_req.SendTimeout = TimeSpan.FromSeconds (5);
 			EndpointAddress remaddr = new EndpointAddress (
-				new Uri ("http://localhost:" + NetworkHelpers.FindFreePort ()),
+				new Uri ("http://localhost:37564"),
 				new X509CertificateEndpointIdentity (cert));
 			CalcProxy proxy = new CalcProxy (b_req, remaddr);
 			proxy.ClientCredentials.ClientCertificate.Certificate = cert2;

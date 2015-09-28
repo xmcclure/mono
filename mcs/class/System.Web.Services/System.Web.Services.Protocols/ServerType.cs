@@ -207,7 +207,7 @@ namespace System.Web.Services.Protocols
 						soap12Protocol.Initialize ();
 					}
 					return soap12Protocol;
-#if !MOBILE && !XAMMAC_4_5
+#if !MOBILE
 				case "HttpGet":
 					if (httpGetProtocol == null){
 						httpGetProtocol = new HttpGetTypeStubInfo (this);

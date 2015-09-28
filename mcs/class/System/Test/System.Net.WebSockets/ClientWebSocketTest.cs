@@ -48,7 +48,6 @@ namespace MonoTests.System.Net.WebSockets
 		}
 
 		[Test]
-		[Category ("MobileNotWorking")] // Fails when ran as part of the entire BCL test suite. Works when only this fixture is ran
 		public void ServerHandshakeReturnCrapStatusCodeTest ()
 		{
 			// On purpose, 
@@ -65,7 +64,6 @@ namespace MonoTests.System.Net.WebSockets
 		}
 
 		[Test]
-		[Category ("MobileNotWorking")] // Fails when ran as part of the entire BCL test suite. Works when only this fixture is ran
 		public void ServerHandshakeReturnWrongUpgradeHeader ()
 		{
 			#pragma warning disable 4014
@@ -84,7 +82,6 @@ namespace MonoTests.System.Net.WebSockets
 		}
 
 		[Test]
-		[Category ("MobileNotWorking")] // Fails when ran as part of the entire BCL test suite. Works when only this fixture is ran
 		public void ServerHandshakeReturnWrongConnectionHeader ()
 		{
 			#pragma warning disable 4014
@@ -105,7 +102,6 @@ namespace MonoTests.System.Net.WebSockets
 		}
 
 		[Test]
-		[Category ("MobileNotWorking")] // The test hangs when ran as part of the entire BCL test suite. Works when only this fixture is ran
 		public void EchoTest ()
 		{
 			const string Payload = "This is a websocket test";
@@ -130,7 +126,6 @@ namespace MonoTests.System.Net.WebSockets
 		}
 
 		[Test]
-		[Category ("MobileNotWorking")] // Fails when ran as part of the entire BCL test suite. Works when only this fixture is ran
 		public void CloseOutputAsyncTest ()
 		{
 			Assert.IsTrue (socket.ConnectAsync (new Uri (EchoServerUrl), CancellationToken.None).Wait (5000));
@@ -147,7 +142,6 @@ namespace MonoTests.System.Net.WebSockets
 		}
 
 		[Test]
-		[Category ("MobileNotWorking")] // Fails when ran as part of the entire BCL test suite. Works when only this fixture is ran
 		public void CloseAsyncTest ()
 		{
 			Assert.IsTrue (socket.ConnectAsync (new Uri (EchoServerUrl), CancellationToken.None).Wait (5000));
@@ -164,7 +158,6 @@ namespace MonoTests.System.Net.WebSockets
 		}
 
 		[Test, ExpectedException (typeof (ArgumentNullException))]
-		[Category ("MobileNotWorking")] // Fails when ran as part of the entire BCL test suite. Works when only this fixture is ran
 		public void SendAsyncArgTest_NoArray ()
 		{
 			Assert.IsTrue (socket.ConnectAsync (new Uri (EchoServerUrl), CancellationToken.None).Wait (5000));
@@ -178,7 +171,6 @@ namespace MonoTests.System.Net.WebSockets
 		}
 
 		[Test, ExpectedException (typeof (ArgumentNullException))]
-		[Category ("MobileNotWorking")] // Fails when ran as part of the entire BCL test suite. Works when only this fixture is ran
 		public void ReceiveAsyncArgTest_NoArray ()
 		{
 			Assert.IsTrue (socket.ConnectAsync (new Uri (EchoServerUrl), CancellationToken.None).Wait (5000));
@@ -186,7 +178,6 @@ namespace MonoTests.System.Net.WebSockets
 		}
 
 		[Test]
-		[Category ("MobileNotWorking")] // Fails when ran as part of the entire BCL test suite. Works when only this fixture is ran
 		public void ReceiveAsyncWrongState_Closed ()
 		{
 			try {
@@ -201,7 +192,6 @@ namespace MonoTests.System.Net.WebSockets
 		}
 
 		[Test]
-		[Category ("MobileNotWorking")] // Fails when ran as part of the entire BCL test suite. Works when only this fixture is ran
 		public void SendAsyncWrongState_Closed ()
 		{
 			try {
@@ -216,7 +206,6 @@ namespace MonoTests.System.Net.WebSockets
 		}
 
 		[Test]
-		[Category ("MobileNotWorking")] // Fails when ran as part of the entire BCL test suite. Works when only this fixture is ran
 		public void SendAsyncWrongState_CloseSent ()
 		{
 			try {

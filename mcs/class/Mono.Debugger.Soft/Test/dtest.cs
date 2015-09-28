@@ -384,52 +384,6 @@ public class DebuggerTests
 	}
 
 	[Test]
-	public void ClassLocalReflection () {
-		MethodMirror m = entry_point.DeclaringType.Assembly.GetType ("LocalReflectClass").GetMethod ("RunMe");
-
-		Assert.IsNotNull (m);
-		//Console.WriteLine ("X: " + name + " " + m.ILOffsets.Count + " " + m.Locations.Count);
-		var offset = -1;
-		int method_base_linum = m.Locations [0].LineNumber;
-		foreach (var location in m.Locations)
-			if (location.LineNumber == method_base_linum + 2) {
-				offset = location.ILOffset;
-				break;
-			}
-
-		var req = vm.SetBreakpoint (m, offset);
-
-		Event e = null;
-
-		while (true) {
-			vm.Resume ();
-			e = GetNextEvent ();
-			if (e is BreakpointEvent)
-				break;
-		}
-
-		req.Disable ();
-
-		Assert.IsInstanceOfType (typeof (BreakpointEvent), e);
-		Assert.AreEqual (m.Name, (e as BreakpointEvent).Method.Name);
-
-		e = single_step (e.Thread);
-
-		var frame = e.Thread.GetFrames ()[0];
-		Value variable = frame.GetValue (frame.Method.GetLocal ("reflectMe"));
-
-		ObjectMirror thisObj = (ObjectMirror)variable;
-		TypeMirror thisType = thisObj.Type;
-		FieldInfoMirror thisFi = null;
-		foreach (var fi in thisType.GetFields ())
-			if (fi.Name == "someField")
-				thisFi = fi;
-
-		var gotVal = thisObj.GetValue (thisFi);
-		// If we got this far, we're good.
-	}
-
-	[Test]
 	public void SingleStepping () {
 		Event e = run_until ("single_stepping");
 
@@ -572,11 +526,7 @@ public class DebuggerTests
 		e = step_over ();
 		assert_location (e, "ss_nested");
 		e = step_into ();
-		assert_location (e, "ss_nested_1");
-		e = step_into ();
-		assert_location (e, "ss_nested_1");
-		e = step_into ();
-		assert_location (e, "ss_nested");
+		assert_location (e, "ss_nested_3");
 		req.Disable ();
 
 		// Check DebuggerStepThrough support
@@ -1565,8 +1515,8 @@ public class DebuggerTests
 		StackFrame frame = e.Thread.GetFrames () [0];
 
 		var locals = frame.Method.GetLocals ();
-		Assert.AreEqual (9, locals.Length);
-		for (int i = 0; i < 9; ++i) {
+		Assert.AreEqual (8, locals.Length);
+		for (int i = 0; i < 8; ++i) {
 			if (locals [i].Name == "args") {
 				Assert.IsTrue (locals [i].IsArg);
 				Assert.AreEqual ("String[]", locals [i].Type.Name);
@@ -1590,7 +1540,6 @@ public class DebuggerTests
 				Assert.IsTrue (locals [i].IsArg);
 				Assert.AreEqual ("String", locals [i].Type.Name);
 			} else if (locals [i].Name == "astruct") {
-			} else if (locals [i].Name == "alist") {
 			} else {
 				Assert.Fail ();
 			}
@@ -1675,8 +1624,6 @@ public class DebuggerTests
 				AssertValue ("AB", vals [i]);
 			if (locals [i].Name == "t")
 				AssertValue ("ABC", vals [i]);
-			if (locals [i].Name == "alist") {
-			}
 		}
 
 		// Argument checking
@@ -2286,12 +2233,6 @@ public class DebuggerTests
 		v = s.InvokeMethod (e.Thread, m, null);
 		AssertValue (42, v);
 
-		// Pass boxed struct as this
-		var boxed_this = t.NewInstance () as ObjectMirror;
-		m = t.GetMethod ("invoke_return_int");
-		v = boxed_this.InvokeMethod (e.Thread, m, null);
-		AssertValue (0, v);
-
 		// Pass struct as this, receive intptr
 		m = t.GetMethod ("invoke_return_intptr");
 		v = s.InvokeMethod (e.Thread, m, null);
@@ -2309,13 +2250,6 @@ public class DebuggerTests
 		v = s.InvokeMethod (e.Thread, m, null);
 		AssertValue (42, v);
 
-		// .ctor
-		s = frame.GetArgument (1) as StructMirror;
-		t = s.Type;
-		m = t.GetMethods ().First (method => method.Name == ".ctor" && method.GetParameters ().Length == 1);
-		v = t.InvokeMethod (e.Thread, m, new Value [] { vm.CreateValue (1) });
-		AssertValue (1, (v as StructMirror)["i"]);
-
 #if NET_4_5
 		// Invoke a method which changes state
 		s = frame.GetArgument (1) as StructMirror;
@@ -2332,17 +2266,6 @@ public class DebuggerTests
 		task = s.InvokeMethodAsyncWithResult (e.Thread, m, null);
 		out_this = task.Result.OutThis as StructMirror;
 		Assert.AreEqual (null, out_this);
-
-		// interface method
-		var cl1 = frame.Method.DeclaringType.Assembly.GetType ("ITest2");
-		m = cl1.GetMethod ("invoke_iface");
-		v = s.InvokeMethod (e.Thread, m, null);
-		AssertValue (42, v);
-
-		// virtual method
-		m = vm.RootDomain.Corlib.GetType ("System.Object").GetMethod ("ToString");
-		v = s.InvokeMethod (e.Thread, m, null, InvokeOptions.Virtual);
-		AssertValue ("42", v);
 #endif
 	}
 
@@ -3317,20 +3240,6 @@ public class DebuggerTests
 		types = vm.GetTypes ("System.Exception", false);
 		Assert.AreEqual (1, types.Count);
 		Assert.AreEqual ("System.Exception", types [0].FullName);
-	}
-
-	[Test]
-	public void String_GetValue () {
-		// Embedded nulls
-		object val;
-
-		// Reuse this test
-		var e = run_until ("arg2");
-
-		var frame = e.Thread.GetFrames () [0];
-
-		val = frame.GetArgument (6);
-		Assert.AreEqual ('\0'.ToString () + "A", (val as StringMirror).Value);
 	}
 
 	[Test]

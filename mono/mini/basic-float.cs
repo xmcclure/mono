@@ -704,12 +704,6 @@ class Tests
 		return (int)(f1 / f2);
 	}
 
-	public static int test_1_frem_r4 () {
-		float f1 = 7.0f;
-		float f2 = 2.0f;
-		return (int)(f1 % f2);
-	}
-
 	public static int test_0_fcmp_eq_r4 () {
 		float f1 = 1.0f;
 		float f2 = 1.0f;
@@ -812,13 +806,5 @@ class Tests
 		short b = (short)a;
 		return b == 127 ? 0 : 1;
 	}
-
-	public static int test_10_rconv_to_u8 () {
-		ulong l = 10;
-		float f = (float)l;
-		l = (ulong)f;
-		return (int)l;
-	}
-
 }
 

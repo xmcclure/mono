@@ -71,7 +71,7 @@ namespace System.Web.Services.Description
 			RegisterExtensionType (typeof (Soap12HeaderBinding));
 			RegisterExtensionType (typeof (Soap12OperationBinding));
 
-#if !MOBILE && !XAMMAC_4_5
+#if !MOBILE
 			/*
 			 * Currently, the mobile profile has not support for
 			 * System.Configuration, so there are no external modules
@@ -164,7 +164,7 @@ namespace System.Web.Services.Description
 		/*
 		 * The mobile profile lacks support for configuration
 		 */
-#if MOBILE || XAMMAC_4_5
+#if MOBILE
 		public static ArrayList BuildExtensionImporters ()
 		{
 			return new ArrayList (0);
