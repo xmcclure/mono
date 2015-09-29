@@ -52,8 +52,7 @@ mobile_common_dirs := \
 	System.Xml.Serialization \
 	Mono.CSharp	\
 	Microsoft.CSharp \
-	Mono.Security.Providers \
-	$(pcl_facade_dirs)
+	Mono.Security.Providers
 
 mobile_static_dirs := \
 	$(mobile_common_dirs)	\
