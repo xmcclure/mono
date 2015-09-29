@@ -1,3 +1,4 @@
+#if NET_4_0
 // 
 // ThreadLazyTests.cs
 //  
@@ -214,3 +215,4 @@ namespace MonoTests.System.Threading
 		}
 	}
 }
+#endif

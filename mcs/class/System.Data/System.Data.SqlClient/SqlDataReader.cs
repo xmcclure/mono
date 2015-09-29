@@ -1406,9 +1406,10 @@ namespace System.Data.SqlClient
 			return (sb);
 		}
 
+		[MonoTODO]
 		public override T GetFieldValue<T> (int i)
 		{
-			return (T)GetValue(i);
+			throw new NotImplementedException ();
 		}
 
 		[MonoTODO]

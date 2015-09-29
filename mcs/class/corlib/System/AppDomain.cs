@@ -1345,9 +1345,6 @@ namespace System {
 				DomainUnload(this, null);
 		}
 
-		[MethodImplAttribute(MethodImplOptions.InternalCall)]
-		internal extern void DoUnhandledException (Exception e);
-
 		internal void DoUnhandledException (UnhandledExceptionEventArgs args) {
 			if (UnhandledException != null)
 				UnhandledException (this, args);

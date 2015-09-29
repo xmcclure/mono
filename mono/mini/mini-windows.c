@@ -50,10 +50,6 @@
 
 #include "jit-icalls.h"
 
-#ifdef _WIN32
-#include <Mmsystem.h>
-#endif
-
 void
 mono_runtime_install_handlers (void)
 {

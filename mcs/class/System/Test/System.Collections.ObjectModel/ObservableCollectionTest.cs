@@ -26,6 +26,7 @@
 //	Marek Safar (marek.safar@gmail.com)
 //
 
+#if NET_4_0
 
 using System.Collections.ObjectModel;
 using System.Collections.Specialized;
@@ -348,3 +349,4 @@ namespace MonoTests.System.Collections.ObjectModel {
 	}
 }
 
+#endif

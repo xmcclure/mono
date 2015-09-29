@@ -68,7 +68,6 @@ using System.Threading.Tasks;
 using Mono.Net.Security;
 
 namespace System.Net.Mail {
-	[Obsolete ("SmtpClient and its network of types are poorly designed, we strongly recommend you use https://github.com/jstedfast/MailKit and https://github.com/jstedfast/MimeKit instead")]
 	public class SmtpClient
 	: IDisposable
 	{
@@ -592,13 +591,10 @@ namespace System.Net.Mail {
 			
 			// FIXME: parse the list of extensions so we don't bother wasting
 			// our time trying commands if they aren't supported.
-			
-			// Get the FQDN of the local machine
-			string fqdn = Dns.GetHostEntry (Dns.GetHostName ()).HostName;
-			status = SendCommand ("EHLO " + fqdn);
+			status = SendCommand ("EHLO " + Dns.GetHostName ());
 			
 			if (IsError (status)) {
-				status = SendCommand ("HELO " + fqdn);
+				status = SendCommand ("HELO " + Dns.GetHostName ());
 				
 				if (IsError (status))
 					throw new SmtpException (status.StatusCode, status.Description);
@@ -615,10 +611,10 @@ namespace System.Net.Mail {
 				ResetExtensions();
 				writer = new StreamWriter (stream);
 				reader = new StreamReader (stream);
-				status = SendCommand ("EHLO " + fqdn);
+				status = SendCommand ("EHLO " + Dns.GetHostName ());
 			
 				if (IsError (status)) {
-					status = SendCommand ("HELO " + fqdn);
+					status = SendCommand ("HELO " + Dns.GetHostName ());
 				
 					if (IsError (status))
 						throw new SmtpException (status.StatusCode, status.Description);
@@ -756,7 +752,7 @@ namespace System.Net.Mail {
 
 		static void SendMailAsyncCompletedHandler (TaskCompletionSource<object> source, AsyncCompletedEventArgs e, SendCompletedEventHandler handler, SmtpClient client)
 		{
-			if (source != e.UserState)
+			if ((object) handler != e.UserState)
 				return;
 
 			client.SendCompleted -= handler;

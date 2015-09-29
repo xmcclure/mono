@@ -9,54 +9,86 @@ class StackTraceDumper {
 			throw new Exception ("Stacktrace with 1 frame");
 		} catch (Exception e) {
 			Console.WriteLine (e);
-			Console.WriteLine ("Stacktrace:");
-			Console.WriteLine (new System.Diagnostics.StackTrace(e));
 		}
 
-		Catch (() => {throw new Exception ("Stacktrace with 2 frames");});
+		try {
+			ThrowException ("Stacktrace with 2 frames");
+		} catch (Exception e) {
+			Console.WriteLine (e);
+		}
 
-		Catch (() => ThrowException ("Stacktrace with 3 frames", 1));
+		try {
+			ThrowException ("Stacktrace with 3 frames", 2);
+		} catch (Exception e) {
+			Console.WriteLine (e);
+		}
 
-		Catch (() => ThrowException ("Stacktrace with 4 frames", 2));
-
-		Catch (() => {
+		try {
 			var message = "Stack frame with method overload using ref parameter";
 			ThrowException (ref message);
-		});
+		} catch (Exception e) {
+			Console.WriteLine (e);
+		}
 
-		Catch (() => {
+		try {
 			int i;
 			ThrowException ("Stack frame with method overload using out parameter", out i);
-		});
-
-		Catch (() => ThrowExceptionGeneric<double> ("Stack frame with 1 generic parameter"));
-
-		Catch (() => ThrowExceptionGeneric<double,string> ("Stack frame with 2 generic parameters"));
-
-		Catch (() => ThrowExceptionGeneric (12));
-
-		Catch (() => InnerClass.ThrowException ("Stack trace with inner class"));
-
-		Catch (() => InnerGenericClass<string>.ThrowException ("Stack trace with inner generic class"));
-
-		Catch (() => InnerGenericClass<string>.ThrowException ("Stack trace with inner generic class and method generic parameter", "string"));
-
-		Catch (() => InnerGenericClass<string>.ThrowException<string> ("Stack trace with inner generic class and generic overload", "string"));
-
-		Catch (() => InnerGenericClass<string>.InnerInnerGenericClass<int>.ThrowException ("Stack trace with 2 inner generic class and generic overload"));
-
-		Catch (() => InnerGenericClass<int>.InnerInnerGenericClass<string>.ThrowException ("Stack trace with 2 inner generic class and generic overload"));
-	}
-
-	public static void Catch (Action action)
-	{
-		try {
-			action ();
 		} catch (Exception e) {
-			Console.WriteLine();
 			Console.WriteLine (e);
-			Console.WriteLine ("Stacktrace:");
-			Console.WriteLine (new System.Diagnostics.StackTrace (e));
+		}
+
+		try {
+			ThrowExceptionGeneric<double> ("Stack frame with 1 generic parameter");
+		} catch (Exception e) {
+			Console.WriteLine (e);
+		}
+
+		try {
+			ThrowExceptionGeneric<double,string> ("Stack frame with 2 generic parameters");
+		} catch (Exception e) {
+			Console.WriteLine (e);
+		}
+
+		try {
+			ThrowExceptionGeneric (12);
+		} catch (Exception e) {
+			Console.WriteLine (e);
+		}
+
+		try {
+			InnerClass.ThrowException ("Stack trace with inner class");
+		} catch (Exception e) {
+			Console.WriteLine (e);
+		}
+
+		try {
+			InnerGenericClass<string>.ThrowException ("Stack trace with inner generic class");
+		} catch (Exception e) {
+			Console.WriteLine (e);
+		}
+
+		try {
+			InnerGenericClass<string>.ThrowException ("Stack trace with inner generic class and method generic parameter", "string");
+		} catch (Exception e) {
+			Console.WriteLine (e);
+		}
+
+		try {
+			InnerGenericClass<string>.ThrowException<string> ("Stack trace with inner generic class and generic overload", "string");
+		} catch (Exception e) {
+			Console.WriteLine (e);
+		}
+
+		try {
+			InnerGenericClass<string>.InnerInnerGenericClass<int>.ThrowException ("Stack trace with 2 inner generic class and generic overload");
+		} catch (Exception e) {
+			Console.WriteLine (e);
+		}
+
+		try {
+			InnerGenericClass<int>.InnerInnerGenericClass<string>.ThrowException ("Stack trace with 2 inner generic class and generic overload");
+		} catch (Exception e) {
+			Console.WriteLine (e);
 		}
 	}
 

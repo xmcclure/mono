@@ -23,6 +23,7 @@
 // OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 // WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 //
+#if NET_4_0
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -74,7 +75,11 @@ namespace MonoTests.System.Web.Util
 	[TestFixture]
 	public class HttpEncoderTest
 	{
+#if NET_4_0
 		const string notEncoded = "!()*-._";
+#else
+		const string notEncoded = "!'()*-._";
+#endif
 		static char [] hexChars = "0123456789abcdef".ToCharArray ();
 
 		[Test]
@@ -407,3 +412,4 @@ namespace MonoTests.System.Web.Util
 		#endregion
 	}
 }
+#endif

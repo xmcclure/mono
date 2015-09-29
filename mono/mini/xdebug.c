@@ -27,7 +27,7 @@
 #include <glib.h>
 #include "mini.h"
 
-#if !defined(DISABLE_AOT) && !defined(DISABLE_JIT) && USE_BIN_WRITER
+#if !defined(DISABLE_AOT) && !defined(DISABLE_JIT)
 #include <sys/types.h>
 #ifdef HAVE_UNISTD_H
 #include <unistd.h>

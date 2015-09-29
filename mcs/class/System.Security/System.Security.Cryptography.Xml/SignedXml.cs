@@ -691,12 +691,6 @@ namespace System.Security.Cryptography.Xml {
 			if (xel == null) {
 				// search an "undefined" ID
 				xel = (XmlElement) document.SelectSingleNode ("//*[@Id='" + idValue + "']");
-				if (xel == null) {
-					xel = (XmlElement) document.SelectSingleNode ("//*[@ID='" + idValue + "']");
-					if (xel == null) {
-						xel = (XmlElement) document.SelectSingleNode ("//*[@id='" + idValue + "']");
-					}
-				}
 			}
 			return xel;
 		}

@@ -336,7 +336,6 @@ MONO_SIG_HANDLER_FUNC (static, sigwinch_handler)
 static void
 console_set_signal_handlers ()
 {
-#if defined(HAVE_SIGACTION)
 	struct sigaction sigcont, sigint, sigwinch;
 
 	memset (&sigcont, 0, sizeof (struct sigaction));
@@ -360,7 +359,6 @@ console_set_signal_handlers ()
 	sigwinch.sa_flags = 0;
 	sigemptyset (&sigwinch.sa_mask);
 	sigaction (SIGWINCH, &sigwinch, &save_sigwinch);
-#endif
 }
 
 #if currently_unuused

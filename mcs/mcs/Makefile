@@ -12,8 +12,6 @@ EXTRA_DISTFILES = \
 	cs-parser.jay		\
 	mcs.exe.sources
 
-LIB_REFS = System System.Core System.Xml
-
 ifeq (basic, $(PROFILE))
 PROGRAM = basic.exe
 sourcefile = mcs.exe.sources

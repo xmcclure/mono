@@ -73,12 +73,12 @@ namespace System.IO
 			: this (handle, access, ownsHandle, bufferSize, isAsync, false) {}
 
 		[SecurityPermission (SecurityAction.Demand, UnmanagedCode = true)]
-		internal FileStream (IntPtr handle, FileAccess access, bool ownsHandle, int bufferSize, bool isAsync, bool isConsoleWrapper)
+		internal FileStream (IntPtr handle, FileAccess access, bool ownsHandle, int bufferSize, bool isAsync, bool isZeroSize)
 		{
 			if (handle == MonoIO.InvalidHandle)
 				throw new ArgumentException ("handle", Locale.GetText ("Invalid."));
 
-			Init (new SafeFileHandle (handle, false), access, ownsHandle, bufferSize, isAsync, isConsoleWrapper);
+			Init (new SafeFileHandle (handle, false), access, ownsHandle, bufferSize, isAsync, isZeroSize);
 		}
 
 		// construct from filename
@@ -113,6 +113,7 @@ namespace System.IO
 		{
 		}
 
+#if !NET_2_1
 		public FileStream (SafeFileHandle handle, FileAccess access)
 			:this(handle, access, DefaultBufferSize, false)
 		{
@@ -129,7 +130,6 @@ namespace System.IO
 			Init (handle, access, false, bufferSize, isAsync, false);
 		}
 
-#if !MOBILE
 		[MonoLimitation ("This ignores the rights parameter")]
 		public FileStream (string path, FileMode mode,
 				   FileSystemRights rights, FileShare share,
@@ -291,14 +291,10 @@ namespace System.IO
 			}
 		}
 
-		private void Init (SafeFileHandle safeHandle, FileAccess access, bool ownsHandle, int bufferSize, bool isAsync, bool isConsoleWrapper)
+		private void Init (SafeFileHandle safeHandle, FileAccess access, bool ownsHandle, int bufferSize, bool isAsync, bool isZeroSize)
 		{
-			if (!isConsoleWrapper && safeHandle.IsInvalid)
-				throw new ArgumentException(Environment.GetResourceString("Arg_InvalidHandle"), "handle");
 			if (access < FileAccess.Read || access > FileAccess.ReadWrite)
 				throw new ArgumentOutOfRangeException ("access");
-			if (!isConsoleWrapper && bufferSize <= 0)
-				throw new ArgumentOutOfRangeException("bufferSize", Environment.GetResourceString("ArgumentOutOfRange_NeedPosNum"));
 
 			MonoIOError error;
 			MonoFileType ftype = MonoIO.GetFileType (safeHandle, out error);
@@ -415,8 +411,10 @@ namespace System.IO
 				return ret;
 			}
 			set {
-				if (value < 0) throw new ArgumentOutOfRangeException("value", Environment.GetResourceString("ArgumentOutOfRange_NeedNonNegNum"));
-
+				if(value < 0) {
+					throw new ArgumentOutOfRangeException("Attempt to set the position to a negative value");
+				}
+				
 				Seek (value, SeekOrigin.Begin);
 			}
 		}

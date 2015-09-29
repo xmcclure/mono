@@ -87,16 +87,15 @@ namespace System.ServiceModel.Channels
 
 		protected override void OnClose (TimeSpan timeout)
 		{
-			if (currentAsyncThreads.Count > 0)
+			if (CurrentAsyncThread != null)
 				if (!CancelAsync (timeout))
-					foreach (Thread asyncThread in currentAsyncThreads)
-						asyncThread.Abort ();
+					CurrentAsyncThread.Abort ();
 		}
 
 		public virtual bool CancelAsync (TimeSpan timeout)
 		{
 			// FIXME: It should wait for the actual completion.
-			return currentAsyncResults.Count > 0;
+			return CurrentAsyncResult == null;
 			//return CurrentAsyncResult == null || CurrentAsyncResult.AsyncWaitHandle.WaitOne (timeout);
 		}
 
@@ -112,18 +111,18 @@ namespace System.ServiceModel.Channels
 		TryReceiveDelegate try_recv_delegate;
 
 		object async_result_lock = new object ();
-		HashSet<Thread> currentAsyncThreads = new HashSet<Thread>();
-		HashSet<IAsyncResult> currentAsyncResults = new HashSet<IAsyncResult>();
+		protected Thread CurrentAsyncThread { get; private set; }
+		protected IAsyncResult CurrentAsyncResult { get; private set; }
 
 		public virtual IAsyncResult BeginTryReceiveRequest (TimeSpan timeout, AsyncCallback callback, object state)
 		{
-			IAsyncResult result = null;
-
+			if (CurrentAsyncResult != null)
+				throw new InvalidOperationException ("Another async TryReceiveRequest operation is in progress");
 			if (try_recv_delegate == null)
 				try_recv_delegate = new TryReceiveDelegate (delegate (TimeSpan tout, out RequestContext ctx) {
 					lock (async_result_lock) {
-						if (currentAsyncResults.Contains (result))
-							currentAsyncThreads.Add (Thread.CurrentThread);
+						if (CurrentAsyncResult != null)
+							CurrentAsyncThread = Thread.CurrentThread;
 					}
 					try {
 						return TryReceiveRequest (tout, out ctx);
@@ -144,19 +143,19 @@ namespace System.ServiceModel.Channels
 						//the whole app.  Ignore for now
 					} finally {
 						lock (async_result_lock) {
-							currentAsyncResults.Remove (result);
-							currentAsyncThreads.Remove (Thread.CurrentThread);
+							CurrentAsyncResult = null;
+							CurrentAsyncThread = null;
 						}
 					}
 					ctx = null;
 					return false;
 					});
 			RequestContext dummy;
+			IAsyncResult result;
 			lock (async_result_lock) {
-				result = try_recv_delegate.BeginInvoke (timeout, out dummy, callback, state);
-				currentAsyncResults.Add (result);
+				result = CurrentAsyncResult = try_recv_delegate.BeginInvoke (timeout, out dummy, callback, state);
 			}
-			// Note that at this point result can be missing from currentAsyncResults here if delegate has run to completion
+			// Note that at this point CurrentAsyncResult can be null here if delegate has run to completion
 			return result;
 		}
 

@@ -69,7 +69,6 @@ namespace System
 		IDictionary _data;
 		internal StackTrace[] captured_traces;
 		IntPtr[] native_trace_ips;
-		object dynamic_methods;
 		#endregion
 #pragma warning restore 169, 649
 

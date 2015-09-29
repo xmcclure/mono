@@ -44,9 +44,11 @@ public static class Consts {
 #elif XBUILD_12
 				string profile = "xbuild_12";
 #elif NET_4_5
-				string profile = "net_4_x";
+				string profile = "net_4_5";
+#elif NET_4_0
+				string profile = "net_4_0";
 #else
-				#error "Unknown profile"
+				string profile = "net_2_0";
 #endif
 				var corlib = typeof (object).Assembly.Location;
 				var lib = Path.GetDirectoryName (Path.GetDirectoryName (corlib));

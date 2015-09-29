@@ -26,6 +26,7 @@
 // WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 //
 
+#if NET_4_0
 
 using NUnit.Framework;
 using System;
@@ -495,3 +496,4 @@ namespace MonoTests.System.Runtime.CompilerServices {
 	}
 }
 
+#endif

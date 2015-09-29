@@ -3,7 +3,7 @@
 RUNTIME=mono
 XMLCONF_OPTIONS=
 
-nunit_MONO_PATH="../../../../../class/lib/net_4_x"
+nunit_MONO_PATH="../../../../../class/lib/net_4_5"
 CSCOMPILE=mcs
 
 REFERENCES=-d:NUNIT_SUPPORT -r:nunit.core -r:nunit.framework

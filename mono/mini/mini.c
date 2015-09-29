@@ -85,7 +85,8 @@ gboolean mono_using_xdebug;
 #define mono_jit_unlock() mono_mutex_unlock (&jit_mutex)
 static mono_mutex_t jit_mutex;
 
-#ifndef DISABLE_JIT
+/* Whenever to check for pending exceptions in managed-to-native wrappers */
+gboolean check_for_pending_exc = TRUE;
 
 gpointer
 mono_realloc_native_code (MonoCompile *cfg)
@@ -197,103 +198,6 @@ void mono_nacl_fix_patches(const guint8 *code, MonoJumpInfo *ji)
 #endif
 }
 #endif  /* __native_client_codegen__ */
-
-#ifdef USE_JUMP_TABLES
-
-#define DEFAULT_JUMPTABLE_CHUNK_ELEMENTS 128
-
-typedef struct MonoJumpTableChunk {
-	guint32 total;
-	guint32 active;
-	struct MonoJumpTableChunk *previous;
-	/* gpointer entries[total]; */
-} MonoJumpTableChunk;
-
-static MonoJumpTableChunk* g_jumptable;
-#define mono_jumptable_lock() mono_mutex_lock (&jumptable_mutex)
-#define mono_jumptable_unlock() mono_mutex_unlock (&jumptable_mutex)
-static mono_mutex_t jumptable_mutex;
-
-static  MonoJumpTableChunk*
-mono_create_jumptable_chunk (guint32 max_entries)
-{
-	guint32 size = sizeof (MonoJumpTableChunk) + max_entries * sizeof(gpointer);
-	MonoJumpTableChunk *chunk = (MonoJumpTableChunk*) g_new0 (guchar, size);
-	chunk->total = max_entries;
-	return chunk;
-}
-
-void
-mono_jumptable_init (void)
-{
-	if (g_jumptable == NULL) {
-		mono_mutex_init_recursive (&jumptable_mutex);
-		g_jumptable = mono_create_jumptable_chunk (DEFAULT_JUMPTABLE_CHUNK_ELEMENTS);
-	}
-}
-
-gpointer*
-mono_jumptable_add_entry (void)
-{
-	return mono_jumptable_add_entries (1);
-}
-
-gpointer*
-mono_jumptable_add_entries (guint32 entries)
-{
-	guint32 index;
-	gpointer *result;
-
-	mono_jumptable_init ();
-	mono_jumptable_lock ();
-	index = g_jumptable->active;
-	if (index + entries >= g_jumptable->total) {
-		/*
-		 * Grow jumptable, by adding one more chunk.
-		 * We cannot realloc jumptable, as there could be pointers
-		 * to existing jump table entries in the code, so instead
-		 * we just add one more chunk.
-		 */
-		guint32 max_entries = entries;
-		MonoJumpTableChunk *new_chunk;
-
-		if (max_entries < DEFAULT_JUMPTABLE_CHUNK_ELEMENTS)
-			max_entries = DEFAULT_JUMPTABLE_CHUNK_ELEMENTS;
-		new_chunk = mono_create_jumptable_chunk (max_entries);
-		/* Link old jumptable, so that we could free it up later. */
-		new_chunk->previous = g_jumptable;
-		g_jumptable = new_chunk;
-		index = 0;
-	}
-	g_jumptable->active = index + entries;
-	result = (gpointer*)((guchar*)g_jumptable + sizeof(MonoJumpTableChunk)) + index;
-	mono_jumptable_unlock();
-
-	return result;
-}
-
-void
-mono_jumptable_cleanup (void)
-{
-	if (g_jumptable) {
-		MonoJumpTableChunk *current = g_jumptable, *prev;
-		while (current != NULL) {
-			prev = current->previous;
-			g_free (current);
-			current = prev;
-		}
-		g_jumptable = NULL;
-		mono_mutex_destroy (&jumptable_mutex);
-	}
-}
-
-gpointer*
-mono_jumptable_get_entry (guint8 *code_ptr)
-{
-	return mono_arch_jumptable_entry_from_code (code_ptr);
-}
-
-#endif /* USE_JUMP_TABLES */
 
 typedef struct {
 	MonoExceptionClause *clause;
@@ -519,7 +423,7 @@ mono_reverse_branch_op (guint32 opcode)
 guint
 mono_type_to_store_membase (MonoCompile *cfg, MonoType *type)
 {
-	type = mini_get_underlying_type (type);
+	type = mini_get_underlying_type (cfg, type);
 
 handle_enum:
 	switch (type->type) {
@@ -565,7 +469,7 @@ handle_enum:
 		goto handle_enum;
 	case MONO_TYPE_VAR:
 	case MONO_TYPE_MVAR:
-		g_assert (mini_type_var_is_vt (type));
+		g_assert (mini_type_var_is_vt (cfg, type));
 		return OP_STOREV_MEMBASE;
 	default:
 		g_error ("unknown type 0x%02x in type_to_store_membase", type->type);
@@ -576,7 +480,7 @@ handle_enum:
 guint
 mono_type_to_load_membase (MonoCompile *cfg, MonoType *type)
 {
-	type = mini_get_underlying_type (type);
+	type = mini_get_underlying_type (cfg, type);
 
 	switch (type->type) {
 	case MONO_TYPE_I1:
@@ -622,8 +526,8 @@ mono_type_to_load_membase (MonoCompile *cfg, MonoType *type)
 		break;
 	case MONO_TYPE_VAR:
 	case MONO_TYPE_MVAR:
-		g_assert (cfg->gshared);
-		g_assert (mini_type_var_is_vt (type));
+		g_assert (cfg->generic_sharing_context);
+		g_assert (mini_type_var_is_vt (cfg, type));
 		return OP_LOADV_MEMBASE;
 	default:
 		g_error ("unknown type 0x%02x in type_to_load_membase", type->type);
@@ -631,12 +535,14 @@ mono_type_to_load_membase (MonoCompile *cfg, MonoType *type)
 	return -1;
 }
 
+#ifndef DISABLE_JIT
+
 guint
 mini_type_to_stind (MonoCompile* cfg, MonoType *type)
 {
-	type = mini_get_underlying_type (type);
-	if (cfg->gshared && !type->byref && (type->type == MONO_TYPE_VAR || type->type == MONO_TYPE_MVAR)) {
-		g_assert (mini_type_var_is_vt (type));
+	type = mini_get_underlying_type (cfg, type);
+	if (cfg->generic_sharing_context && !type->byref && (type->type == MONO_TYPE_VAR || type->type == MONO_TYPE_MVAR)) {
+		g_assert (mini_type_var_is_vt (cfg, type));
 		return CEE_STOBJ;
 	}
 	return mono_type_to_stind (type);
@@ -774,6 +680,8 @@ mono_decompose_op_imm (MonoCompile *cfg, MonoBasicBlock *bb, MonoInst *ins)
 	bb->max_vreg = MAX (bb->max_vreg, cfg->next_vreg);
 }
 
+#endif
+
 static void
 set_vreg_to_inst (MonoCompile *cfg, int vreg, MonoInst *inst)
 {
@@ -793,6 +701,16 @@ set_vreg_to_inst (MonoCompile *cfg, int vreg, MonoInst *inst)
 #define mono_type_is_long(type) (!(type)->byref && ((mono_type_get_underlying_type (type)->type == MONO_TYPE_I8) || (mono_type_get_underlying_type (type)->type == MONO_TYPE_U8)))
 #define mono_type_is_float(type) (!(type)->byref && (((type)->type == MONO_TYPE_R8) || ((type)->type == MONO_TYPE_R4)))
 
+#ifdef DISABLE_JIT
+
+MonoInst*
+mono_compile_create_var (MonoCompile *cfg, MonoType *type, int opcode)
+{
+	return NULL;
+}
+
+#else
+
 MonoInst*
 mono_compile_create_var_for_vreg (MonoCompile *cfg, MonoType *type, int opcode, int vreg)
 {
@@ -800,7 +718,7 @@ mono_compile_create_var_for_vreg (MonoCompile *cfg, MonoType *type, int opcode, 
 	int num = cfg->num_varinfo;
 	gboolean regpair;
 
-	type = mini_get_underlying_type (type);
+	type = mini_get_underlying_type (cfg, type);
 
 	if ((num + 1) >= cfg->varinfo_count) {
 		int orig_count = cfg->varinfo_count;
@@ -828,7 +746,7 @@ mono_compile_create_var_for_vreg (MonoCompile *cfg, MonoType *type, int opcode, 
 		if (type->byref) {
 			mono_mark_vreg_as_mp (cfg, vreg);
 		} else {
-			if ((MONO_TYPE_ISSTRUCT (type) && inst->klass->has_references) || mini_type_is_reference (type)) {
+			if ((MONO_TYPE_ISSTRUCT (type) && inst->klass->has_references) || mini_type_is_reference (cfg, type)) {
 				inst->flags |= MONO_INST_GC_TRACK;
 				mono_mark_vreg_as_ref (cfg, vreg);
 			}
@@ -909,7 +827,7 @@ MonoInst*
 mono_compile_create_var (MonoCompile *cfg, MonoType *type, int opcode)
 {
 	int dreg;
-	type = mini_get_underlying_type (type);
+	type = mini_get_underlying_type (cfg, type);
 
 	if (mono_type_is_long (type))
 		dreg = mono_alloc_dreg (cfg, STACK_I8);
@@ -935,6 +853,8 @@ mini_get_int_to_float_spill_area (MonoCompile *cfg)
 	return NULL;
 #endif
 }
+
+#endif
 
 void
 mono_mark_vreg_as_ref (MonoCompile *cfg, int vreg)
@@ -1293,6 +1213,8 @@ compare_by_interval_start_pos_func (gconstpointer a, gconstpointer b)
 		return 1;
 }
 
+#ifndef DISABLE_JIT
+
 #if 0
 #define LSCAN_DEBUG(a) do { a; } while (0)
 #else
@@ -1357,7 +1279,7 @@ mono_allocate_stack_slots2 (MonoCompile *cfg, gboolean backward, guint32 *stack_
 		inst = cfg->varinfo [vmv->idx];
 
 		t = mono_type_get_underlying_type (inst->inst_vtype);
-		if (cfg->gsharedvt && mini_is_gsharedvt_variable_type (t))
+		if (cfg->gsharedvt && mini_is_gsharedvt_variable_type (cfg, t))
 			continue;
 
 		/* inst->backend.is_pinvoke indicates native sized value types, this is used by the
@@ -1368,7 +1290,7 @@ mono_allocate_stack_slots2 (MonoCompile *cfg, gboolean backward, guint32 *stack_
 		else {
 			int ialign;
 
-			size = mini_type_stack_size (t, &ialign);
+			size = mini_type_stack_size (NULL, t, &ialign);
 			align = ialign;
 
 			if (MONO_CLASS_IS_SIMD (cfg, mono_class_from_mono_type (t)))
@@ -1379,7 +1301,7 @@ mono_allocate_stack_slots2 (MonoCompile *cfg, gboolean backward, guint32 *stack_
 		if (cfg->disable_reuse_stack_slots)
 			reuse_slot = FALSE;
 
-		t = mini_get_underlying_type (t);
+		t = mini_get_underlying_type (cfg, t);
 		switch (t->type) {
 		case MONO_TYPE_GENERICINST:
 			if (!mono_type_generic_inst_is_valuetype (t)) {
@@ -1654,7 +1576,7 @@ mono_allocate_stack_slots (MonoCompile *cfg, gboolean backward, guint32 *stack_s
 		inst = cfg->varinfo [vmv->idx];
 
 		t = mono_type_get_underlying_type (inst->inst_vtype);
-		if (cfg->gsharedvt && mini_is_gsharedvt_variable_type (t))
+		if (cfg->gsharedvt && mini_is_gsharedvt_variable_type (cfg, t))
 			continue;
 
 		/* inst->backend.is_pinvoke indicates native sized value types, this is used by the
@@ -1664,7 +1586,7 @@ mono_allocate_stack_slots (MonoCompile *cfg, gboolean backward, guint32 *stack_s
 		} else {
 			int ialign;
 
-			size = mini_type_stack_size (t, &ialign);
+			size = mini_type_stack_size (NULL, t, &ialign);
 			align = ialign;
 
 			if (mono_class_from_mono_type (t)->exception_type)
@@ -1678,7 +1600,7 @@ mono_allocate_stack_slots (MonoCompile *cfg, gboolean backward, guint32 *stack_s
 		if (cfg->disable_reuse_stack_slots)
 			reuse_slot = FALSE;
 
-		t = mini_get_underlying_type (t);
+		t = mini_get_underlying_type (cfg, t);
 		switch (t->type) {
 		case MONO_TYPE_GENERICINST:
 			if (!mono_type_generic_inst_is_valuetype (t)) {
@@ -1851,6 +1773,17 @@ mono_allocate_stack_slots (MonoCompile *cfg, gboolean backward, guint32 *stack_s
 	return offsets;
 }
 
+#else
+
+gint32*
+mono_allocate_stack_slots (MonoCompile *cfg, gboolean backward, guint32 *stack_size, guint32 *stack_align)
+{
+	g_assert_not_reached ();
+	return NULL;
+}
+
+#endif /* DISABLE_JIT */
+
 #define EMUL_HIT_SHIFT 3
 #define EMUL_HIT_MASK ((1 << EMUL_HIT_SHIFT) - 1)
 /* small hit bitmap cache */
@@ -1899,8 +1832,7 @@ mini_register_opcode_emulation (int opcode, const char *name, const char *sigstr
 }
 
 static void
-print_dfn (MonoCompile *cfg)
-{
+print_dfn (MonoCompile *cfg) {
 	int i, j;
 	char *code;
 	MonoBasicBlock *bb;
@@ -2053,6 +1985,7 @@ mono_verify_cfg (MonoCompile *cfg)
 void
 mono_destroy_compile (MonoCompile *cfg)
 {
+#ifndef DISABLE_JIT
 	GSList *l;
 
 	if (cfg->header)
@@ -2079,7 +2012,10 @@ mono_destroy_compile (MonoCompile *cfg)
 	g_free (cfg->vars);
 	g_free (cfg->exception_message);
 	g_free (cfg);
+#endif
 }
+
+#ifndef DISABLE_JIT
 
 static MonoInst*
 mono_create_tls_get_offset (MonoCompile *cfg, int offset)
@@ -2167,6 +2103,9 @@ mono_get_lmf_addr_intrinsic (MonoCompile* cfg)
 	return mono_create_tls_get (cfg, TLS_KEY_LMF_ADDR);
 }
 
+#endif /* !DISABLE_JIT */
+
+
 void
 mono_add_patch_info (MonoCompile *cfg, int ip, MonoJumpInfoType type, gconstpointer target)
 {
@@ -2237,6 +2176,8 @@ mono_add_var_location (MonoCompile *cfg, MonoInst *var, gboolean is_reg, int reg
 	else if (var == cfg->rgctx_var)
 		cfg->rgctx_loclist = g_slist_append_mempool (cfg->mempool, cfg->rgctx_loclist, entry);
 }
+
+#ifndef DISABLE_JIT
 
 static void
 mono_compile_create_vars (MonoCompile *cfg)
@@ -2569,7 +2510,7 @@ mono_codegen (MonoCompile *cfg)
 			is_generic = TRUE;
 		}
 
-		if (cfg->gshared)
+		if (cfg->generic_sharing_context)
 			g_assert (is_generic);
 	}
 
@@ -2667,6 +2608,37 @@ mono_handle_out_of_line_bblock (MonoCompile *cfg)
 	}
 }
 
+#endif /* #ifndef DISABLE_JIT */
+
+static MonoJitInfo*
+create_jit_info_for_trampoline (MonoMethod *wrapper, MonoTrampInfo *info)
+{
+	MonoDomain *domain = mono_get_root_domain ();
+	MonoJitInfo *jinfo;
+	guint8 *uw_info;
+	guint32 info_len;
+
+	if (info->uw_info) {
+		uw_info = info->uw_info;
+		info_len = info->uw_info_len;
+	} else {
+		uw_info = mono_unwind_ops_encode (info->unwind_ops, &info_len);
+	}
+
+	jinfo = mono_domain_alloc0 (domain, MONO_SIZEOF_JIT_INFO);
+	jinfo->d.method = wrapper;
+	jinfo->code_start = info->code;
+	jinfo->code_size = info->code_size;
+	jinfo->unwind_info = mono_cache_unwind_info (uw_info, info_len);
+
+	if (!info->uw_info)
+		g_free (uw_info);
+
+	return jinfo;
+}
+
+#ifndef DISABLE_JIT
+
 static MonoJitInfo*
 create_jit_info (MonoCompile *cfg, MonoMethod *method_to_compile)
 {
@@ -2680,7 +2652,7 @@ create_jit_info (MonoCompile *cfg, MonoMethod *method_to_compile)
 	g_assert (method_to_compile == cfg->method);
 	header = cfg->header;
 
-	if (cfg->gshared)
+	if (cfg->generic_sharing_context)
 		flags |= JIT_INFO_HAS_GENERIC_JIT_INFO;
 
 	if (cfg->arch_eh_jit_info) {
@@ -2692,7 +2664,7 @@ create_jit_info (MonoCompile *cfg, MonoMethod *method_to_compile)
 		 * mono_arch_get_argument_info () is not signal safe.
 		 */
 		arg_info = g_newa (MonoJitArgumentInfo, sig->param_count + 1);
-		stack_size = mono_arch_get_argument_info (sig, sig->param_count, arg_info);
+		stack_size = mono_arch_get_argument_info (cfg->generic_sharing_context, sig, sig->param_count, arg_info);
 
 		if (stack_size)
 			flags |= JIT_INFO_HAS_ARCH_EH_INFO;
@@ -2737,7 +2709,7 @@ create_jit_info (MonoCompile *cfg, MonoMethod *method_to_compile)
 	if (COMPILE_LLVM (cfg))
 		jinfo->from_llvm = TRUE;
 
-	if (cfg->gshared) {
+	if (cfg->generic_sharing_context) {
 		MonoInst *inst;
 		MonoGenericJitInfo *gi;
 		GSList *loclist = NULL;
@@ -3005,6 +2977,7 @@ create_jit_info (MonoCompile *cfg, MonoMethod *method_to_compile)
 
 	return jinfo;
 }
+#endif
 
 /* Return whenever METHOD is a gsharedvt method */
 static gboolean
@@ -3046,6 +3019,8 @@ is_open_method (MonoMethod *method)
 		return TRUE;
 	return FALSE;
 }
+
+#ifndef DISABLE_JIT
 
 #if defined(__native_client_codegen__) || USE_COOP_GC
 
@@ -3104,42 +3079,6 @@ static void
 mono_insert_safepoints (MonoCompile *cfg)
 {
 	MonoBasicBlock *bb;
-	if (cfg->method->wrapper_type == MONO_WRAPPER_MANAGED_TO_NATIVE) {
-		WrapperInfo *info = mono_marshal_get_wrapper_info (cfg->method);
-#if defined(__native_client__) || defined(__native_client_codegen__)
-		gpointer poll_func = &mono_nacl_gc;
-#elif defined(USE_COOP_GC)
-		gpointer poll_func = &mono_threads_state_poll;
-#else
-		gpointer poll_func = NULL;
-#endif
-
-		if (info && info->subtype == WRAPPER_SUBTYPE_ICALL_WRAPPER && info->d.icall.func == poll_func) {
-			if (cfg->verbose_level > 1)
-				printf ("SKIPPING SAFEPOINTS for the polling function icall\n");
-			return;
-		}
-	}
-
-	if (cfg->method->wrapper_type == MONO_WRAPPER_NATIVE_TO_MANAGED) {
-		if (cfg->verbose_level > 1)
-			printf ("SKIPPING SAFEPOINTS for native-to-managed wrappers.\n");
-		return;
-	}
-
-	if (cfg->method->wrapper_type == MONO_WRAPPER_MANAGED_TO_NATIVE) {
-		WrapperInfo *info = mono_marshal_get_wrapper_info (cfg->method);
-
-		if (info && info->subtype == WRAPPER_SUBTYPE_ICALL_WRAPPER &&
-			(info->d.icall.func == mono_thread_interruption_checkpoint ||
-			info->d.icall.func == mono_threads_finish_blocking ||
-			info->d.icall.func == mono_threads_reset_blocking_start)) {
-			/* These wrappers are called from the wrapper for the polling function, leading to potential stack overflow */
-			if (cfg->verbose_level > 1)
-				printf ("SKIPPING SAFEPOINTS for wrapper %s\n", cfg->method->name);
-			return;
-		}
-	}
 
 	if (cfg->verbose_level > 1)
 		printf ("INSERTING SAFEPOINTS\n");
@@ -3290,7 +3229,7 @@ mini_method_compile (MonoMethod *method, guint32 opts, MonoDomain *domain, JitFl
 	cfg->check_pinvoke_callconv = debug_options.check_pinvoke_callconv;
 	cfg->disable_direct_icalls = disable_direct_icalls;
 	if (try_generic_shared)
-		cfg->gshared = TRUE;
+		cfg->generic_sharing_context = (MonoGenericSharingContext*)&cfg->gsctx;
 	cfg->compile_llvm = try_llvm;
 	cfg->token_info_hash = g_hash_table_new (NULL, NULL);
 	if (cfg->compile_aot)
@@ -3310,7 +3249,7 @@ mini_method_compile (MonoMethod *method, guint32 opts, MonoDomain *domain, JitFl
 		return cfg;
 	}
 
-	if (cfg->gshared && (gsharedvt_method || mini_is_gsharedvt_sharable_method (method))) {
+	if (cfg->generic_sharing_context && (gsharedvt_method || mini_is_gsharedvt_sharable_method (method))) {
 		MonoMethodInflated *inflated;
 		MonoGenericContext *context;
 
@@ -3336,8 +3275,9 @@ mini_method_compile (MonoMethod *method, guint32 opts, MonoDomain *domain, JitFl
 		cfg->exception_message = g_strdup ("gsharedvt");
 	}
 
-	if (cfg->gshared) {
+	if (cfg->generic_sharing_context) {
 		method_to_register = method_to_compile;
+		cfg->gshared = TRUE;
 	} else {
 		g_assert (method == method_to_compile);
 		method_to_register = method;
@@ -3478,13 +3418,13 @@ mini_method_compile (MonoMethod *method, guint32 opts, MonoDomain *domain, JitFl
 		char *method_name;
 
 		method_name = mono_method_full_name (method, TRUE);
-		g_print ("converting %s%s%smethod %s\n", COMPILE_LLVM (cfg) ? "llvm " : "", cfg->gsharedvt ? "gsharedvt " : "", (cfg->gshared && !cfg->gsharedvt) ? "gshared " : "", method_name);
+		g_print ("converting %s%s%smethod %s\n", COMPILE_LLVM (cfg) ? "llvm " : "", cfg->gsharedvt ? "gsharedvt " : "", (cfg->generic_sharing_context && !cfg->gsharedvt) ? "gshared " : "", method_name);
 		/*
 		if (COMPILE_LLVM (cfg))
 			g_print ("converting llvm method %s\n", method_name = mono_method_full_name (method, TRUE));
 		else if (cfg->gsharedvt)
 			g_print ("converting gsharedvt method %s\n", method_name = mono_method_full_name (method_to_compile, TRUE));
-		else if (cfg->gshared)
+		else if (cfg->generic_sharing_context)
 			g_print ("converting shared method %s\n", method_name = mono_method_full_name (method_to_compile, TRUE));
 		else
 			g_print ("converting method %s\n", method_name = mono_method_full_name (method, TRUE));
@@ -3610,8 +3550,6 @@ mini_method_compile (MonoMethod *method, guint32 opts, MonoDomain *domain, JitFl
 	/* Disable this for LLVM to make the IR easier to handle */
 	if (!COMPILE_LLVM (cfg))
 		mono_if_conversion (cfg);
-
-	MONO_SUSPEND_CHECK ();
 
 	/* Depth-first ordering on basic blocks */
 	cfg->bblocks = mono_mempool_alloc (cfg->mempool, sizeof (MonoBasicBlock*) * (cfg->num_bblocks + 1));
@@ -3989,63 +3927,17 @@ mini_method_compile (MonoMethod *method, guint32 opts, MonoDomain *domain, JitFl
 	return cfg;
 }
 
-void*
-mono_arch_instrument_epilog (MonoCompile *cfg, void *func, void *p, gboolean enable_arguments)
-{
-	return mono_arch_instrument_epilog_full (cfg, func, p, enable_arguments, FALSE);
-}
+#else
 
-void
-mono_cfg_add_try_hole (MonoCompile *cfg, MonoExceptionClause *clause, guint8 *start, MonoBasicBlock *bb)
+MonoCompile*
+mini_method_compile (MonoMethod *method, guint32 opts, MonoDomain *domain, JitFlags flags, int parts, int aot_method_index)
 {
-	TryBlockHole *hole = mono_mempool_alloc (cfg->mempool, sizeof (TryBlockHole));
-	hole->clause = clause;
-	hole->start_offset = start - cfg->native_code;
-	hole->basic_block = bb;
-
-	cfg->try_block_holes = g_slist_append_mempool (cfg->mempool, cfg->try_block_holes, hole);
-}
-
-void
-mono_cfg_set_exception (MonoCompile *cfg, int type)
-{
-	cfg->exception_type = type;
+	g_assert_not_reached ();
+	return NULL;
 }
 
 #endif /* DISABLE_JIT */
 
-static MonoJitInfo*
-create_jit_info_for_trampoline (MonoMethod *wrapper, MonoTrampInfo *info)
-{
-	MonoDomain *domain = mono_get_root_domain ();
-	MonoJitInfo *jinfo;
-	guint8 *uw_info;
-	guint32 info_len;
-
-	if (info->uw_info) {
-		uw_info = info->uw_info;
-		info_len = info->uw_info_len;
-	} else {
-		uw_info = mono_unwind_ops_encode (info->unwind_ops, &info_len);
-	}
-
-	jinfo = mono_domain_alloc0 (domain, MONO_SIZEOF_JIT_INFO);
-	jinfo->d.method = wrapper;
-	jinfo->code_start = info->code;
-	jinfo->code_size = info->code_size;
-	jinfo->unwind_info = mono_cache_unwind_info (uw_info, info_len);
-
-	if (!info->uw_info)
-		g_free (uw_info);
-
-	return jinfo;
-}
-
-/*
- * mono_jit_compile_method_inner:
- *
- *   Main entry point for the JIT.
- */
 gpointer
 mono_jit_compile_method_inner (MonoMethod *method, MonoDomain *target_domain, int opt, MonoException **jit_ex)
 {
@@ -4075,7 +3967,7 @@ mono_jit_compile_method_inner (MonoMethod *method, MonoDomain *target_domain, in
 			else
 				mono_lookup_pinvoke_call (method, NULL, NULL);
 		}
-		nm = mono_marshal_get_native_wrapper (method, TRUE, mono_aot_only);
+		nm = mono_marshal_get_native_wrapper (method, check_for_pending_exc, mono_aot_only);
 		code = mono_get_addr_from_ftnptr (mono_compile_method (nm));
 		jinfo = mono_jit_info_table_find (target_domain, code);
 		if (!jinfo)
@@ -4274,7 +4166,7 @@ mono_jit_compile_method_inner (MonoMethod *method, MonoDomain *target_domain, in
 
 		code = cfg->native_code;
 
-		if (cfg->gshared && mono_method_is_generic_sharable (method, FALSE))
+		if (cfg->generic_sharing_context && mono_method_is_generic_sharable (method, FALSE))
 			mono_stats.generics_shared_methods++;
 		if (cfg->gsharedvt)
 			mono_stats.gsharedvt_methods++;
@@ -4366,6 +4258,32 @@ mono_jit_compile_method_inner (MonoMethod *method, MonoDomain *target_domain, in
 	return code;
 }
 
+#ifndef DISABLE_JIT
+
+void*
+mono_arch_instrument_epilog (MonoCompile *cfg, void *func, void *p, gboolean enable_arguments) {
+	return mono_arch_instrument_epilog_full (cfg, func, p, enable_arguments, FALSE);
+}
+
+void
+mono_cfg_add_try_hole (MonoCompile *cfg, MonoExceptionClause *clause, guint8 *start, MonoBasicBlock *bb)
+{
+	TryBlockHole *hole = mono_mempool_alloc (cfg->mempool, sizeof (TryBlockHole));
+	hole->clause = clause;
+	hole->start_offset = start - cfg->native_code;
+	hole->basic_block = bb;
+
+	cfg->try_block_holes = g_slist_append_mempool (cfg->mempool, cfg->try_block_holes, hole);
+}
+
+void
+mono_cfg_set_exception (MonoCompile *cfg, int type)
+{
+	cfg->exception_type = type;
+}
+
+#endif
+
 /* Dummy versions of some arch specific functions to avoid ifdefs at call sites */
 
 #ifndef MONO_ARCH_GSHAREDVT_SUPPORTED
@@ -4377,7 +4295,7 @@ mono_arch_gsharedvt_sig_supported (MonoMethodSignature *sig)
 }
 
 gpointer
-mono_arch_get_gsharedvt_call_info (gpointer addr, MonoMethodSignature *normal_sig, MonoMethodSignature *gsharedvt_sig, gboolean gsharedvt_in, gint32 vcall_offset, gboolean calli)
+mono_arch_get_gsharedvt_call_info (gpointer addr, MonoMethodSignature *normal_sig, MonoMethodSignature *gsharedvt_sig, MonoGenericSharingContext *gsctx, gboolean gsharedvt_in, gint32 vcall_offset, gboolean calli)
 {
 	g_assert_not_reached ();
 	return NULL;
@@ -4408,7 +4326,7 @@ mono_arch_gsharedvt_sig_supported (MonoMethodSignature *sig)
 }
 
 gpointer
-mono_arch_get_gsharedvt_call_info (gpointer addr, MonoMethodSignature *normal_sig, MonoMethodSignature *gsharedvt_sig, gboolean gsharedvt_in, gint32 vcall_offset, gboolean calli)
+mono_arch_get_gsharedvt_call_info (gpointer addr, MonoMethodSignature *normal_sig, MonoMethodSignature *gsharedvt_sig, MonoGenericSharingContext *gsctx, gboolean gsharedvt_in, gint32 vcall_offset, gboolean calli)
 {
 	NOT_IMPLEMENTED;
 	return NULL;
@@ -4429,6 +4347,113 @@ void mono_llvm_emit_aot_data (const char *symbol, guint8 *data, int data_len)
 }
 #endif
 
+#ifdef USE_JUMP_TABLES
+#define DEFAULT_JUMPTABLE_CHUNK_ELEMENTS 128
+
+typedef struct MonoJumpTableChunk {
+	guint32 total;
+	guint32 active;
+	struct MonoJumpTableChunk *previous;
+	/* gpointer entries[total]; */
+} MonoJumpTableChunk;
+
+static MonoJumpTableChunk* g_jumptable;
+#define mono_jumptable_lock() mono_mutex_lock (&jumptable_mutex)
+#define mono_jumptable_unlock() mono_mutex_unlock (&jumptable_mutex)
+static mono_mutex_t jumptable_mutex;
+
+static  MonoJumpTableChunk*
+mono_create_jumptable_chunk (guint32 max_entries)
+{
+	guint32 size = sizeof (MonoJumpTableChunk) + max_entries * sizeof(gpointer);
+	MonoJumpTableChunk *chunk = (MonoJumpTableChunk*) g_new0 (guchar, size);
+	chunk->total = max_entries;
+	return chunk;
+}
+
+void
+mono_jumptable_init (void)
+{
+	if (g_jumptable == NULL) {
+		mono_mutex_init_recursive (&jumptable_mutex);
+		g_jumptable = mono_create_jumptable_chunk (DEFAULT_JUMPTABLE_CHUNK_ELEMENTS);
+	}
+}
+
+gpointer*
+mono_jumptable_add_entry (void)
+{
+	return mono_jumptable_add_entries (1);
+}
+
+gpointer*
+mono_jumptable_add_entries (guint32 entries)
+{
+	guint32 index;
+	gpointer *result;
+
+	mono_jumptable_init ();
+	mono_jumptable_lock ();
+	index = g_jumptable->active;
+	if (index + entries >= g_jumptable->total) {
+		/*
+		 * Grow jumptable, by adding one more chunk.
+		 * We cannot realloc jumptable, as there could be pointers
+		 * to existing jump table entries in the code, so instead
+		 * we just add one more chunk.
+		 */
+		guint32 max_entries = entries;
+		MonoJumpTableChunk *new_chunk;
+
+		if (max_entries < DEFAULT_JUMPTABLE_CHUNK_ELEMENTS)
+			max_entries = DEFAULT_JUMPTABLE_CHUNK_ELEMENTS;
+		new_chunk = mono_create_jumptable_chunk (max_entries);
+		/* Link old jumptable, so that we could free it up later. */
+		new_chunk->previous = g_jumptable;
+		g_jumptable = new_chunk;
+		index = 0;
+	}
+	g_jumptable->active = index + entries;
+	result = (gpointer*)((guchar*)g_jumptable + sizeof(MonoJumpTableChunk)) + index;
+	mono_jumptable_unlock();
+
+	return result;
+}
+
+void
+mono_jumptable_cleanup (void)
+{
+	if (g_jumptable) {
+		MonoJumpTableChunk *current = g_jumptable, *prev;
+		while (current != NULL) {
+			prev = current->previous;
+			g_free (current);
+			current = prev;
+		}
+		g_jumptable = NULL;
+		mono_mutex_destroy (&jumptable_mutex);
+	}
+}
+
+gpointer*
+mono_jumptable_get_entry (guint8 *code_ptr)
+{
+	return mono_arch_jumptable_entry_from_code (code_ptr);
+}
+#endif
+
+/*
+ * mini_replace_type:
+ *
+ * Replace the type used in the metadata stream with what the JIT will actually use during compilation.
+*/
+MonoType*
+mini_replace_type (MonoType *type)
+{
+	type = mono_type_get_underlying_type (type);
+	return mini_native_type_replace_type (type);
+}
+
 /*
  * mini_get_underlying_type:
  *
@@ -4437,9 +4462,10 @@ void mono_llvm_emit_aot_data (const char *symbol, guint8 *data, int data_len)
  * For gsharedvt types, it will return the original VAR/MVAR.
  */
 MonoType*
-mini_get_underlying_type (MonoType *type)
+mini_get_underlying_type (MonoCompile *cfg, MonoType *type)
 {
-	return mini_type_get_underlying_type (type);
+	type = mini_type_get_underlying_type (cfg->generic_sharing_context, type);
+	return mini_native_type_replace_type (type);
 }
 
 void
@@ -4451,31 +4477,6 @@ mini_jit_init (void)
 void
 mini_jit_cleanup (void)
 {
-#ifndef DISABLE_JIT
 	g_free (emul_opcode_map);
 	g_free (emul_opcode_opcodes);
-#endif
 }
-
-#ifdef DISABLE_JIT
-
-MonoCompile*
-mini_method_compile (MonoMethod *method, guint32 opts, MonoDomain *domain, JitFlags flags, int parts, int aot_method_index)
-{
-	g_assert_not_reached ();
-	return NULL;
-}
-
-void
-mono_destroy_compile (MonoCompile *cfg)
-{
-	g_assert_not_reached ();
-}
-
-void
-mono_add_patch_info (MonoCompile *cfg, int ip, MonoJumpInfoType type, gconstpointer target)
-{
-	g_assert_not_reached ();
-}
-
-#endif /* DISABLE_JIT */

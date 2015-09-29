@@ -21,6 +21,7 @@
 //	Brian O'Keefe (zer0keefie@gmail.com)
 //
 
+#if NET_4_0
 
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
@@ -92,3 +93,4 @@ namespace MonoTests.System.Collections.ObjectModel {
 	}
 }
 
+#endif

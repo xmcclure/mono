@@ -500,7 +500,7 @@ namespace System.Net.Http.Headers
 			return (HttpHeaderValueCollection<T>) value.Parsed;
 		}
 
-		internal void SetValue<T> (string name, T value, Func<object, string> toStringConverter = null)
+		void SetValue<T> (string name, T value, Func<object, string> toStringConverter = null)
 		{
 			headers[name] = new HeaderBucket (value, toStringConverter);
 		}

@@ -111,12 +111,6 @@ namespace Mono.CSharp {
 		{
 			visitor.Visit (this);
 		}
-
-		public override void PrepareEmit ()
-		{
-			base.PrepareEmit ();
-			DefineValue ();
-		}
 	}
 
 	public class ConstSpec : FieldSpec

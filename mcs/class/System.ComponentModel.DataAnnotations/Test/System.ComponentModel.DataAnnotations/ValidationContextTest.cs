@@ -35,6 +35,7 @@ using NUnit.Framework;
 
 namespace MonoTests.System.ComponentModel.DataAnnotations
 {
+#if NET_4_0
 	[TestFixture]
 	public class ValidationContextTest
 	{
@@ -237,4 +238,5 @@ namespace MonoTests.System.ComponentModel.DataAnnotations
 			return null;
 		}
 	}
+#endif
 }

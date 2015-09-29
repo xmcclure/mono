@@ -1,5 +1,4 @@
 ./Assembly/AssemblyInfo.cs
-../../build/common/Consts.cs
 
 ./Client/Parameterized.System.Data.Services.Client.cs
 ./Client/System/Data/Services/Client/ALinq/DataServiceExpressionVisitor.cs

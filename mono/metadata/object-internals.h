@@ -255,8 +255,6 @@ struct _MonoException {
 	MonoObject *_data;
 	MonoObject *captured_traces;
 	MonoArray  *native_trace_ips;
-	/* Dynamic methods referenced by the stack trace */
-	MonoObject *dynamic_methods;
 };
 
 typedef struct {

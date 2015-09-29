@@ -344,6 +344,7 @@ namespace MonoTests.System.Resources
 			writer.Close ();
 		}
 
+#if NET_4_0
 		// We are using a FileStream instead of a MemoryStream
 		// to test that we support all kind of Stream instances,
 		// and not only MemoryStream, as it used to be before 4.0.
@@ -580,6 +581,7 @@ namespace MonoTests.System.Resources
 				throw new NotSupportedException ();
 			}
 		}
+#endif
 
 		[Test]
 		[Category ("MobileNotWorking")]

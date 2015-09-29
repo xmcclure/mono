@@ -57,8 +57,7 @@ ICALL(KPAIR_4, "_ProtectMachine", ves_icall_Mono_Security_Cryptography_KeyPairPe
 ICALL(KPAIR_5, "_ProtectUser", ves_icall_Mono_Security_Cryptography_KeyPairPersistence_ProtectUser)
 #endif /* !PLATFORM_RO_FS */
 
-ICALL_TYPE(APPDOM, "System.AppDomain", APPDOM_23)
-ICALL(APPDOM_23, "DoUnhandledException", ves_icall_System_AppDomain_DoUnhandledException)
+ICALL_TYPE(APPDOM, "System.AppDomain", APPDOM_1)
 ICALL(APPDOM_1, "ExecuteAssembly", ves_icall_System_AppDomain_ExecuteAssembly)
 ICALL(APPDOM_2, "GetAssemblies", ves_icall_System_AppDomain_GetAssemblies)
 ICALL(APPDOM_3, "GetData", ves_icall_System_AppDomain_GetData)
@@ -290,6 +289,9 @@ ICALL_TYPE(REGINF, "System.Globalization.RegionInfo", REGINF_1)
 ICALL(REGINF_1, "construct_internal_region_from_lcid", ves_icall_System_Globalization_RegionInfo_construct_internal_region_from_lcid)
 ICALL(REGINF_2, "construct_internal_region_from_name", ves_icall_System_Globalization_RegionInfo_construct_internal_region_from_name)
 
+ICALL_TYPE(TXTINF, "System.Globalization.TextInfo", TXTINF_1)
+ICALL(TXTINF_1, "GetDataTablePointersLite", ves_icall_System_Globalization_TextInfo_GetDataTablePointersLite)
+
 #ifndef PLATFORM_NO_DRIVEINFO
 ICALL_TYPE(IODRIVEINFO, "System.IO.DriveInfo", IODRIVEINFO_1)
 ICALL(IODRIVEINFO_1, "GetDiskFreeSpaceInternal", ves_icall_System_IO_DriveInfo_GetDiskFreeSpace)
@@ -307,9 +309,6 @@ ICALL_TYPE(INOW, "System.IO.InotifyWatcher", INOW_1)
 ICALL(INOW_1, "AddWatch", ves_icall_System_IO_InotifyWatcher_AddWatch)
 ICALL(INOW_2, "GetInotifyInstance", ves_icall_System_IO_InotifyWatcher_GetInotifyInstance)
 ICALL(INOW_3, "RemoveWatch", ves_icall_System_IO_InotifyWatcher_RemoveWatch)
-
-ICALL_TYPE(KQUEM, "System.IO.KqueueMonitor", KQUEM_1)
-ICALL(KQUEM_1, "kevent_notimeout", ves_icall_System_IO_KqueueMonitor_kevent_notimeout)
 
 ICALL_TYPE(MMAPIMPL, "System.IO.MemoryMappedFiles.MemoryMapImpl", MMAPIMPL_1)
 ICALL(MMAPIMPL_1, "CloseMapping", mono_mmap_close)
@@ -340,6 +339,7 @@ ICALL(MONOIO_10, "GetFileSystemEntries", ves_icall_System_IO_MonoIO_GetFileSyste
 ICALL(MONOIO_11, "GetFileType(intptr,System.IO.MonoIOError&)", ves_icall_System_IO_MonoIO_GetFileType)
 ICALL(MONOIO_12, "GetLength(intptr,System.IO.MonoIOError&)", ves_icall_System_IO_MonoIO_GetLength)
 #ifndef PLATFORM_RO_FS
+ICALL(MONOIO_13, "GetTempPath(string&)", ves_icall_System_IO_MonoIO_GetTempPath)
 ICALL(MONOIO_14, "Lock(intptr,long,long,System.IO.MonoIOError&)", ves_icall_System_IO_MonoIO_Lock)
 ICALL(MONOIO_15, "MoveFile(string,string,System.IO.MonoIOError&)", ves_icall_System_IO_MonoIO_MoveFile)
 #endif /* !PLATFORM_RO_FS */
@@ -370,14 +370,11 @@ ICALL(MONOIO_33, "get_VolumeSeparatorChar", ves_icall_System_IO_MonoIO_get_Volum
 ICALL_TYPE(IOPATH, "System.IO.Path", IOPATH_1)
 ICALL(IOPATH_1, "get_temp_path", ves_icall_System_IO_get_temp_path)
 
-ICALL_TYPE(MATH, "System.Math", MATH_19)
-ICALL(MATH_19, "Abs(double)", ves_icall_System_Math_Abs_double)
-ICALL(MATH_20, "Abs(single)", ves_icall_System_Math_Abs_single)
+ICALL_TYPE(MATH, "System.Math", MATH_1)
 ICALL(MATH_1, "Acos", ves_icall_System_Math_Acos)
 ICALL(MATH_2, "Asin", ves_icall_System_Math_Asin)
 ICALL(MATH_3, "Atan", ves_icall_System_Math_Atan)
 ICALL(MATH_4, "Atan2", ves_icall_System_Math_Atan2)
-ICALL(MATH_21, "Ceiling", ves_icall_System_Math_Ceiling)
 ICALL(MATH_5, "Cos", ves_icall_System_Math_Cos)
 ICALL(MATH_6, "Cosh", ves_icall_System_Math_Cosh)
 ICALL(MATH_7, "Exp", ves_icall_System_Math_Exp)
@@ -386,9 +383,9 @@ ICALL(MATH_9, "Log", ves_icall_System_Math_Log)
 ICALL(MATH_10, "Log10", ves_icall_System_Math_Log10)
 ICALL(MATH_11, "Pow", ves_icall_System_Math_Pow)
 ICALL(MATH_12, "Round", ves_icall_System_Math_Round)
+ICALL(MATH_13, "Round2", ves_icall_System_Math_Round2)
 ICALL(MATH_14, "Sin", ves_icall_System_Math_Sin)
 ICALL(MATH_15, "Sinh", ves_icall_System_Math_Sinh)
-ICALL(MATH_22, "SplitFractionDouble", ves_icall_System_Math_SplitFractionDouble)
 ICALL(MATH_16, "Sqrt", ves_icall_System_Math_Sqrt)
 ICALL(MATH_17, "Tan", ves_icall_System_Math_Tan)
 ICALL(MATH_18, "Tanh", ves_icall_System_Math_Tanh)
@@ -519,8 +516,7 @@ ICALL(GPARB_1, "initialize", mono_reflection_initialize_generic_parameter)
 ICALL_TYPE(METHODB, "System.Reflection.Emit.MethodBuilder", METHODB_1)
 ICALL(METHODB_1, "MakeGenericMethod", mono_reflection_bind_generic_method_parameters)
 
-ICALL_TYPE(MODULEB, "System.Reflection.Emit.ModuleBuilder", MODULEB_10)
-ICALL(MODULEB_10, "GetRegisteredToken", ves_icall_ModuleBuilder_GetRegisteredToken)
+ICALL_TYPE(MODULEB, "System.Reflection.Emit.ModuleBuilder", MODULEB_8)
 ICALL(MODULEB_8, "RegisterToken", ves_icall_ModuleBuilder_RegisterToken)
 ICALL(MODULEB_1, "WriteToFile", ves_icall_ModuleBuilder_WriteToFile)
 ICALL(MODULEB_2, "basic_init", mono_image_module_basic_init)
@@ -880,7 +876,6 @@ ICALL(MONIT_4, "Monitor_test_owner", ves_icall_System_Threading_Monitor_Monitor_
 ICALL(MONIT_5, "Monitor_test_synchronised", ves_icall_System_Threading_Monitor_Monitor_test_synchronised)
 ICALL(MONIT_6, "Monitor_try_enter", ves_icall_System_Threading_Monitor_Monitor_try_enter)
 ICALL(MONIT_7, "Monitor_wait", ves_icall_System_Threading_Monitor_Monitor_wait)
-ICALL(MONIT_10, "enter_with_atomic_var", mono_monitor_enter_v4)
 ICALL(MONIT_9, "try_enter_with_atomic_var", ves_icall_System_Threading_Monitor_Monitor_try_enter_with_atomic_var)
 
 ICALL_TYPE(MUTEX, "System.Threading.Mutex", MUTEX_1)

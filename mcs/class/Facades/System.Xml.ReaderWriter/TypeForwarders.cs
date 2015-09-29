@@ -45,6 +45,3 @@
 [assembly: System.Runtime.CompilerServices.TypeForwardedToAttribute(typeof(System.Xml.XmlWriter))]
 [assembly: System.Runtime.CompilerServices.TypeForwardedToAttribute(typeof(System.Xml.XmlWriterSettings))]
 
-[assembly: System.Runtime.CompilerServices.TypeForwardedToAttribute(typeof(System.Xml.Serialization.IXmlSerializable))]
-[assembly: System.Runtime.CompilerServices.TypeForwardedToAttribute(typeof(System.Xml.XmlDateTimeSerializationMode))]
-

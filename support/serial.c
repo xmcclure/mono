@@ -34,11 +34,7 @@
 
 /* sys/time.h (for timeval) is required when using osx 10.3 (but not 10.4) */
 /* IOKit is a private framework in iOS, so exclude there */
-#if defined(__APPLE__) && !defined(HOST_IOS) && !defined(HOST_WATCHOS) && !defined(HOST_APPLETVOS)
-#define HAVE_IOKIT 1
-#endif
-
-#if defined(HAVE_IOKIT)
+#if defined(__APPLE__) && !defined(HOST_IOS)
 #include <sys/time.h>
 #include <IOKit/IOKitLib.h>
 #include <IOKit/serial/IOSerialKeys.h>
@@ -388,7 +384,7 @@ set_attributes (int fd, int baud_rate, MonoParity parity, int dataBits, MonoStop
 		if (cfsetospeed (&newtio, baud_rate) < 0 || cfsetispeed (&newtio, baud_rate) < 0)
 			return FALSE;
 	} else {
-#if __linux__ || defined(HAVE_IOKIT)
+#if __linux__ || (defined(__APPLE__) && !defined(HOST_IOS))
 
 		/* On Linux to set a custom baud rate, we must set the
 		 * "standard" baud_rate to 38400.   On Apple we set it purely
@@ -421,7 +417,7 @@ set_attributes (int fd, int baud_rate, MonoParity parity, int dataBits, MonoStop
 		{
 			return FALSE;
 		}
-#elif defined(HAVE_IOKIT)
+#elif defined(__APPLE__) && !defined(HOST_IOS)
 		speed_t speed = baud_rate;
 		if (ioctl(fd, IOSSIOSPEED, &speed) == -1)
 			return FALSE;

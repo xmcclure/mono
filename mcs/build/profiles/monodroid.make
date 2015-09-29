@@ -37,5 +37,3 @@ NO_TEST = yes
 
 # the tuner takes care of the install
 NO_INSTALL = yes
-MOBILE_DYNAMIC = yes
-MOBILE_PROFILE = yes

@@ -244,9 +244,6 @@ br_reg: src1:i len:8
 bigmul: len:8 dest:l src1:i src2:i
 bigmul_un: len:8 dest:l src1:i src2:i
 tls_get: len:24 dest:i clob:c
-tls_get_reg: len:28 dest:i src1:i clob:c
-tls_set: len:24 src1:i clob:c
-tls_set_reg: len:28 src1:i src2:i clob:c
 
 # 32 bit opcodes
 int_add: dest:i src1:i src2:i len:4
@@ -381,7 +378,6 @@ gc_liveness_def: len:0
 gc_liveness_use: len:0
 gc_spill_slot_liveness_def: len:0
 gc_param_slot_liveness_def: len:0
-gc_safe_point: clob:c src1:i len:40
 
 atomic_add_i4: dest:i src1:i src2:i len:64
 atomic_exchange_i4: dest:i src1:i src2:i len:64

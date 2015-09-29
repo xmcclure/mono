@@ -178,9 +178,7 @@ is_pid_valid (pid_t pid)
 {
 	gboolean result = FALSE;
 
-#if defined(HOST_WATCHOS)
-	result = TRUE; // TODO: Rewrite using sysctl
-#elif defined(PLATFORM_MACOSX) || defined(__OpenBSD__) || defined(__FreeBSD__)
+#if defined(PLATFORM_MACOSX) || defined(__OpenBSD__) || defined(__FreeBSD__)
 	if (((kill(pid, 0) == 0) || (errno == EPERM)) && pid != 0)
 		result = TRUE;
 #elif defined(__HAIKU__)
@@ -554,7 +552,6 @@ gboolean CreateProcess (const gunichar2 *appname, const gunichar2 *cmdline,
 			WapiStartupInfo *startup,
 			WapiProcessInformation *process_info)
 {
-#if defined (HAVE_FORK) && defined (HAVE_EXECVE)
 	char *cmd = NULL, *prog = NULL, *full_prog = NULL, *args = NULL, *args_after_prog = NULL;
 	char *dir = NULL, **env_strings = NULL, **argv = NULL;
 	guint32 i, env_count = 0;
@@ -1099,10 +1096,6 @@ free_strings:
 	mono_processes_cleanup ();
 	
 	return ret;
-#else
-	SetLastError (ERROR_NOT_SUPPORTED);
-	return FALSE;
-#endif // defined (HAVE_FORK) && defined (HAVE_EXECVE)
 }
 		
 static void
@@ -2391,7 +2384,6 @@ SetProcessWorkingSetSize (gpointer process, size_t min, size_t max)
 gboolean
 TerminateProcess (gpointer process, gint32 exitCode)
 {
-#if defined(HAVE_KILL)
 	WapiHandle_process *process_handle;
 	int signo;
 	int ret;
@@ -2429,10 +2421,6 @@ TerminateProcess (gpointer process, gint32 exitCode)
 	}
 	
 	return (ret == 0);
-#else
-	g_error ("kill() is not supported by this platform");
-	return FALSE;
-#endif
 }
 
 guint32

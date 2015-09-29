@@ -12,7 +12,8 @@ LIB_MCS_FLAGS = \
 	-d:MONO_PARTIAL_DATA_IMPORT \
 	-unsafe
 
-ifdef MOBILE_PROFILE
+MOBILE := $(filter monotouch monotouch_watch monodroid xammac mobile mobile_static, $(PROFILE))
+ifdef MOBILE
 LIB_REFS += Mono.Data.Tds System.Transactions
 LIB_MCS_FLAGS += -d:NO_CODEDOM -d:NO_OLEDB -d:NO_ODBC -d:NO_CONFIGURATION
 else
@@ -39,7 +40,7 @@ EXTRA_DISTFILES = \
 	$(wildcard Test/System.Xml/*.xsd)		\
 	Test/System.Data/schemas/ChangeLog	\
 	$(wildcard Test/System.Data/schemas/*.xsd)		\
-	app_test_net_4_x.config			\
+	app_test_net_4_5.config			\
 	Test/System.Data/binserialize/*.bin	\
 	SqliteTest.db	\
 	referencesource.sources

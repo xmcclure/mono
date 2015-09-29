@@ -1,3 +1,4 @@
+#if NET_4_0
 //
 // SpinLockTests.cs
 //
@@ -155,3 +156,4 @@ namespace MonoTests.System.Threading
 		}
 	}
 }
+#endif

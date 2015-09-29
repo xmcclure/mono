@@ -8,7 +8,7 @@
 
 RUNTIME = mono
 
-nunit_MONO_PATH="../../../../../class/lib/net_4_x"
+nunit_MONO_PATH="../../../../../class/lib/net_4_5"
 CSCOMPILE=mcs
 XSPSERVER=xsp4
 

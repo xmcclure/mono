@@ -21,6 +21,7 @@
 //	Brian O'Keefe (zer0keefie@gmail.com)
 //
 
+#if NET_4_0
 
 using System.Collections;
 using NUnit.Framework;
@@ -101,3 +102,4 @@ namespace MonoTests.System.Collections.Specialized {
 	}
 }
 
+#endif

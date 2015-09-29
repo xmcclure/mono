@@ -1,3 +1,4 @@
+#if NET_4_0
 // ConcurrentSkipListTests.cs
 //
 // Copyright (c) 2008 Jérémie "Garuma" Laval
@@ -109,3 +110,4 @@ namespace MonoTests.Mono.Collections.Concurrent
 		 
 	}
 }
+#endif

@@ -1875,6 +1875,7 @@ namespace MonoTests.System.Net
 		}
 #endif
 
+#if NET_4_0
 		public void UploadAsyncCancelEventTest (int port, Action<WebClient, Uri, EventWaitHandle> uploadAction)
 		{
 			var ep = NetworkHelpers.LocalEphemeralEndPoint ();
@@ -1898,5 +1899,6 @@ namespace MonoTests.System.Net
 				Assert.IsTrue (cancelEvent.WaitOne (1000));
 			}
 		}
+#endif
 	}
 }

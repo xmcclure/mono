@@ -35,6 +35,7 @@ using NUnit.Framework;
 
 namespace MonoTests.System.ComponentModel.DataAnnotations
 {
+#if NET_4_0
 	[TestFixture]
 	public class EnumDataTypeAttributeTest
 	{
@@ -132,4 +133,5 @@ namespace MonoTests.System.ComponentModel.DataAnnotations
 		Five = 8,
 		Six = 16
 	}
+#endif
 }

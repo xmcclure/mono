@@ -93,12 +93,7 @@ static gboolean debug_domain_unload;
 
 gboolean mono_dont_free_domains;
 
-#define mono_appdomains_lock() do {	\
-	MONO_TRY_BLOCKING;	\
-	mono_mutex_lock (&appdomains_mutex); \
-	MONO_FINISH_TRY_BLOCKING;	\
-} while (0);
-
+#define mono_appdomains_lock() mono_mutex_lock (&appdomains_mutex)
 #define mono_appdomains_unlock() mono_mutex_unlock (&appdomains_mutex)
 static mono_mutex_t appdomains_mutex;
 
@@ -348,7 +343,7 @@ domain_id_alloc (MonoDomain *domain)
 	int id = -1, i;
 	if (!appdomains_list) {
 		appdomain_list_size = 2;
-		appdomains_list = mono_gc_alloc_fixed (appdomain_list_size * sizeof (void*), MONO_GC_DESCRIPTOR_NULL, MONO_ROOT_SOURCE_DOMAIN, "domains list");
+		appdomains_list = mono_gc_alloc_fixed (appdomain_list_size * sizeof (void*), MONO_GC_DESCRIPTOR_NULL);
 	}
 	for (i = appdomain_next; i < appdomain_list_size; ++i) {
 		if (!appdomains_list [i]) {
@@ -370,7 +365,7 @@ domain_id_alloc (MonoDomain *domain)
 		if (new_size >= (1 << 16))
 			g_assert_not_reached ();
 		id = appdomain_list_size;
-		new_list = mono_gc_alloc_fixed (new_size * sizeof (void*), MONO_GC_DESCRIPTOR_NULL, MONO_ROOT_SOURCE_DOMAIN, "domains list");
+		new_list = mono_gc_alloc_fixed (new_size * sizeof (void*), MONO_GC_DESCRIPTOR_NULL);
 		memcpy (new_list, appdomains_list, appdomain_list_size * sizeof (void*));
 		mono_gc_free_fixed (appdomains_list);
 		appdomains_list = new_list;
@@ -414,10 +409,10 @@ mono_domain_create (void)
 	 * running the corlib test suite.
 	 * To solve this, we pass a NULL descriptor, and don't register roots.
 	 */
-	domain = mono_gc_alloc_fixed (sizeof (MonoDomain), NULL, MONO_ROOT_SOURCE_DOMAIN, "domain object");
+	domain = mono_gc_alloc_fixed (sizeof (MonoDomain), NULL);
 #else
-	domain = mono_gc_alloc_fixed (sizeof (MonoDomain), domain_gc_desc, MONO_ROOT_SOURCE_DOMAIN, "domain object");
-	mono_gc_register_root ((char*)&(domain->MONO_DOMAIN_FIRST_GC_TRACKED), G_STRUCT_OFFSET (MonoDomain, MONO_DOMAIN_LAST_GC_TRACKED) - G_STRUCT_OFFSET (MonoDomain, MONO_DOMAIN_FIRST_GC_TRACKED), MONO_GC_DESCRIPTOR_NULL, MONO_ROOT_SOURCE_DOMAIN, "misc domain fields");
+	domain = mono_gc_alloc_fixed (sizeof (MonoDomain), domain_gc_desc);
+	mono_gc_register_root ((char*)&(domain->MONO_DOMAIN_FIRST_GC_TRACKED), G_STRUCT_OFFSET (MonoDomain, MONO_DOMAIN_LAST_GC_TRACKED) - G_STRUCT_OFFSET (MonoDomain, MONO_DOMAIN_FIRST_GC_TRACKED), MONO_GC_DESCRIPTOR_NULL);
 #endif
 	domain->shadow_serial = shadow_serial;
 	domain->domain = NULL;
@@ -430,7 +425,7 @@ mono_domain_create (void)
 	domain->mp = mono_mempool_new ();
 	domain->code_mp = mono_code_manager_new ();
 	domain->lock_free_mp = lock_free_mempool_new ();
-	domain->env = mono_g_hash_table_new_type ((GHashFunc)mono_string_hash, (GCompareFunc)mono_string_equal, MONO_HASH_KEY_VALUE_GC, MONO_ROOT_SOURCE_DOMAIN, "domain environment variables table");
+	domain->env = mono_g_hash_table_new_type ((GHashFunc)mono_string_hash, (GCompareFunc)mono_string_equal, MONO_HASH_KEY_VALUE_GC);
 	domain->domain_assemblies = NULL;
 	domain->assembly_bindings = NULL;
 	domain->assembly_bindings_parsed = FALSE;
@@ -438,7 +433,7 @@ mono_domain_create (void)
 	domain->proxy_vtable_hash = g_hash_table_new ((GHashFunc)mono_ptrarray_hash, (GCompareFunc)mono_ptrarray_equal);
 	domain->static_data_array = NULL;
 	mono_jit_code_hash_init (&domain->jit_code_hash);
-	domain->ldstr_table = mono_g_hash_table_new_type ((GHashFunc)mono_string_hash, (GCompareFunc)mono_string_equal, MONO_HASH_KEY_VALUE_GC, MONO_ROOT_SOURCE_DOMAIN, "domain string constants table");
+	domain->ldstr_table = mono_g_hash_table_new_type ((GHashFunc)mono_string_hash, (GCompareFunc)mono_string_equal, MONO_HASH_KEY_VALUE_GC);
 	domain->num_jit_info_tables = 1;
 	domain->jit_info_table = mono_jit_info_table_new (domain);
 	domain->jit_info_free_queue = NULL;
@@ -491,7 +486,7 @@ mono_init_internal (const char *filename, const char *exe_filename, const char *
 	MonoAssembly *ass = NULL;
 	MonoImageOpenStatus status = MONO_IMAGE_OK;
 	const MonoRuntimeInfo* runtimes [G_N_ELEMENTS (supported_runtimes) + 1];
-	int n, dummy;
+	int n;
 
 #ifdef DEBUG_DOMAIN_UNLOAD
 	debug_domain_unload = TRUE;
@@ -519,7 +514,6 @@ mono_init_internal (const char *filename, const char *exe_filename, const char *
 	mono_counters_register ("Total code space allocated", MONO_COUNTER_INT|MONO_COUNTER_JIT, &total_domain_code_alloc);
 
 	mono_gc_base_init ();
-	mono_thread_info_attach (&dummy);
 
 	MONO_FAST_TLS_INIT (tls_appdomain);
 	mono_native_tls_alloc (&appdomain_thread_id, NULL);
@@ -535,7 +529,7 @@ mono_init_internal (const char *filename, const char *exe_filename, const char *
 	mono_runtime_init_tls ();
 
 	/* FIXME: When should we release this memory? */
-	MONO_GC_REGISTER_ROOT_FIXED (appdomains_list, MONO_ROOT_SOURCE_DOMAIN, "domains list");
+	MONO_GC_REGISTER_ROOT_FIXED (appdomains_list);
 
 	domain = mono_domain_create ();
 	mono_root_domain = domain;
@@ -851,13 +845,6 @@ mono_init_internal (const char *filename, const char *exe_filename, const char *
 
 	mono_defaults.threadpool_wait_callback_class = mono_class_from_name (
 		mono_defaults.corlib, "System.Threading", "_ThreadPoolWaitCallback");
-	if (!mono_defaults.threadpool_wait_callback_class) {
-		/* This can happen with an old mscorlib */
-		fprintf (stderr, "Corlib too old for this runtime.\n");
-		fprintf (stderr, "Loaded from: %s\n",
-				 mono_defaults.corlib? mono_image_get_filename (mono_defaults.corlib): "unknown");
-		exit (1);
-	}
 	mono_defaults.threadpool_perform_wait_callback_method = mono_class_get_method_from_name (
 		mono_defaults.threadpool_wait_callback_class, "PerformWaitCallback", 0);
 
@@ -1041,7 +1028,7 @@ mono_domain_foreach (MonoDomainFunc func, gpointer user_data)
 	 */
 	mono_appdomains_lock ();
 	size = appdomain_list_size;
-	copy = mono_gc_alloc_fixed (appdomain_list_size * sizeof (void*), MONO_GC_DESCRIPTOR_NULL, MONO_ROOT_SOURCE_DOMAIN, "temporary domains list");
+	copy = mono_gc_alloc_fixed (appdomain_list_size * sizeof (void*), MONO_GC_DESCRIPTOR_NULL);
 	memcpy (copy, appdomains_list, appdomain_list_size * sizeof (void*));
 	mono_appdomains_unlock ();
 
@@ -1288,10 +1275,6 @@ mono_domain_free (MonoDomain *domain, gboolean force)
 		g_hash_table_destroy (domain->ftnptrs_hash);
 		domain->ftnptrs_hash = NULL;
 	}
-	if (domain->method_to_dyn_method) {
-		g_hash_table_destroy (domain->method_to_dyn_method);
-		domain->method_to_dyn_method = NULL;
-	}
 
 	mono_mutex_destroy (&domain->finalizable_objects_hash_lock);
 	mono_mutex_destroy (&domain->assemblies_lock);
@@ -1314,10 +1297,10 @@ mono_domain_free (MonoDomain *domain, gboolean force)
 }
 
 /**
- * mono_domain_get_by_id:
+ * mono_domain_get_id:
  * @domainid: the ID
  *
- * Returns: the domain for a specific domain id.
+ * Returns: the a domain for a specific domain id.
  */
 MonoDomain * 
 mono_domain_get_by_id (gint32 domainid) 
@@ -1334,29 +1317,12 @@ mono_domain_get_by_id (gint32 domainid)
 	return domain;
 }
 
-/*
- * mono_domain_get_id:
- *
- * A domain ID is guaranteed to be unique for as long as the domain
- * using it is alive. It may be reused later once the domain has been
- * unloaded.
- *
- * Returns: The unique ID for @domain.
- */
 gint32
 mono_domain_get_id (MonoDomain *domain)
 {
 	return domain->domain_id;
 }
 
-/*
- * mono_domain_get_friendly_name:
- *
- * The returned string's lifetime is the same as @domain's. Consider
- * copying it if you need to store it somewhere.
- *
- * Returns: The friendly name of @domain. Can be NULL if not yet set.
- */
 const char *
 mono_domain_get_friendly_name (MonoDomain *domain)
 {
@@ -1538,25 +1504,12 @@ mono_context_get (void)
 	return GET_APPCONTEXT ();
 }
 
-/*
- * mono_context_get_id:
- *
- * Context IDs are guaranteed to be unique for the duration of a Mono
- * process; they are never reused.
- *
- * Returns: The unique ID for @context.
- */
 gint32
 mono_context_get_id (MonoAppContext *context)
 {
 	return context->context_id;
 }
 
-/*
- * mono_context_get_domain_id:
- *
- * Returns: The ID of the domain that @context was created in.
- */
 gint32
 mono_context_get_domain_id (MonoAppContext *context)
 {
@@ -1576,7 +1529,7 @@ mono_domain_add_class_static_data (MonoDomain *domain, MonoClass *klass, gpointe
 		next = GPOINTER_TO_INT (domain->static_data_array [0]);
 		if (next >= size) {
 			/* 'data' is allocated by alloc_fixed */
-			gpointer *new_array = mono_gc_alloc_fixed (sizeof (gpointer) * (size * 2), MONO_GC_ROOT_DESCR_FOR_FIXED (size * 2), MONO_ROOT_SOURCE_DOMAIN, "static field list");
+			gpointer *new_array = mono_gc_alloc_fixed (sizeof (gpointer) * (size * 2), MONO_GC_ROOT_DESCR_FOR_FIXED (size * 2));
 			mono_gc_memmove_aligned (new_array, domain->static_data_array, sizeof (gpointer) * size);
 			size *= 2;
 			new_array [1] = GINT_TO_POINTER (size);
@@ -1585,7 +1538,7 @@ mono_domain_add_class_static_data (MonoDomain *domain, MonoClass *klass, gpointe
 		}
 	} else {
 		int size = 32;
-		gpointer *new_array = mono_gc_alloc_fixed (sizeof (gpointer) * size, MONO_GC_ROOT_DESCR_FOR_FIXED (size), MONO_ROOT_SOURCE_DOMAIN, "static field list");
+		gpointer *new_array = mono_gc_alloc_fixed (sizeof (gpointer) * size, MONO_GC_ROOT_DESCR_FOR_FIXED (size));
 		next = 2;
 		new_array [0] = GINT_TO_POINTER (next);
 		new_array [1] = GINT_TO_POINTER (size);
@@ -1969,9 +1922,9 @@ mono_get_aot_cache_config (void)
 void
 mono_domain_lock (MonoDomain *domain)
 {
-	MONO_TRY_BLOCKING;
+	MONO_TRY_BLOCKING
 	mono_locks_acquire (&(domain)->lock, DomainLock);
-	MONO_FINISH_TRY_BLOCKING;
+	MONO_FINISH_TRY_BLOCKING
 }
 
 void

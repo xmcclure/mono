@@ -142,10 +142,10 @@ namespace System.Net {
 			foreach (string kv in components) {
 				int pos = kv.IndexOf ('=');
 				if (pos == -1) {
-					query_string.Add (null, WebUtility.UrlDecode (kv));
+					query_string.Add (null, HttpUtility.UrlDecode (kv));
 				} else {
-					string key = WebUtility.UrlDecode (kv.Substring (0, pos));
-					string val = WebUtility.UrlDecode (kv.Substring (pos + 1));
+					string key = HttpUtility.UrlDecode (kv.Substring (0, pos));
+					string val = HttpUtility.UrlDecode (kv.Substring (pos + 1));
 					
 					query_string.Add (key, val);
 				}

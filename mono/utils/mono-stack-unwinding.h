@@ -19,8 +19,7 @@ typedef enum {
 	FRAME_TYPE_DEBUGGER_INVOKE = 1,
 	/* Frame for transitioning to native code */
 	FRAME_TYPE_MANAGED_TO_NATIVE = 2,
-	FRAME_TYPE_TRAMPOLINE = 3,
-	FRAME_TYPE_NUM = 4
+	FRAME_TYPE_SENTINEL = 3
 } MonoStackFrameType;
 
 typedef enum {

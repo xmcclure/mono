@@ -199,6 +199,7 @@ namespace MonoTests.System.Reflection.Emit
 				_fieldName);
 		}
 
+#if NET_4_0
 		[Test]
 		public void GetEnumUnderlyingType ()
 		{
@@ -206,6 +207,7 @@ namespace MonoTests.System.Reflection.Emit
 
 			Assert.AreEqual (_enumType, @enum.GetEnumUnderlyingType ());
 		}
+#endif
 
 		[Test]
 		public void TestFindMembersComplete ()

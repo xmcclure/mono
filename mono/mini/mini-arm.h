@@ -254,7 +254,7 @@ typedef struct MonoCompileArch {
 
 #define MONO_ARCH_USE_SIGACTION 1
 
-#if defined(__native_client__) || defined(HOST_WATCHOS)
+#if defined(__native_client__)
 #undef MONO_ARCH_USE_SIGACTION
 #endif
 
@@ -301,8 +301,10 @@ typedef struct MonoCompileArch {
 #undef MONO_ARCH_HAVE_CONTEXT_SET_INT_REG
 #endif
 
-#define MONO_ARCH_HAVE_TLS_GET (mono_arm_have_tls_get ())
-#define MONO_ARCH_HAVE_TLS_GET_REG 1
+/* Matches the HAVE_AEABI_READ_TP define in mini-arm.c */
+#if defined(__ARM_EABI__) && defined(__linux__) && !defined(TARGET_ANDROID) && !defined(__native_client__)
+#define MONO_ARCH_HAVE_TLS_GET 1
+#endif
 
 /* ARM doesn't have too many registers, so we have to use a callee saved one */
 #define MONO_ARCH_RGCTX_REG ARMREG_V5
@@ -355,11 +357,5 @@ mono_arm_load_jumptable_entry (guint8 *code, gpointer *jte, ARMReg reg);
 
 gboolean
 mono_arm_is_hard_float (void);
-
-gboolean
-mono_arm_have_tls_get (void);
-
-void
-mono_arm_unaligned_stack (MonoMethod *method);
 
 #endif /* __MONO_MINI_ARM_H__ */

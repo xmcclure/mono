@@ -262,7 +262,9 @@ namespace Mono.CSharp
 			if (sf.IsHiddenLocation (loc))
 				return false;
 
+#if NET_4_0
 			methodSymbols.MarkSequencePoint (ig.ILOffset, sf.SourceFileEntry, loc.Row, loc.Column, false);
+#endif
 			return true;
 		}
 
@@ -322,7 +324,9 @@ namespace Mono.CSharp
 			if ((flags & Options.OmitDebugInfo) != 0)
 				return;
 
+#if NET_4_0
 			methodSymbols.StartBlock (CodeBlockEntry.Type.Lexical, ig.ILOffset);
+#endif
 		}
 
 		public void BeginCompilerScope ()
@@ -330,7 +334,9 @@ namespace Mono.CSharp
 			if ((flags & Options.OmitDebugInfo) != 0)
 				return;
 
+#if NET_4_0
 			methodSymbols.StartBlock (CodeBlockEntry.Type.CompilerGenerated, ig.ILOffset);
+#endif
 		}
 
 		public void EndExceptionBlock ()
@@ -343,7 +349,9 @@ namespace Mono.CSharp
 			if ((flags & Options.OmitDebugInfo) != 0)
 				return;
 
+#if NET_4_0
 			methodSymbols.EndBlock (ig.ILOffset);
+#endif
 		}
 
 		public void CloseConditionalAccess (TypeSpec type)
@@ -389,22 +397,6 @@ namespace Mono.CSharp
 		{
 			if (IsAnonymousStoreyMutateRequired)
 				type = CurrentAnonymousMethod.Storey.Mutator.Mutate (type);
-
-			if (pinned) {
-				//
-				// This is for .net compatibility. I am not sure why pinned
-				// pointer temps are converted to & even if they are pointers to
-				// pointers.
-				//
-				var pt = type as PointerContainer;
-				if (pt != null) {
-					type = pt.Element;
-					if (type.Kind == MemberKind.Void)
-						type = Module.Compiler.BuiltinTypes.IntPtr;
-					
-					return ig.DeclareLocal (type.GetMetaInfo ().MakeByRefType (), true);
-				}
-			}
 
 			return ig.DeclareLocal (type.GetMetaInfo (), pinned);
 		}

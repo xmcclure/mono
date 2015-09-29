@@ -249,6 +249,7 @@ namespace MonoTests.System
 			Assert.AreEqual (1, v1235.CompareTo (v1234), "1235-1234");
 		}
 
+#if NET_4_0
 		[Test]
 		public void Parse ()
 		{
@@ -358,5 +359,6 @@ namespace MonoTests.System
 			Assert.AreEqual (null, result, "#L1");
 			Assert.AreEqual (false, success, "#L2");
 		}
+#endif
 	}
 }

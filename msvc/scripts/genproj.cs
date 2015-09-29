@@ -104,7 +104,7 @@ class MsbuildGenerator {
 	public const string profile_2_0 = "_2_0";
 	public const string profile_3_5 = "_3_5";
 	public const string profile_4_0 = "_4_0";
-	public const string profile_4_x = "_4_x";
+	public const string profile_4_5 = "_4_5";
 
 	static void Usage ()
 	{
@@ -663,9 +663,9 @@ class MsbuildGenerator {
 			} else if (response.Contains (profile_4_0)) {
 				fx_version = "4.0";
 				profile = "net_4_0";
-			} else if (response.Contains (profile_4_x)) {
+			} else if (response.Contains (profile_4_5)) {
 				fx_version = "4.5";
-				profile = "net_4_x";
+				profile = "net_4_5";
 			}
 		}
 		//
@@ -934,7 +934,7 @@ class MsbuildGenerator {
 
 	MsbuildGenerator GetMatchingCsproj (string dllReferenceName, Dictionary<string,MsbuildGenerator> projects, bool explicitPath = false)
 	{
-		// libDir would be "./../../class/lib/net_4_x for example
+		// libDir would be "./../../class/lib/net_4_5 for example
 		// project 
 		if (!dllReferenceName.EndsWith (".dll"))
 			dllReferenceName += ".dll";
@@ -977,14 +977,6 @@ public class Driver {
 			string library = project.Attribute ("library").Value;
 			var profile = project.Element ("profile").Value;
 
-			// Skip facades for now, the tool doesn't know how to deal with them yet.
-			if (dir.Contains ("Facades"))
-				continue;
-
-			// These are currently broken, skip until they're fixed.
-			if (dir.StartsWith ("mcs") || dir.Contains ("Microsoft.Web.Infrastructure"))
-				continue;
-
 			//
 			// Do only class libraries for now
 			//
@@ -1007,7 +999,7 @@ public class Driver {
 			// The next ones are to make debugging easier for now
 			if (profile == "basic")
 				continue;
-			if (profile != "net_4_x" || library.Contains ("tests"))
+			if (profile != "net_4_5" || library.Contains ("tests"))
 				continue;
 
 			yield return project;
@@ -1069,7 +1061,7 @@ public class Driver {
 		Func<MsbuildGenerator.VsCsproj, bool> additionalFilter;
 		additionalFilter = fullSolutions ? (Func<MsbuildGenerator.VsCsproj, bool>)null : IsCommonLibrary;
 
-		FillSolution (four_five_sln_gen, MsbuildGenerator.profile_4_x, projects.Values, additionalFilter);
+		FillSolution (four_five_sln_gen, MsbuildGenerator.profile_4_5, projects.Values, additionalFilter);
 
 		var sb = new StringBuilder ();
 		sb.AppendLine ("WARNING: Skipped some project references, apparent duplicates in order.xml:");
@@ -1078,7 +1070,7 @@ public class Driver {
 		}
 		Console.WriteLine (sb.ToString ());
 
-		WriteSolution (four_five_sln_gen, MakeSolutionName (MsbuildGenerator.profile_4_x));
+		WriteSolution (four_five_sln_gen, MakeSolutionName (MsbuildGenerator.profile_4_5));
 
 		if (makefileDeps){
 			const string classDirPrefix = "./../../";

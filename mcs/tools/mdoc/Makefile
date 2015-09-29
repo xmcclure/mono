@@ -143,9 +143,6 @@ Test/DocTest.dll-v2:
 	-rm -f Test/DocTest.dll
 	$(MAKE) TEST_CSCFLAGS=$(TEST_CSCFLAGS) Test/DocTest.dll
 
-Test/DocTest-enumerations.dll: 
-	$(CSCOMPILE) $(TEST_CSCFLAGS) -debug -unsafe -target:library -out:$@ Test/DocTest-enumerations.cs
-
 check-monodocer-addNonGeneric: $(PROGRAM)
 	-rm -Rf Test/en.actual
 	# first, make a docset with the generic method
@@ -169,8 +166,6 @@ check-monodocer-dropns-classic: $(PROGRAM)
 
 check-monodocer-dropns-delete: $(PROGRAM)
 	-rm -Rf Test/en.actual
-	rm -Rf Test/DocTest-DropNS-classic-deletetest.dll
-	rm -Rf Test/DocTest-DropNS-unified-deletetest.dll
 	$(MAKE) Test/DocTest-DropNS-classic-deletetest.dll
 	$(MONO) $(PROGRAM) update --delete --exceptions=all -o Test/en.actual Test/DocTest-DropNS-classic-deletetest.dll
 	$(MAKE) Test/DocTest-DropNS-unified-deletetest.dll
@@ -208,12 +203,6 @@ check-monodocer-internal-interface: $(PROGRAM)
 	$(MAKE) Test/DocTest-InternalInterface.dll
 	$(MONO) $(PROGRAM) update --exceptions=all -o Test/en.actual Test/DocTest-InternalInterface.dll
 	diff --exclude=.svn -rup Test/en.expected-internal-interface Test/en.actual
-
-check-monodocer-enumerations: $(PROGRAM)
-	-rm -Rf Test/en.actual
-	$(MAKE) Test/DocTest-enumerations.dll
-	$(MONO) $(PROGRAM) update --exceptions=all -o Test/en.actual Test/DocTest-enumerations.dll
-	diff --exclude=.svn -rup Test/en.expected-enumerations Test/en.actual
 
 check-monodocer-update: $(PROGRAM)
 	find Test/en.expected -name \*.xml -exec rm "{}" \;
@@ -365,21 +354,21 @@ check-doc-tools: check-monodocer-since \
 	check-mdoc-export-html \
 	check-mdoc-export-html-with-version \
 	check-mdoc-export-msxdoc \
-	check-mdoc-validate \
-	check-monodocer-dropns-classic \
-	check-monodocer-dropns-classic-withsecondary \
-	check-monodocer-dropns-delete \
-	check-monodocer-internal-interface \
-	check-monodocer-enumerations
+	check-mdoc-validate
 
 check-doc-tools-update: check-monodocer-since-update \
 	check-monodocer-importecmadoc-update \
 	check-monodocer-importslashdoc-update \
 	check-monodocer-update \
+	check-monodocer-dropns-classic \
+	check-monodocer-dropns-classic-withsecondary \
+	check-monodocer-dropns-delete \
+	check-monodocer-internal-interface \
 	check-monodocer-delete-update \
 	check-mdoc-export-html-update \
 	check-mdoc-export-msxdoc-update \
 	check-mdoc-validate-update 
 
-check: check-doc-tools 
+check: check-doc-tools \
+	check-doc-tools-update
 

@@ -508,6 +508,7 @@ namespace MonoTests.System.Runtime.Serialization.Formatters.Binary
 			Assert.AreEqual (a.Value, b.Value, "#3");
 		}
 
+#if NET_4_0
 		[Test]
 		public void SerializationBindToName ()
 		{
@@ -720,5 +721,6 @@ namespace MonoTests.System.Runtime.Serialization.Formatters.Binary
 				Assert.AreEqual (original.Other.GetType (), ((BaseClass)deserialized).Other.GetType ());
 			}
 		}
+#endif
 	}
 }

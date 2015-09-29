@@ -181,26 +181,14 @@ namespace Mono.Tuner {
 
 		void DispatchAssembly (AssemblyDefinition assembly)
 		{
-			foreach (var substep in on_assemblies) {
-				var bs = substep as BaseSubStep;
-				if (bs != null)
-					bs.Annotations.Push (substep);
+			foreach (var substep in on_assemblies)
 				substep.ProcessAssembly (assembly);
-				if (bs != null)
-					bs.Annotations.Pop ();
-			}
 		}
 
 		void DispatchType (TypeDefinition type)
 		{
-			foreach (var substep in on_types) {
-				var bs = substep as BaseSubStep;
-				if (bs != null)
-					bs.Annotations.Push (substep);
+			foreach (var substep in on_types)
 				substep.ProcessType (type);
-				if (bs != null)
-					bs.Annotations.Pop ();
-			}
 		}
 
 		void DispatchField (FieldDefinition field)

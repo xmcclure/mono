@@ -45,8 +45,7 @@ net_4_5_dirs := \
 	security	\
 	mdbrebase	\
 	ikdasm		\
-	mono-symbolicate	\
-	linker-analyzer
+	mono-symbolicate
 
 build_SUBDIRS = gacutil security culevel
 net_4_5_SUBDIRS = gacutil

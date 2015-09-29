@@ -94,7 +94,7 @@ namespace MonoTests.Remoting {
 		};
 		
 		[Test] // HttpChannel.Parse ()
-		[Category ("NotWorking")] // Fails on MS
+		[Ignore ("Fails on MS")]
 		public void ParseURL ()
 		{
 			HttpChannel channel;

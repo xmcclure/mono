@@ -165,9 +165,8 @@ namespace Mono.CSharp {
 			return s + parameters.GetSignatureForDocumentation ();
 		}
 
-		public override void PrepareEmit ()
+		public virtual void PrepareEmit ()
 		{
-			base.PrepareEmit ();
 			parameters.ResolveDefaultValues (this);
 		}
 
@@ -1091,12 +1090,19 @@ namespace Mono.CSharp {
 					}
 
 					if (base_override.IsGeneric) {
+						ObsoleteAttribute oa;
 						foreach (var base_tp in base_tparams) {
-							base_tp.BaseType.CheckObsoleteness (this, Location);
+							oa = base_tp.BaseType.GetAttributeObsolete ();
+							if (oa != null) {
+								AttributeTester.Report_ObsoleteMessage (oa, base_tp.BaseType.GetSignatureForError (), Location, Report);
+							}
 
 							if (base_tp.InterfacesDefined != null) {
 								foreach (var iface in base_tp.InterfacesDefined) {
-									iface.CheckObsoleteness (this, Location);
+									oa = iface.GetAttributeObsolete ();
+									if (oa != null) {
+										AttributeTester.Report_ObsoleteMessage (oa, iface.GetSignatureForError (), Location, Report);
+									}
 								}
 							}
 						}

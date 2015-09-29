@@ -77,7 +77,6 @@ Mono.Xml/SmallXmlParser.cs
 Mono.Xml/SecurityParser.cs
 System/ActivationContext.cs
 System/AndroidPlatform.cs
-System/AppContext.cs
 System/AppDomain.cs
 System/AppDomainInitializer.cs
 System/AppDomainManager.cs
@@ -110,6 +109,7 @@ System/IConsoleDriver.cs
 System/IntPtr.cs
 System/KnownTerminals.cs
 System/MarshalByRefObject.cs
+System/Math.cs
 System/MonoAsyncCall.cs
 System/MonoCQItem.cs
 System/MonoCustomAttrs.cs
@@ -232,6 +232,7 @@ System.Reflection/CustomAttributeNamedArgument.cs
 System.Reflection/CustomAttributeTypedArgument.cs
 System.Reflection/EventInfo.cs
 System.Reflection/ExceptionHandlingClause.cs
+System.Reflection/ExceptionHandlingClauseOptions.cs
 System.Reflection/FieldInfo.cs
 System.Reflection/ImageFileMachine.cs
 System.Reflection/LocalVariableInfo.cs
@@ -999,7 +1000,6 @@ ReferenceSources/SecurityContext.cs
 ../../../external/referencesource/mscorlib/system/iserviceobjectprovider.cs
 ../../../external/referencesource/mscorlib/system/invalidtimezoneexception.cs
 ../../../external/referencesource/mscorlib/system/Lazy.cs
-../../../external/referencesource/mscorlib/system/math.cs
 ../../../external/referencesource/mscorlib/system/memberaccessexception.cs
 ../../../external/referencesource/mscorlib/system/methodaccessexception.cs
 ../../../external/referencesource/mscorlib/system/midpointrounding.cs
@@ -1223,7 +1223,6 @@ ReferenceSources/SecurityContext.cs
 ../../../external/referencesource/mscorlib/system/reflection/membertypes.cs
 ../../../external/referencesource/mscorlib/system/reflection/methodattributes.cs
 ../../../external/referencesource/mscorlib/system/reflection/methodbase.cs
-../../../external/referencesource/mscorlib/system/reflection/methodbody.cs
 ../../../external/referencesource/mscorlib/system/reflection/methodimplattributes.cs
 ../../../external/referencesource/mscorlib/system/reflection/missing.cs
 ../../../external/referencesource/mscorlib/system/reflection/obfuscateassemblyattribute.cs
@@ -1239,8 +1238,6 @@ ReferenceSources/SecurityContext.cs
 ../../../external/referencesource/mscorlib/system/reflection/typedelegator.cs
 ../../../external/referencesource/mscorlib/system/reflection/typefilter.cs
 ../../../external/referencesource/mscorlib/system/reflection/typeinfo.cs
-
-../../../external/referencesource/mscorlib/system/reflection/emit/methodbuilder.cs
 
 ../../../external/referencesource/mscorlib/system/resources/__fastresourcecomparer.cs
 ../../../external/referencesource/mscorlib/system/resources/__hresults.cs
@@ -1578,10 +1575,3 @@ ReferenceSources/SecurityContext.cs
 
 ReferenceSources/String.cs
 ReferenceSources/Type.cs
-
-coreclr/AsyncLocal.cs
-coreclr/DisablePrivateReflectionAttribute.cs
-coreclr/EncodingProvider.cs
-coreclr/FormattableString.cs
-coreclr/FormattableStringFactory.cs
-coreclr/WaitHandleExtensions.cs

@@ -709,7 +709,11 @@ namespace MonoTests.System.Xaml
 		[Test]
 		public void OnSetValueAndHandledFalse () // part of bug #3003
 		{
-			const string ver = "net_4_x";
+#if NET_4_5
+			string ver = "net_4_5";
+#else
+			string ver = "net_4_0";
+#endif
 
 			/*
 			var obj = new TestClass3 ();
@@ -834,7 +838,11 @@ namespace MonoTests.System.Xaml
 
 		XamlReader GetReader (string filename)
 		{
-			const string ver = "net_4_x";
+#if NET_4_5
+			string ver = "net_4_5";
+#else
+			string ver = "net_4_0";
+#endif
 			string xml = File.ReadAllText (Path.Combine ("Test/XmlFiles", filename)).Replace ("net_4_0", ver);
 			return new XamlXmlReader (XmlReader.Create (new StringReader (xml)));
 		}

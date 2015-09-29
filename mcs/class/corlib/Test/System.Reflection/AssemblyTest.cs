@@ -398,7 +398,7 @@ namespace MonoTests.System.Reflection
 		[Test]
 		public void LoadWithPartialName ()
 		{
-			string [] names = { "corlib_test_net_1_1", "corlib_test_net_2_0", "corlib_test_net_4_0", "corlib_test_net_4_5", "corlib_test_net_4_x", "corlib_plattest", "mscorlibtests", "BclTests" };
+			string [] names = { "corlib_test_net_1_1", "corlib_test_net_2_0", "corlib_test_net_4_0", "corlib_test_net_4_5", "corlib_plattest", "mscorlibtests", "BclTests" };
 
 			foreach (string s in names)
 				if (Assembly.LoadWithPartialName (s) != null)
@@ -1114,7 +1114,11 @@ namespace MonoTests.System.Reflection
 			Module module = assembly.ManifestModule;
 			Assert.IsNotNull (module, "#1");
 
+#if NET_4_0
 			Assert.AreEqual ("MonoModule", module.GetType ().Name, "#2");
+#else
+			Assert.AreEqual (typeof (Module), module.GetType (), "#2");
+#endif
 
 #if !MONOTOUCH
 			Assert.AreEqual ("mscorlib.dll", module.Name, "#3");

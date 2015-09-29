@@ -39,7 +39,6 @@ using System.Runtime.InteropServices;
 using System.Security;
 using System.Security.Permissions;
 using System.Security.Principal;
-using System.Threading;
 using System.Web.Configuration;
 using System.Web.Management;
 using System.Web.UI;
@@ -981,11 +980,6 @@ namespace System.Web
 			}
 		}
 
-		public Stream GetBufferedInputStream ()
-		{
-			return input_stream;
-		}
-
 		public Stream GetBufferlessInputStream ()
 		{
 			if (bufferlessInputStream == null) {
@@ -997,11 +991,6 @@ namespace System.Web
 			}
 
 			return bufferlessInputStream;
-		}
-
-		public Stream GetBufferlessInputStream (bool disableMaxRequestLength)
-		{
-			return GetBufferlessInputStream ();
 		}
 
 		//
@@ -1410,12 +1399,6 @@ namespace System.Web
 			}
 		}
 
-		public CancellationToken TimedOutToken {
-			get {
-				throw new NotImplementedException ();
-			}
-		}
-
 		public int TotalBytes {
 			get {
 				Stream ins = InputStream;
@@ -1526,38 +1509,6 @@ namespace System.Web
 
 		public int [] MapImageCoordinates (string imageFieldName)
 		{
-			string[] parameters = GetImageCoordinatesParameters (imageFieldName);
-			if (parameters == null)
-				return null;
-			int [] result = new int [2];
-			try {
-				result [0] = Int32.Parse (parameters [0]);
-				result [1] = Int32.Parse (parameters [1]);
-			} catch {
-				return null;
-			}
-
-			return result;
-		}
-
-		public double [] MapRawImageCoordinates (string imageFieldName)
-		{
-			string[] parameters = GetImageCoordinatesParameters (imageFieldName);
-			if (parameters == null)
-				return null;
-			double [] result = new double [2];
-			try {
-				result [0] = Double.Parse (parameters [0]);
-				result [1] = Double.Parse (parameters [1]);
-			} catch {
-				return null;
-			}
-
-			return result;
-		}
-
-		string [] GetImageCoordinatesParameters (string imageFieldName)
-		{
 			string method = HttpMethod;
 			NameValueCollection coll = null;
 			if (method == "HEAD" || method == "GET")
@@ -1575,7 +1526,14 @@ namespace System.Web
 			string y = coll [imageFieldName + ".y"];
 			if (y == null || y == "")
 				return null;
-			string[] result = new string [] { x, y };
+
+			int [] result = new int [2];
+			try {
+				result [0] = Int32.Parse (x);
+				result [1] = Int32.Parse (y);
+			} catch {
+				return null;
+			}
 
 			return result;
 		}

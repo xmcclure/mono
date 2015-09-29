@@ -117,7 +117,7 @@ mono_gc_enable_alloc_events (void)
 }
 
 int
-mono_gc_register_root (char *start, size_t size, void *descr, MonoGCRootSource source, const char *msg)
+mono_gc_register_root (char *start, size_t size, void *descr)
 {
 	return TRUE;
 }
@@ -176,7 +176,7 @@ mono_gc_make_root_descr_all_refs (int numbits)
 }
 
 void*
-mono_gc_alloc_fixed (size_t size, void *descr, MonoGCRootSource source, const char *msg)
+mono_gc_alloc_fixed (size_t size, void *descr)
 {
 	return g_malloc0 (size);
 }

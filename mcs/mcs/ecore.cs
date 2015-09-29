@@ -1339,14 +1339,8 @@ namespace Mono.CSharp {
 				return null;
 
 			ExpressionStatement es = e as ExpressionStatement;
-			if (es == null || e is AnonymousMethodBody) {
-				var reduced = e as IReducedExpressionStatement;
-				if (reduced != null) {
-					return EmptyExpressionStatement.Instance;
-				}
-
+			if (es == null || e is AnonymousMethodBody)
 				Error_InvalidExpressionStatement (ec);
-			}
 
 			//
 			// This is quite expensive warning, try to limit the damage
@@ -1411,10 +1405,6 @@ namespace Mono.CSharp {
 		{
 			EmitStatement (ec);
 		}
-	}
-
-	interface IReducedExpressionStatement
-	{
 	}
 
 	/// <summary>
@@ -2224,7 +2214,7 @@ namespace Mono.CSharp {
 	//
 	public class ReducedExpression : Expression
 	{
-		public class ReducedConstantExpression : EmptyConstantCast
+		public sealed class ReducedConstantExpression : EmptyConstantCast
 		{
 			readonly Expression orig_expr;
 
@@ -2271,14 +2261,6 @@ namespace Mono.CSharp {
 					child.EncodeAttributeValue (rc, enc, targetType,parameterType);
 				else
 					base.EncodeAttributeValue (rc, enc, targetType, parameterType);
-			}
-		}
-
-		sealed class ReducedConstantStatement : ReducedConstantExpression, IReducedExpressionStatement
-		{
-			public ReducedConstantStatement (Constant expr, Expression origExpr)
-				: base (expr, origExpr)
-			{
 			}
 		}
 
@@ -2363,15 +2345,12 @@ namespace Mono.CSharp {
 		//
 		// Creates fully resolved expression switcher
 		//
-		public static Constant Create (Constant expr, Expression originalExpr)
+		public static Constant Create (Constant expr, Expression original_expr)
 		{
 			if (expr.eclass == ExprClass.Unresolved)
 				throw new ArgumentException ("Unresolved expression");
 
-			if (originalExpr is ExpressionStatement)
-				return new ReducedConstantStatement (expr, originalExpr);
-
-			return new ReducedConstantExpression (expr, originalExpr);
+			return new ReducedConstantExpression (expr, original_expr);
 		}
 
 		public static ExpressionStatement Create (ExpressionStatement s, Expression orig)
@@ -3105,10 +3084,11 @@ namespace Mono.CSharp {
 			// Obsolete checks cannot be done when resolving base context as they
 			// require type dependencies to be set but we are in process of resolving them
 			//
-			if (mc is ResolveContext) {
-				var oa = type.GetAttributeObsolete ();
-				if (oa != null && !mc.IsObsolete)
-					AttributeTester.Report_ObsoleteMessage (oa, type.GetSignatureForError (), fne.Location, mc.Module.Compiler.Report);
+			if (!(mc is TypeDefinition.BaseContext) && !(mc is UsingAliasNamespace.AliasContext)) {
+				ObsoleteAttribute obsolete_attr = type.GetAttributeObsolete ();
+				if (obsolete_attr != null && !mc.IsObsolete) {
+					AttributeTester.Report_ObsoleteMessage (obsolete_attr, te.GetSignatureForError (), Location, mc.Module.Compiler.Report);
+				}
 			}
 
 			return type;
@@ -3506,7 +3486,11 @@ namespace Mono.CSharp {
 				ImportedTypeDefinition.Error_MissingDependency (rc, dep, loc);
 			}
 
-			member.CheckObsoleteness (rc, loc);
+			if (!rc.IsObsolete) {
+				ObsoleteAttribute oa = member.GetAttributeObsolete ();
+				if (oa != null)
+					AttributeTester.Report_ObsoleteMessage (oa, member.GetSignatureForError (), loc, rc.Report);
+			}
 
 			if (!(member is FieldSpec))
 				member.MemberDefinition.SetIsUsed ();
@@ -3598,7 +3582,10 @@ namespace Mono.CSharp {
 					if (InstanceExpression is TypeExpr) {
 						var t = InstanceExpression.Type;
 						do {
-							t.CheckObsoleteness (rc, loc);
+							ObsoleteAttribute oa = t.GetAttributeObsolete ();
+							if (oa != null && !rc.IsObsolete) {
+								AttributeTester.Report_ObsoleteMessage (oa, t.GetSignatureForError (), loc, rc.Report);
+							}
 
 							t = t.DeclaringType;
 						} while (t != null);
@@ -5632,7 +5619,9 @@ namespace Mono.CSharp {
 				//
 				// Check ObsoleteAttribute on the best method
 				//
-				best_candidate.CheckObsoleteness (rc, loc);
+				ObsoleteAttribute oa = best_candidate.GetAttributeObsolete ();
+				if (oa != null && !rc.IsObsolete)
+					AttributeTester.Report_ObsoleteMessage (oa, best_candidate.GetSignatureForError (), loc, rc.Report);
 
 				best_candidate.MemberDefinition.SetIsUsed ();
 			}
@@ -7372,7 +7361,11 @@ namespace Mono.CSharp {
 
 					spec.MemberDefinition.SetIsUsed ();
 
-					spec.CheckObsoleteness (ec, loc);
+					if (!ec.IsObsolete) {
+						ObsoleteAttribute oa = spec.GetAttributeObsolete ();
+						if (oa != null)
+							AttributeTester.Report_ObsoleteMessage (oa, spec.GetSignatureForError (), loc, ec.Report);
+					}
 
 					if ((spec.Modifiers & (Modifiers.ABSTRACT | Modifiers.EXTERN)) != 0)
 						Error_AssignmentEventOnly (ec);

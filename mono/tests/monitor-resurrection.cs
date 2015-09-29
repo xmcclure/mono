@@ -12,26 +12,14 @@ public class Foo  {
 		resurrect = this;
 	}
 
-	public static void EnterMonitor (object obj)
-	{
-		for (int i = 0; i < 257; i++)
-			Monitor.Enter (obj);
-	}
-
-	public static void ExitMonitor (object obj)
-	{
-		for (int i = 0; i < 257; i++)
-			Monitor.Exit (obj);
-	}
-
 	public static void CreateFoo (int level)
 	{
 		if (level == 0) {
 			reference = new Foo ();
 
 			/* Allocate a MonoThreadsSync for the object */
-			EnterMonitor (reference);
-			ExitMonitor (reference);
+			Monitor.Enter (reference);
+			Monitor.Exit (reference);
 			reference = null;
 		} else {
 			CreateFoo (level - 1);
@@ -64,7 +52,7 @@ public class Foo  {
 			/* Make sure these are not collected */
 			list.Add (foo);
 
-			EnterMonitor (foo);
+			Monitor.Enter (foo);
 		}
 	}
 } 

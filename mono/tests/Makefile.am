@@ -18,21 +18,19 @@ JITTEST_PROG_RUN = MONO_CFG_DIR=$(mono_build_root)/runtime/etc $(LIBTOOL) --mode
 
 RUNTIME_ARGS=--config tests-config --optimize=all --debug
 
-CLASS=$(mcs_topdir)/class/lib/$(DEFAULT_PROFILE)
-
-with_mono_path = MONO_PATH=$(CLASS)
+with_mono_path = MONO_PATH=$(mcs_topdir)/class/lib/net_4_5
 
 RUNTIME = $(with_mono_path) $(top_builddir)/runtime/mono-wrapper
 
 MKBUNDLE = \
 	PKG_CONFIG_PATH=$(top_builddir):$(PKG_CONFIG_PATH) \
-	$(RUNTIME) $(CLASS)/mkbundle.exe
+	$(RUNTIME) $(mcs_topdir)/class/lib/net_4_5/mkbundle.exe
 
 MCS = $(RUNTIME) $(mcs_topdir)/class/lib/build/mcs.exe -unsafe -debug \
 	-nowarn:0162 -nowarn:0168 -nowarn:0219 -nowarn:0414 -nowarn:0618 \
 	-nowarn:0169 -nowarn:1690 -nowarn:0649 -nowarn:0612 -nowarn:3021 \
 	-nowarn:0197
-ILASM = $(RUNTIME) $(CLASS)/ilasm.exe
+ILASM = $(RUNTIME) $(mcs_topdir)/class/lib/net_4_5/ilasm.exe
 
 BENCHSRC=fib.cs random.cs nested-loops.cs ackermann.cs tight-loop.cs sieve.cs
 
@@ -142,7 +140,6 @@ BASE_TEST_CS_SRC=		\
 	many-locals.cs		\
 	string-compare.cs	\
 	test-prime.cs		\
-	test-tls.cs		\
 	params.cs		\
 	reflection.cs		\
 	interface.cs		\
@@ -332,7 +329,6 @@ BASE_TEST_CS_SRC=		\
 	bug-80392.2.cs		\
 	dynamic-method-access.2.cs	\
 	dynamic-method-finalize.2.cs	\
-	dynamic-method-stack-traces.cs	\
 	bug-82194.2.cs	\
 	anonarray.2.cs	\
 	ienumerator-interfaces.2.cs	\
@@ -417,12 +413,7 @@ BASE_TEST_CS_SRC=		\
 	sleep.cs \
 	bug-27147.cs	\
 	bug-30085.cs	\
-	bug-17537.cs	\
-	pinvoke_ppcc.cs	\
-	pinvoke_ppcs.cs	\
-	pinvoke_ppci.cs	\
-	pinvoke_ppcf.cs	\
-	pinvoke_ppcd.cs
+	bug-17537.cs
 
 TEST_CS_SRC_DIST=	\
 	$(BASE_TEST_CS_SRC)	\
@@ -469,8 +460,8 @@ PLATFORM_DISABLED_TESTS=finalizer-abort.exe finalizer-exception.exe finalizer-ex
 endif
 
 if POWERPC64
-# FIXME: These tests hang/fail for unknown reasons
-PLATFORM_DISABLED_TESTS=monitor.exe threadpool-exceptions5.exe
+# These tests hang
+PLATFORM_DISABLED_TESTS=monitor.exe finalizer-abort.exe finalizer-exception.exe finalizer-exit.exe
 endif
 
 if ARM
@@ -862,10 +853,6 @@ runtest-managed: test-runner.exe $(TESTSI_CS) $(TESTSI_IL) $(TESTBS) libtest.la 
 	@if [ "x$$CI" = "x1" ]; then disabled_tests="$(DISABLED_TESTS_WRENCH)"; else disabled_tests="$(DISABLED_TESTS)"; fi; \
 	$(RUNTIME) ./test-runner.exe -j a --disabled "$${disabled_tests}" $(TESTSI_CS) $(TESTBS) $(TESTSI_IL)
 
-runtest-managed-serial: test-runner.exe $(TESTSI_CS) $(TESTSI_IL) $(TESTBS) libtest.la $(PREREQSI_IL) $(PREREQSI_CS)
-	@if [ "x$$CI" = "x1" ]; then disabled_tests="$(DISABLED_TESTS_WRENCH)"; else disabled_tests="$(DISABLED_TESTS)"; fi; \
-	$(RUNTIME) ./test-runner.exe -j 1 --disabled "$${disabled_tests}" $(TESTSI_CS) $(TESTBS) $(TESTSI_IL)
-
 testjit:
 	@if test x$(M) != x0; then $(MAKE) runtest-managed; else $(MAKE) runtest; fi
 
@@ -958,7 +945,6 @@ SGEN_TESTS =	\
 	sgen-descriptors.exe	\
 	sgen-gshared-vtype.exe	\
 	sgen-domain-unload.exe	\
-	sgen-domain-unload-2.exe	\
 	sgen-weakref-stress.exe	\
 	sgen-cementing-stress.exe	\
 	sgen-case-23400.exe	\
@@ -1106,7 +1092,7 @@ test-aot:
 	@failed=0; \
 	passed=0; \
 	failed_tests="";\
-	profile=$(DEFAULT_PROFILE);	\
+	profile=net_4_5;	\
 	tmpfile=`mktemp -t mono_aot_output` || exit 1;	\
 	rm -f test-aot-$${name}.stdout test-aot-$${name}.stderr; \
 	for assembly in $(mcs_topdir)/class/lib/$$profile/*.dll	; do	\
@@ -1377,7 +1363,7 @@ endif
 
 noinst_LTLIBRARIES = libtest.la
 
-AM_CPPFLAGS = $(GLIB_CFLAGS)
+AM_CPPFLAGS = $(GLIB_CFLAGS) $(GMODULE_CFLAGS)
 
 if HOST_WIN32
 # gcc-3.4.4 emits incorrect code when making indirect calls to stdcall functions using a tail call

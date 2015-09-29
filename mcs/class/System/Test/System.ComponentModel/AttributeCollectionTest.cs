@@ -35,6 +35,7 @@ namespace MonoTests.System.ComponentModel {
 	[TestFixture]
 	public class AttributeCollectionTest {
 
+#if NET_4_0
 		[Test]
 		public void Ctor_4_0 ()
 		{
@@ -75,6 +76,7 @@ namespace MonoTests.System.ComponentModel {
 				return Attributes;
 			}
 		}
+#endif
 	}
 }
 

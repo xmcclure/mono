@@ -268,7 +268,7 @@ typedef struct {
 #define HEADER_LENGTH 11
 
 #define MAJOR_VERSION 2
-#define MINOR_VERSION 42
+#define MINOR_VERSION 41
 
 typedef enum {
 	CMD_SET_VM = 1,
@@ -325,7 +325,6 @@ typedef enum {
 	ERR_NO_INVOCATION = 104,
 	ERR_ABSENT_INFORMATION = 105,
 	ERR_NO_SEQ_POINT_AT_IL_OFFSET = 106,
-	ERR_INVOKE_ABORTED = 107,
 	ERR_LOADER_ERROR = 200, /*XXX extend the protocol to pass this information down the pipe */
 } ErrorCode;
 
@@ -651,15 +650,12 @@ static MonoNativeTlsKey debugger_tls_id;
 static gboolean vm_start_event_sent, vm_death_event_sent, disconnected;
 
 /* Maps MonoInternalThread -> DebuggerTlsData */
-/* Protected by the loader lock */
 static MonoGHashTable *thread_to_tls;
 
 /* Maps tid -> MonoInternalThread */
-/* Protected by the loader lock */
 static MonoGHashTable *tid_to_thread;
 
 /* Maps tid -> MonoThread (not MonoInternalThread) */
-/* Protected by the loader lock */
 static MonoGHashTable *tid_to_thread_obj;
 
 static gsize debugger_thread_id;
@@ -702,7 +698,6 @@ static int major_version, minor_version;
 static gboolean protocol_version_set;
 
 /* A hash table containing all active domains */
-/* Protected by the loader lock */
 static GHashTable *domains;
 
 /* The number of times the runtime is suspended */
@@ -716,9 +711,9 @@ static ReplyPacket reply_packets [128];
 int nreply_packets;
 
 #define dbg_lock() do {	\
-	MONO_TRY_BLOCKING;			\
+	MONO_TRY_BLOCKING	\
 	mono_mutex_lock (&debug_mutex); \
-	MONO_FINISH_TRY_BLOCKING;		\
+	MONO_FINISH_TRY_BLOCKING	\
 } while (0)
 
 #define dbg_unlock() mono_mutex_unlock (&debug_mutex)
@@ -974,7 +969,7 @@ mono_debugger_agent_init (void)
 	event_requests = g_ptr_array_new ();
 
 	mono_mutex_init (&debugger_thread_exited_mutex);
-	mono_cond_init (&debugger_thread_exited_cond, 0);
+	mono_cond_init (&debugger_thread_exited_cond, NULL);
 
 	mono_profiler_install ((MonoProfiler*)&debugger_profiler, runtime_shutdown);
 	mono_profiler_set_events (MONO_PROFILE_APPDOMAIN_EVENTS | MONO_PROFILE_THREADS | MONO_PROFILE_ASSEMBLY_EVENTS | MONO_PROFILE_JIT_COMPILATION | MONO_PROFILE_METHOD_EVENTS);
@@ -989,14 +984,14 @@ mono_debugger_agent_init (void)
 	/* Needed by the hash_table_new_type () call below */
 	mono_gc_base_init ();
 
-	thread_to_tls = mono_g_hash_table_new_type (NULL, NULL, MONO_HASH_KEY_GC, MONO_ROOT_SOURCE_DEBUGGER, "thread-to-tls table");
-	MONO_GC_REGISTER_ROOT_FIXED (thread_to_tls, MONO_ROOT_SOURCE_DEBUGGER, "thread-to-tls table");
+	thread_to_tls = mono_g_hash_table_new_type (NULL, NULL, MONO_HASH_KEY_GC);
+	MONO_GC_REGISTER_ROOT_FIXED (thread_to_tls);
 
-	tid_to_thread = mono_g_hash_table_new_type (NULL, NULL, MONO_HASH_VALUE_GC, MONO_ROOT_SOURCE_DEBUGGER, "tid-to-thread table");
-	MONO_GC_REGISTER_ROOT_FIXED (tid_to_thread, MONO_ROOT_SOURCE_DEBUGGER, "tid-to-thread table");
+	tid_to_thread = mono_g_hash_table_new_type (NULL, NULL, MONO_HASH_VALUE_GC);
+	MONO_GC_REGISTER_ROOT_FIXED (tid_to_thread);
 
-	tid_to_thread_obj = mono_g_hash_table_new_type (NULL, NULL, MONO_HASH_VALUE_GC, MONO_ROOT_SOURCE_DEBUGGER, "tid-to-thread object table");
-	MONO_GC_REGISTER_ROOT_FIXED (tid_to_thread_obj, MONO_ROOT_SOURCE_DEBUGGER, "tid-to-thread object table");
+	tid_to_thread_obj = mono_g_hash_table_new_type (NULL, NULL, MONO_HASH_VALUE_GC);
+	MONO_GC_REGISTER_ROOT_FIXED (tid_to_thread_obj);
 
 	pending_assembly_loads = g_ptr_array_new ();
 	domains = g_hash_table_new (mono_aligned_addr_hash, NULL);
@@ -1082,9 +1077,9 @@ finish_agent_init (gboolean on_startup)
 		}
 	}
 
-	MONO_PREPARE_BLOCKING;
+	MONO_PREPARE_BLOCKING
 	transport_connect (agent_config.address);
-	MONO_FINISH_BLOCKING;
+	MONO_FINISH_BLOCKING
 
 	if (!on_startup) {
 		/* Do some which is usually done after sending the VMStart () event */
@@ -1316,9 +1311,9 @@ socket_transport_connect (const char *address)
 			}
 		}
 
-		MONO_PREPARE_BLOCKING;
+		MONO_PREPARE_BLOCKING
 		conn_fd = socket_transport_accept (sfd);
-		MONO_FINISH_BLOCKING;
+		MONO_FINISH_BLOCKING
 		if (conn_fd == -1)
 			exit (1);
 
@@ -1538,18 +1533,18 @@ transport_handshake (void)
 	/* Write handshake message */
 	sprintf (handshake_msg, "DWP-Handshake");
 	/* Must use try blocking as this can nest into code that runs blocking */
-	MONO_TRY_BLOCKING;
+	MONO_TRY_BLOCKING
 	do {
 		res = transport_send (handshake_msg, strlen (handshake_msg));
 	} while (res == -1 && get_last_sock_error () == MONO_EINTR);
-	MONO_FINISH_TRY_BLOCKING;
+	MONO_FINISH_TRY_BLOCKING
 
 	g_assert (res != -1);
 
 	/* Read answer */
-	MONO_TRY_BLOCKING;
+	MONO_TRY_BLOCKING
 	res = transport_recv (buf, strlen (handshake_msg));
-	MONO_FINISH_TRY_BLOCKING;
+	MONO_FINISH_TRY_BLOCKING
 	if ((res != strlen (handshake_msg)) || (memcmp (buf, handshake_msg, strlen (handshake_msg)) != 0)) {
 		fprintf (stderr, "debugger-agent: DWP handshake failed.\n");
 		return FALSE;
@@ -1592,9 +1587,9 @@ stop_debugger_thread (void)
 	if (!inited)
 		return;
 
-	MONO_PREPARE_BLOCKING;
+	MONO_PREPARE_BLOCKING
 	transport_close1 ();
-	MONO_FINISH_BLOCKING;
+	MONO_FINISH_BLOCKING
 
 	/* 
 	 * Wait for the thread to exit.
@@ -1604,18 +1599,18 @@ stop_debugger_thread (void)
 	 */
 	if (GetCurrentThreadId () != debugger_thread_id) {
 		do {
-			MONO_TRY_BLOCKING;
+			MONO_TRY_BLOCKING
 			mono_mutex_lock (&debugger_thread_exited_mutex);
 			if (!debugger_thread_exited)
 				mono_cond_wait (&debugger_thread_exited_cond, &debugger_thread_exited_mutex);
 			mono_mutex_unlock (&debugger_thread_exited_mutex);
-			MONO_FINISH_TRY_BLOCKING;
+			MONO_FINISH_TRY_BLOCKING
 		} while (!debugger_thread_exited);
 	}
 
-	MONO_PREPARE_BLOCKING;
+	MONO_PREPARE_BLOCKING
 	transport_close2 ();
-	MONO_FINISH_BLOCKING;
+	MONO_FINISH_BLOCKING
 }
 
 static void
@@ -1809,9 +1804,9 @@ send_packet (int command_set, int command, Buffer *data)
 	buffer_add_byte (&buf, command);
 	memcpy (buf.buf + 11, data->buf, data->p - data->buf);
 
-	MONO_PREPARE_BLOCKING;
+	MONO_PREPARE_BLOCKING
 	res = transport_send (buf.buf, len);
-	MONO_FINISH_BLOCKING;
+	MONO_FINISH_BLOCKING
 
 	buffer_free (&buf);
 
@@ -1838,9 +1833,9 @@ send_reply_packets (int npackets, ReplyPacket *packets)
 		buffer_add_buffer (&buf, packets [i].data);
 	}
 
-	MONO_PREPARE_BLOCKING;
+	MONO_PREPARE_BLOCKING
 	res = transport_send (buf.buf, len);
-	MONO_FINISH_BLOCKING;
+	MONO_FINISH_BLOCKING
 
 	buffer_free (&buf);
 
@@ -1907,9 +1902,7 @@ typedef struct {
 } ObjRef;
 
 /* Maps objid -> ObjRef */
-/* Protected by the loader lock */
 static GHashTable *objrefs;
-/* Protected by the loader lock */
 static GHashTable *obj_to_objref;
 /* Protected by the dbg lock */
 static MonoGHashTable *suspended_objs;
@@ -1929,8 +1922,8 @@ objrefs_init (void)
 {
 	objrefs = g_hash_table_new_full (NULL, NULL, NULL, free_objref);
 	obj_to_objref = g_hash_table_new (NULL, NULL);
-	suspended_objs = mono_g_hash_table_new_type (NULL, NULL, MONO_HASH_KEY_GC, MONO_ROOT_SOURCE_DEBUGGER, "suspended objects table");
-	MONO_GC_REGISTER_ROOT_FIXED (suspended_objs, MONO_ROOT_SOURCE_DEBUGGER, "suspended objects table");
+	suspended_objs = mono_g_hash_table_new_type (NULL, NULL, MONO_HASH_KEY_GC);
+	MONO_GC_REGISTER_ROOT_FIXED (suspended_objs);
 }
 
 static void
@@ -2124,10 +2117,8 @@ typedef struct {
 
 typedef struct {
 	/* Maps runtime structure -> Id */
-	/* Protected by the dbg lock */
 	GHashTable *val_to_id [ID_NUM];
 	/* Classes whose class load event has been sent */
-	/* Protected by the loader lock */
 	GHashTable *loaded_classes;
 	/* Maps MonoClass->GPtrArray of file names */
 	GHashTable *source_files;
@@ -2253,18 +2244,23 @@ get_id (MonoDomain *domain, IdType type, gpointer val)
 	if (val == NULL)
 		return 0;
 
-	info = get_agent_domain_info (domain);
+	mono_loader_lock ();
 
-	dbg_lock ();
+	mono_domain_lock (domain);
+
+	info = get_agent_domain_info (domain);
 
 	if (info->val_to_id [type] == NULL)
 		info->val_to_id [type] = g_hash_table_new (mono_aligned_addr_hash, NULL);
 
 	id = g_hash_table_lookup (info->val_to_id [type], val);
 	if (id) {
-		dbg_unlock ();
+		mono_domain_unlock (domain);
+		mono_loader_unlock ();
 		return id->id;
 	}
+
+	dbg_lock ();
 
 	id = g_new0 (Id, 1);
 	/* Reserve id 0 */
@@ -2276,6 +2272,10 @@ get_id (MonoDomain *domain, IdType type, gpointer val)
 	g_ptr_array_add (ids [type], id);
 
 	dbg_unlock ();
+
+	mono_domain_unlock (domain);
+
+	mono_loader_unlock ();
 
 	return id->id;
 }
@@ -2492,7 +2492,7 @@ static void
 suspend_init (void)
 {
 	mono_mutex_init (&suspend_mutex);
-	mono_cond_init (&suspend_cond, 0);	
+	mono_cond_init (&suspend_cond, NULL);	
 	MONO_SEM_INIT (&suspend_sem, 0);
 }
 
@@ -2509,7 +2509,7 @@ get_last_frame (StackFrameInfo *info, MonoContext *ctx, gpointer user_data)
 {
 	GetLastFrameUserData *data = user_data;
 
-	if (info->type == FRAME_TYPE_MANAGED_TO_NATIVE || info->type == FRAME_TYPE_TRAMPOLINE)
+	if (info->type == FRAME_TYPE_MANAGED_TO_NATIVE)
 		return FALSE;
 
 	if (!data->last_frame_set) {
@@ -2545,7 +2545,7 @@ thread_interrupt (DebuggerTlsData *tls, MonoThreadInfo *info, MonoJitInfo *ji)
 	// FIXME: Races when the thread leaves managed code before hitting a single step
 	// event.
 
-	if (ji && !ji->is_trampoline) {
+	if (ji) {
 		/* Running managed code, will be suspended by the single step code */
 		DEBUG_PRINTF (1, "[%p] Received interrupt while at %s(%p), continuing.\n", (gpointer)(gsize)tid, jinfo_get_method (ji)->name, ip);
 	} else {
@@ -2637,11 +2637,7 @@ debugger_interrupt_critical (MonoThreadInfo *info, gpointer user_data)
 	MonoJitInfo *ji;
 
 	data->valid_info = TRUE;
-	ji = mono_jit_info_table_find_internal (
-			mono_thread_info_get_suspend_state (info)->unwind_data [MONO_UNWIND_DATA_DOMAIN],
-			MONO_CONTEXT_GET_IP (&mono_thread_info_get_suspend_state (info)->ctx),
-			TRUE,
-			TRUE);
+	ji = mono_jit_info_table_find (mono_thread_info_get_suspend_state (info)->unwind_data [MONO_UNWIND_DATA_DOMAIN], MONO_CONTEXT_GET_IP (&mono_thread_info_get_suspend_state (info)->ctx));
 
 	/* This is signal safe */
 	thread_interrupt (data->tls, info, ji);
@@ -2737,9 +2733,9 @@ suspend_vm (void)
 {
 	mono_loader_lock ();
 
-	MONO_TRY_BLOCKING;
+	MONO_TRY_BLOCKING
 	mono_mutex_lock (&suspend_mutex);
-	MONO_FINISH_TRY_BLOCKING;
+	MONO_FINISH_TRY_BLOCKING
 
 	suspend_count ++;
 
@@ -2777,9 +2773,9 @@ resume_vm (void)
 
 	mono_loader_lock ();
 
-	MONO_TRY_BLOCKING;
+	MONO_TRY_BLOCKING
 	mono_mutex_lock (&suspend_mutex);
-	MONO_FINISH_TRY_BLOCKING;
+	MONO_FINISH_TRY_BLOCKING
 
 	g_assert (suspend_count > 0);
 	suspend_count --;
@@ -2823,9 +2819,9 @@ resume_thread (MonoInternalThread *thread)
 	tls = mono_g_hash_table_lookup (thread_to_tls, thread);
 	g_assert (tls);
 	
-	MONO_TRY_BLOCKING;
+	MONO_TRY_BLOCKING
 	mono_mutex_lock (&suspend_mutex);
-	MONO_FINISH_TRY_BLOCKING;
+	MONO_FINISH_TRY_BLOCKING
 
 	g_assert (suspend_count > 0);
 
@@ -2900,9 +2896,9 @@ suspend_current (void)
  	tls = mono_native_tls_get_value (debugger_tls_id);
 	g_assert (tls);
 
-	MONO_TRY_BLOCKING;
+	MONO_TRY_BLOCKING
 	mono_mutex_lock (&suspend_mutex);
-	MONO_FINISH_TRY_BLOCKING;
+	MONO_FINISH_TRY_BLOCKING
 
 	tls->suspending = FALSE;
 	tls->really_suspended = TRUE;
@@ -2914,12 +2910,12 @@ suspend_current (void)
 
 	DEBUG_PRINTF (1, "[%p] Suspended.\n", (gpointer)GetCurrentThreadId ());
 
-	MONO_TRY_BLOCKING;
+	MONO_TRY_BLOCKING
 	while (suspend_count - tls->resume_count > 0) {
 		err = mono_cond_wait (&suspend_cond, &suspend_mutex);
 		g_assert (err == 0);
 	}
-	MONO_FINISH_TRY_BLOCKING;
+	MONO_FINISH_TRY_BLOCKING
 
 	tls->suspended = FALSE;
 	tls->really_suspended = FALSE;
@@ -3063,7 +3059,7 @@ process_frame (StackFrameInfo *info, MonoContext *ctx, gpointer user_data)
 			info->il_offset = mono_debug_il_offset_from_address (method, info->domain, info->native_offset);
 	}
 
-	DEBUG_PRINTF (1, "\tFrame: %s:[il=0x%x, native=0x%x] %d\n", mono_method_full_name (method, TRUE), info->il_offset, info->native_offset, info->managed);
+	DEBUG_PRINTF (1, "\tFrame: %s:%x(%x) %d\n", mono_method_full_name (method, TRUE), info->il_offset, info->native_offset, info->managed);
 
 	if (method->wrapper_type == MONO_WRAPPER_MANAGED_TO_NATIVE) {
 		if (!CHECK_PROTOCOL_VERSION (2, 17))
@@ -3836,7 +3832,7 @@ thread_startup (MonoProfiler *prof, uintptr_t tid)
 	g_assert (!tls);
 	// FIXME: Free this somewhere
 	tls = g_new0 (DebuggerTlsData, 1);
-	MONO_GC_REGISTER_ROOT_SINGLE (tls->thread, MONO_ROOT_SOURCE_DEBUGGER, "debugger thread reference");
+	MONO_GC_REGISTER_ROOT_SINGLE (tls->thread);
 	tls->thread = thread;
 	mono_native_tls_set_value (debugger_tls_id, tls);
 
@@ -3983,17 +3979,18 @@ send_type_load (MonoClass *klass)
 	MonoDomain *domain = mono_domain_get ();
 	AgentDomainInfo *info = NULL;
 
-	info = get_agent_domain_info (domain);
-
 	mono_loader_lock ();
+	mono_domain_lock (domain);
+
+	info = get_agent_domain_info (domain);
 
 	if (!g_hash_table_lookup (info->loaded_classes, klass)) {
 		type_load = TRUE;
 		g_hash_table_insert (info->loaded_classes, klass, klass);
 	}
 
+	mono_domain_unlock (domain);
 	mono_loader_unlock ();
-
 	if (type_load)
 		emit_type_load (klass, klass, NULL);
 }
@@ -4007,12 +4004,13 @@ static void
 send_types_for_domain (MonoDomain *domain, void *user_data)
 {
 	AgentDomainInfo *info = NULL;
-
-	info = get_agent_domain_info (domain);
-	g_assert (info);
 	
 	mono_loader_lock ();
+	mono_domain_lock (domain);
+	info =  get_agent_domain_info (domain);
+	g_assert (info);
 	g_hash_table_foreach (info->loaded_classes, emit_type_load, NULL);
+	mono_domain_unlock (domain);
 	mono_loader_unlock ();
 }
 
@@ -4085,7 +4083,6 @@ typedef struct {
 } MonoBreakpoint;
 
 /* List of breakpoints */
-/* Protected by the loader lock */
 static GPtrArray *breakpoints;
 /* Maps breakpoint locations to the number of breakpoints at that location */
 static GHashTable *bp_locs;
@@ -4185,7 +4182,7 @@ insert_breakpoint (MonoSeqPointInfo *seq_points, MonoDomain *domain, MonoJitInfo
 #endif
 	}
 
-	DEBUG_PRINTF (1, "[dbg] Inserted breakpoint at %s:[il=0x%x,native=0x%x] [%p](%d).\n", mono_method_full_name (jinfo_get_method (ji), TRUE), (int)it.seq_point.il_offset, (int)it.seq_point.native_offset, inst->ip, count);
+	DEBUG_PRINTF (1, "[dbg] Inserted breakpoint at %s:0x%x [%p](%d).\n", mono_method_full_name (jinfo_get_method (ji), TRUE), (int)it.seq_point.il_offset, inst->ip, count);
 }
 
 static void
@@ -4212,9 +4209,6 @@ remove_breakpoint (BreakpointInstance *inst)
 #endif
 }	
 
-/*
- * This doesn't take any locks.
- */
 static inline gboolean
 bp_matches_method (MonoBreakpoint *bp, MonoMethod *method)
 {
@@ -4282,16 +4276,11 @@ add_pending_breakpoints (MonoMethod *method, MonoJitInfo *ji)
 		}
 
 		if (!found) {
-			MonoMethod *declaring = NULL;
-
 			jmethod = jinfo_get_method (ji);
-			if (jmethod->is_inflated)
-				declaring = mono_method_get_declaring_generic_method (jmethod);
-
 			mono_domain_lock (domain);
 			seq_points = g_hash_table_lookup (domain_jit_info (domain)->seq_points, jmethod);
-			if (!seq_points && declaring)
-				seq_points = g_hash_table_lookup (domain_jit_info (domain)->seq_points, declaring);
+			if (!seq_points && jmethod->is_inflated)
+				seq_points = g_hash_table_lookup (domain_jit_info (domain)->seq_points, mono_method_get_declaring_generic_method (jmethod));
 			mono_domain_unlock (domain);
 			if (!seq_points)
 				/* Could be AOT code */
@@ -4348,10 +4337,6 @@ set_breakpoint (MonoMethod *method, long il_offset, EventRequest *req, MonoError
 	MonoDomain *domain;
 	MonoMethod *m;
 	MonoSeqPointInfo *seq_points;
-	GPtrArray *methods;
-	GPtrArray *method_domains;
-	GPtrArray *method_seq_points;
-	int i;
 
 	if (error)
 		mono_error_init (error);
@@ -4370,39 +4355,26 @@ set_breakpoint (MonoMethod *method, long il_offset, EventRequest *req, MonoError
 
 	DEBUG_PRINTF (1, "[dbg] Setting %sbreakpoint at %s:0x%x.\n", (req->event_kind == EVENT_KIND_STEP) ? "single step " : "", method ? mono_method_full_name (method, TRUE) : "<all>", (int)il_offset);
 
-	methods = g_ptr_array_new ();
-	method_domains = g_ptr_array_new ();
-	method_seq_points = g_ptr_array_new ();
-
 	mono_loader_lock ();
+
 	g_hash_table_iter_init (&iter, domains);
 	while (g_hash_table_iter_next (&iter, (void**)&domain, NULL)) {
 		mono_domain_lock (domain);
+
 		g_hash_table_iter_init (&iter2, domain_jit_info (domain)->seq_points);
 		while (g_hash_table_iter_next (&iter2, (void**)&m, (void**)&seq_points)) {
-			if (bp_matches_method (bp, m)) {
-				/* Save the info locally to simplify the code inside the domain lock */
-				g_ptr_array_add (methods, m);
-				g_ptr_array_add (method_domains, domain);
-				g_ptr_array_add (method_seq_points, seq_points);
-			}
+			if (bp_matches_method (bp, m))
+				set_bp_in_method (domain, m, seq_points, bp, error);
 		}
+
 		mono_domain_unlock (domain);
 	}
 
-	for (i = 0; i < methods->len; ++i) {
-		m = g_ptr_array_index (methods, i);
-		domain = g_ptr_array_index (method_domains, i);
-		seq_points = g_ptr_array_index (method_seq_points, i);
-		set_bp_in_method (domain, m, seq_points, bp, error);
-	}
-
-	g_ptr_array_add (breakpoints, bp);
 	mono_loader_unlock ();
 
-	g_ptr_array_free (methods, TRUE);
-	g_ptr_array_free (method_domains, TRUE);
-	g_ptr_array_free (method_seq_points, TRUE);
+	mono_loader_lock ();
+	g_ptr_array_add (breakpoints, bp);
+	mono_loader_unlock ();
 
 	if (error && !mono_error_ok (error)) {
 		clear_breakpoint (bp);
@@ -4600,7 +4572,7 @@ process_breakpoint_inner (DebuggerTlsData *tls, gboolean from_signal)
 
 	ip = MONO_CONTEXT_GET_IP (ctx);
 	ji = mini_jit_info_table_find (mono_domain_get (), (char*)ip, NULL);
-	g_assert (ji && !ji->is_trampoline);
+	g_assert (ji);
 	method = jinfo_get_method (ji);
 
 	/* Compute the native offset of the breakpoint from the ip */
@@ -4632,7 +4604,7 @@ process_breakpoint_inner (DebuggerTlsData *tls, gboolean from_signal)
 
 	g_assert (found_sp);
 
-	DEBUG_PRINTF (1, "[%p] Breakpoint hit, method=%s, ip=%p, [il=0x%x,native=0x%x].\n", (gpointer)GetCurrentThreadId (), method->name, ip, sp.il_offset, native_offset);
+	DEBUG_PRINTF (1, "[%p] Breakpoint hit, method=%s, ip=%p, offset=0x%x, sp il offset=0x%x.\n", (gpointer)GetCurrentThreadId (), method->name, ip, native_offset, sp.il_offset);
 
 	bp = NULL;
 	for (i = 0; i < breakpoints->len; ++i) {
@@ -4864,7 +4836,7 @@ process_single_step_inner (DebuggerTlsData *tls, gboolean from_signal)
 	}
 
 	ji = mini_jit_info_table_find (mono_domain_get (), (char*)ip, &domain);
-	g_assert (ji && !ji->is_trampoline);
+	g_assert (ji);
 	method = jinfo_get_method (ji);
 	g_assert (method);
 
@@ -6428,9 +6400,8 @@ clear_types_for_assembly (MonoAssembly *assembly)
 		/* Can happen during shutdown */
 		return;
 
-	info = get_agent_domain_info (domain);
-
 	mono_loader_lock ();
+	info = get_agent_domain_info (domain);
 	g_hash_table_foreach_remove (info->loaded_classes, type_comes_from_assembly, assembly);
 	mono_loader_unlock ();
 }
@@ -6453,7 +6424,7 @@ do_invoke_method (DebuggerTlsData *tls, Buffer *buf, InvokeData *invoke, guint8 
 	MonoMethodSignature *sig;
 	guint8 **arg_buf;
 	void **args;
-	MonoObject *this_arg, *res, *exc;
+	MonoObject *this, *res, *exc;
 	MonoDomain *domain;
 	guint8 *this_buf;
 #ifdef MONO_ARCH_SOFT_DEBUG_SUPPORTED
@@ -6465,8 +6436,8 @@ do_invoke_method (DebuggerTlsData *tls, Buffer *buf, InvokeData *invoke, guint8 
 		/* 
 		 * Invoke this method directly, currently only Environment.Exit () is supported.
 		 */
-		this_arg = NULL;
-		DEBUG_PRINTF (1, "[%p] Invoking method '%s' on receiver '%s'.\n", (gpointer)GetCurrentThreadId (), mono_method_full_name (invoke->method, TRUE), this_arg ? this_arg->vtable->klass->name : "<null>");
+		this = NULL;
+		DEBUG_PRINTF (1, "[%p] Invoking method '%s' on receiver '%s'.\n", (gpointer)GetCurrentThreadId (), mono_method_full_name (invoke->method, TRUE), this ? this->vtable->klass->name : "<null>");
 		mono_runtime_invoke (invoke->method, NULL, invoke->args, &exc);
 		g_assert_not_reached ();
 	}
@@ -6508,50 +6479,50 @@ do_invoke_method (DebuggerTlsData *tls, Buffer *buf, InvokeData *invoke, guint8 
 	}
 
 	if (!m->klass->valuetype)
-		this_arg = *(MonoObject**)this_buf;
+		this = *(MonoObject**)this_buf;
 	else
-		this_arg = NULL;
+		this = NULL;
 
 	if (MONO_CLASS_IS_INTERFACE (m->klass)) {
-		if (!this_arg) {
+		if (!this) {
 			DEBUG_PRINTF (1, "[%p] Error: Interface method invoked without this argument.\n", (gpointer)GetCurrentThreadId ());
 			return ERR_INVALID_ARGUMENT;
 		}
-		m = mono_object_get_virtual_method (this_arg, m);
+		m = mono_object_get_virtual_method (this, m);
 		/* Transform this to the format the rest of the code expects it to be */
 		if (m->klass->valuetype) {
 			this_buf = g_alloca (mono_class_instance_size (m->klass));
-			memcpy (this_buf, mono_object_unbox (this_arg), mono_class_instance_size (m->klass));
+			memcpy (this_buf, mono_object_unbox (this), mono_class_instance_size (m->klass));
 		}
 	} else if ((m->flags & METHOD_ATTRIBUTE_VIRTUAL) && !m->klass->valuetype && invoke->flags & INVOKE_FLAG_VIRTUAL) {
-		if (!this_arg) {
+		if (!this) {
 			DEBUG_PRINTF (1, "[%p] Error: invoke with INVOKE_FLAG_VIRTUAL flag set without this argument.\n", (gpointer)GetCurrentThreadId ());
 			return ERR_INVALID_ARGUMENT;
 		}
-		m = mono_object_get_virtual_method (this_arg, m);
+		m = mono_object_get_virtual_method (this, m);
 		if (m->klass->valuetype) {
 			this_buf = g_alloca (mono_class_instance_size (m->klass));
-			memcpy (this_buf, mono_object_unbox (this_arg), mono_class_instance_size (m->klass));
+			memcpy (this_buf, mono_object_unbox (this), mono_class_instance_size (m->klass));
 		}
 	}
 
-	DEBUG_PRINTF (1, "[%p] Invoking method '%s' on receiver '%s'.\n", (gpointer)GetCurrentThreadId (), mono_method_full_name (m, TRUE), this_arg ? this_arg->vtable->klass->name : "<null>");
+	DEBUG_PRINTF (1, "[%p] Invoking method '%s' on receiver '%s'.\n", (gpointer)GetCurrentThreadId (), mono_method_full_name (m, TRUE), this ? this->vtable->klass->name : "<null>");
 
-	if (this_arg && this_arg->vtable->domain != domain)
+	if (this && this->vtable->domain != domain)
 		NOT_IMPLEMENTED;
 
-	if (!m->klass->valuetype && !(m->flags & METHOD_ATTRIBUTE_STATIC) && !this_arg) {
+	if (!m->klass->valuetype && !(m->flags & METHOD_ATTRIBUTE_STATIC) && !this) {
 		if (!strcmp (m->name, ".ctor")) {
 			if (m->klass->flags & TYPE_ATTRIBUTE_ABSTRACT)
 				return ERR_INVALID_ARGUMENT;
 			else
-				this_arg = mono_object_new (domain, m->klass);
+				this = mono_object_new (domain, m->klass);
 		} else {
 			return ERR_INVALID_ARGUMENT;
 		}
 	}
 
-	if (this_arg && !obj_is_of_type (this_arg, &m->klass->byval_arg))
+	if (this && !obj_is_of_type (this, &m->klass->byval_arg))
 		return ERR_INVALID_ARGUMENT;
 
 	nargs = decode_int (p, &p, end);
@@ -6615,7 +6586,7 @@ do_invoke_method (DebuggerTlsData *tls, Buffer *buf, InvokeData *invoke, guint8 
 	if (m->klass->valuetype)
 		res = mono_runtime_invoke (m, this_buf, args, &exc);
 	else
-		res = mono_runtime_invoke (m, this_arg, args, &exc);
+		res = mono_runtime_invoke (m, this, args, &exc);
 	mono_stopwatch_stop (&watch);
 	DEBUG_PRINTF (1, "[%p] Invoke result: %p, exc: %s, time: %ld ms.\n", (gpointer)GetCurrentThreadId (), res, exc ? exc->vtable->klass->name : NULL, (long)mono_stopwatch_elapsed_ms (&watch));
 	if (exc) {
@@ -6633,7 +6604,7 @@ do_invoke_method (DebuggerTlsData *tls, Buffer *buf, InvokeData *invoke, guint8 
 		if (sig->ret->type == MONO_TYPE_VOID) {
 			if (!strcmp (m->name, ".ctor")) {
 				if (!m->klass->valuetype)
-					buffer_add_value (buf, &mono_defaults.object_class->byval_arg, &this_arg, domain);
+					buffer_add_value (buf, &mono_defaults.object_class->byval_arg, &this, domain);
 				else
 					buffer_add_value (buf, &m->klass->byval_arg, this_buf, domain);
 			} else {
@@ -6734,11 +6705,6 @@ invoke_method (void)
 			/* Fail the other invokes as well */
 		} else {
 			err = do_invoke_method (tls, &buf, invoke, p, &p);
-		}
-
-		if (tls->abort_requested) {
-			if (CHECK_PROTOCOL_VERSION (2, 42))
-				err = ERR_INVOKE_ABORTED;
 		}
 
 		/* Start suspending before sending the reply */
@@ -7057,7 +7023,6 @@ vm_commands (int command, int id, guint8 *p, guint8 *end, Buffer *buf)
 		g_assert (tls);
 
 		if (tls->abort_requested) {
-			DEBUG_PRINTF (1, "Abort already requested.\n");
 			mono_loader_unlock ();
 			break;
 		}
@@ -9533,9 +9498,9 @@ wait_for_attach (void)
 	}
 
 	/* Block and wait for client connection */
-	MONO_PREPARE_BLOCKING;
+	MONO_PREPARE_BLOCKING
 	conn_fd = socket_transport_accept (listen_fd);
-	MONO_FINISH_BLOCKING;
+	MONO_FINISH_BLOCKING
 
 	DEBUG_PRINTF (1, "Accepted connection on %d\n", conn_fd);
 	if (conn_fd == -1) {
@@ -9594,9 +9559,9 @@ debugger_thread (void *arg)
 	}
 	
 	while (!attach_failed) {
-		MONO_PREPARE_BLOCKING;
+		MONO_PREPARE_BLOCKING
 		res = transport_recv (header, HEADER_LENGTH);
-		MONO_FINISH_BLOCKING;
+		MONO_FINISH_BLOCKING
 
 		/* This will break if the socket is closed during shutdown too */
 		if (res != HEADER_LENGTH) {
@@ -9631,9 +9596,9 @@ debugger_thread (void *arg)
 		data = g_malloc (len - HEADER_LENGTH);
 		if (len - HEADER_LENGTH > 0)
 		{
-			MONO_PREPARE_BLOCKING;
+			MONO_PREPARE_BLOCKING
 			res = transport_recv (data, len - HEADER_LENGTH);
-			MONO_FINISH_BLOCKING;
+			MONO_FINISH_BLOCKING
 			if (res != len - HEADER_LENGTH) {
 				DEBUG_PRINTF (1, "[dbg] transport_recv () returned %d, expected %d.\n", res, len - HEADER_LENGTH);
 				break;
@@ -9723,12 +9688,12 @@ debugger_thread (void *arg)
 
 	mono_set_is_debugger_attached (FALSE);
 	
-	MONO_TRY_BLOCKING;
+	MONO_TRY_BLOCKING
 	mono_mutex_lock (&debugger_thread_exited_mutex);
 	debugger_thread_exited = TRUE;
 	mono_cond_signal (&debugger_thread_exited_cond);
 	mono_mutex_unlock (&debugger_thread_exited_mutex);
-	MONO_FINISH_TRY_BLOCKING;
+	MONO_FINISH_TRY_BLOCKING
 
 	DEBUG_PRINTF (1, "[dbg] Debugger thread exited.\n");
 	

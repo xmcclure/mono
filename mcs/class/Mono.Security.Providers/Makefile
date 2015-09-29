@@ -6,7 +6,7 @@ PROVIDERS = DotNet NewSystemSource
 
 mobile_static_SUBDIRS = $(PROVIDERS)
 
-net_4_x_SUBDIRS = $(PROVIDERS)
+net_4_5_SUBDIRS = $(PROVIDERS)
 
 monodroid_SUBDIRS = $(net_4_5_SUBDIRS)
 

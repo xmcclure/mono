@@ -599,6 +599,9 @@ namespace System.IO
 			[MethodImplAttribute (MethodImplOptions.InternalCall)]
 			get;
 		}
+
+		[MethodImplAttribute (MethodImplOptions.InternalCall)]
+		public extern static int GetTempPath(out string path);
 	}
 }
 

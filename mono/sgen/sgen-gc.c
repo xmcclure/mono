@@ -465,7 +465,7 @@ gray_queue_enable_redirect (SgenGrayQueue *queue)
 }
 
 void
-sgen_scan_area_with_callback (char *start, char *end, IterateObjectCallbackFunc callback, void *data, gboolean allow_flags, gboolean fail_on_canaries)
+sgen_scan_area_with_callback (char *start, char *end, IterateObjectCallbackFunc callback, void *data, gboolean allow_flags)
 {
 	while (start < end) {
 		size_t size;
@@ -484,7 +484,7 @@ sgen_scan_area_with_callback (char *start, char *end, IterateObjectCallbackFunc 
 		}
 
 		if (!sgen_client_object_is_array_fill ((GCObject*)obj)) {
-			CHECK_CANARY_FOR_OBJECT ((GCObject*)obj, fail_on_canaries);
+			CHECK_CANARY_FOR_OBJECT ((GCObject*)obj);
 			size = ALIGN_UP (safe_object_get_size ((GCObject*)obj));
 			callback ((GCObject*)obj, size, data);
 			CANARIFY_SIZE (size);
@@ -664,7 +664,7 @@ pin_objects_from_nursery_pin_queue (gboolean do_scan_objects, ScanCopyContext ct
 			 * either.
 			 */
 			if (!sgen_client_object_is_array_fill ((GCObject*)search_start)) {
-				CHECK_CANARY_FOR_OBJECT (search_start, TRUE);
+				CHECK_CANARY_FOR_OBJECT (search_start);
 				CANARIFY_SIZE (canarified_obj_size);
 
 				if (addr >= search_start && (char*)addr < (char*)search_start + obj_size) {
@@ -822,9 +822,7 @@ sgen_conservatively_pin_objects_from (void **start, void **end, void *start_nurs
 {
 	int count = 0;
 
-	SGEN_ASSERT (0, ((mword)start & (SIZEOF_VOID_P - 1)) == 0, "Why are we scanning for references in unaligned memory ?");
-
-#if defined(VALGRIND_MAKE_MEM_DEFINED_IF_ADDRESSABLE) && !defined(_WIN64)
+#ifdef VALGRIND_MAKE_MEM_DEFINED_IF_ADDRESSABLE
 	VALGRIND_MAKE_MEM_DEFINED_IF_ADDRESSABLE (start, (char*)end - (char*)start);
 #endif
 
@@ -885,6 +883,20 @@ pin_from_roots (void *start_nursery, void *end_nursery, ScanCopyContext ctx)
 	 * *) pointers slots in managed frames
 	 */
 	sgen_client_scan_thread_data (start_nursery, end_nursery, FALSE, ctx);
+}
+
+static void
+unpin_objects_from_queue (SgenGrayQueue *queue)
+{
+	for (;;) {
+		GCObject *addr;
+		SgenDescriptor desc;
+		GRAY_OBJECT_DEQUEUE (queue, &addr, &desc);
+		if (!addr)
+			break;
+		g_assert (SGEN_OBJECT_IS_PINNED (addr));
+		SGEN_UNPIN_OBJECT (addr);
+	}
 }
 
 static void
@@ -1140,9 +1152,9 @@ finish_gray_stack (int generation, ScanCopyContext ctx)
 	We must clear weak links that don't track resurrection before processing object ready for
 	finalization so they can be cleared before that.
 	*/
-	sgen_null_link_in_range (generation, ctx, FALSE);
+	sgen_null_link_in_range (generation, TRUE, ctx);
 	if (generation == GENERATION_OLD)
-		sgen_null_link_in_range (GENERATION_NURSERY, ctx, FALSE);
+		sgen_null_link_in_range (GENERATION_NURSERY, TRUE, ctx);
 
 
 	/* walk the finalization queue and move also the objects that need to be
@@ -1189,9 +1201,9 @@ finish_gray_stack (int generation, ScanCopyContext ctx)
 	 */
 	g_assert (sgen_gray_object_queue_is_empty (queue));
 	for (;;) {
-		sgen_null_link_in_range (generation, ctx, TRUE);
+		sgen_null_link_in_range (generation, FALSE, ctx);
 		if (generation == GENERATION_OLD)
-			sgen_null_link_in_range (GENERATION_NURSERY, ctx, TRUE);
+			sgen_null_link_in_range (GENERATION_NURSERY, FALSE, ctx);
 		if (sgen_gray_object_queue_is_empty (queue))
 			break;
 		sgen_drain_gray_stack (-1, ctx);
@@ -1539,6 +1551,7 @@ collect_nursery (SgenGrayQueue *unpin_queue, gboolean finish_up_concurrent_mark)
 		sgen_check_consistency ();
 
 	sgen_process_fin_stage_entries ();
+	sgen_process_dislink_stage_entries ();
 
 	/* pin from pinned handles */
 	sgen_init_pinning ();
@@ -1658,6 +1671,23 @@ collect_nursery (SgenGrayQueue *unpin_queue, gboolean finish_up_concurrent_mark)
 	return needs_major;
 }
 
+static void
+scan_nursery_objects_callback (GCObject *obj, size_t size, ScanCopyContext *ctx)
+{
+	/*
+	 * This is called on all objects in the nursery, including pinned ones, so we need
+	 * to use sgen_obj_get_descriptor_safe(), which masks out the vtable tag bits.
+	 */
+	ctx->ops->scan_object (obj, sgen_obj_get_descriptor_safe (obj), ctx->queue);
+}
+
+static void
+scan_nursery_objects (ScanCopyContext ctx)
+{
+	sgen_scan_area_with_callback (nursery_section->data, nursery_section->end_data,
+			(IterateObjectCallbackFunc)scan_nursery_objects_callback, (void*)&ctx, FALSE);
+}
+
 typedef enum {
 	COPY_OR_MARK_FROM_ROOTS_SERIAL,
 	COPY_OR_MARK_FROM_ROOTS_START_CONCURRENT,
@@ -1665,7 +1695,7 @@ typedef enum {
 } CopyOrMarkFromRootsMode;
 
 static void
-major_copy_or_mark_from_roots (size_t *old_next_pin_slot, CopyOrMarkFromRootsMode mode, SgenObjectOperations *object_ops)
+major_copy_or_mark_from_roots (size_t *old_next_pin_slot, CopyOrMarkFromRootsMode mode, gboolean scan_whole_nursery, SgenObjectOperations *object_ops)
 {
 	LOSObject *bigobj;
 	TV_DECLARE (atv);
@@ -1680,7 +1710,10 @@ major_copy_or_mark_from_roots (size_t *old_next_pin_slot, CopyOrMarkFromRootsMod
 
 	SGEN_ASSERT (0, !!concurrent == !!concurrent_collection_in_progress, "We've been called with the wrong mode.");
 
-	if (mode == COPY_OR_MARK_FROM_ROOTS_START_CONCURRENT) {
+	if (scan_whole_nursery)
+		SGEN_ASSERT (0, mode == COPY_OR_MARK_FROM_ROOTS_FINISH_CONCURRENT, "Scanning whole nursery only makes sense when we're finishing a concurrent collection.");
+
+	if (concurrent) {
 		/*This cleans up unused fragments */
 		sgen_nursery_allocator_prepare_for_pinning ();
 
@@ -1720,11 +1753,25 @@ major_copy_or_mark_from_roots (size_t *old_next_pin_slot, CopyOrMarkFromRootsMod
 	}
 
 	sgen_process_fin_stage_entries ();
+	sgen_process_dislink_stage_entries ();
 
 	TV_GETTIME (atv);
 	sgen_init_pinning ();
 	SGEN_LOG (6, "Collecting pinned addresses");
 	pin_from_roots ((void*)lowest_heap_address, (void*)highest_heap_address, ctx);
+
+	if (mode != COPY_OR_MARK_FROM_ROOTS_START_CONCURRENT) {
+		if (major_collector.is_concurrent) {
+			/*
+			 * The concurrent major collector cannot evict
+			 * yet, so we need to pin cemented objects to
+			 * not break some asserts.
+			 *
+			 * FIXME: We could evict now!
+			 */
+			sgen_pin_cemented_objects ();
+		}
+	}
 
 	sgen_optimize_pin_queue ();
 
@@ -1767,10 +1814,41 @@ major_copy_or_mark_from_roots (size_t *old_next_pin_slot, CopyOrMarkFromRootsMod
 			sgen_client_pinned_los_object (bigobj->data);
 		}
 	}
+	/* second pass for the sections */
 
-	pin_objects_in_nursery (mode == COPY_OR_MARK_FROM_ROOTS_START_CONCURRENT, ctx);
-	if (check_nursery_objects_pinned && !sgen_minor_collector.is_split)
-		sgen_check_nursery_objects_pinned (mode != COPY_OR_MARK_FROM_ROOTS_START_CONCURRENT);
+	/*
+	 * Concurrent mark never follows references into the nursery.  In the start and
+	 * finish pauses we must scan live nursery objects, though.
+	 *
+	 * In the finish pause we do this conservatively by scanning all nursery objects.
+	 * Previously we would only scan pinned objects here.  We assumed that all objects
+	 * that were pinned during the nursery collection immediately preceding this finish
+	 * mark would be pinned again here.  Due to the way we get the stack end for the GC
+	 * thread, however, that's not necessarily the case: we scan part of the stack used
+	 * by the GC itself, which changes constantly, so pinning isn't entirely
+	 * deterministic.
+	 *
+	 * The split nursery also complicates things because non-pinned objects can survive
+	 * in the nursery.  That's why we need to do a full scan of the nursery for it, too.
+	 *
+	 * In the future we shouldn't do a preceding nursery collection at all and instead
+	 * do the finish pause with promotion from the nursery.
+	 *
+	 * A further complication arises when we have late-pinned objects from the preceding
+	 * nursery collection.  Those are the result of being out of memory when trying to
+	 * evacuate objects.  They won't be found from the roots, so we just scan the whole
+	 * nursery.
+	 *
+	 * Non-concurrent mark evacuates from the nursery, so it's
+	 * sufficient to just scan pinned nursery objects.
+	 */
+	if (scan_whole_nursery || mode == COPY_OR_MARK_FROM_ROOTS_FINISH_CONCURRENT || (concurrent && sgen_minor_collector.is_split)) {
+		scan_nursery_objects (ctx);
+	} else {
+		pin_objects_in_nursery (concurrent, ctx);
+		if (check_nursery_objects_pinned && !sgen_minor_collector.is_split)
+			sgen_check_nursery_objects_pinned (mode != COPY_OR_MARK_FROM_ROOTS_START_CONCURRENT);
+	}
 
 	major_collector.pin_objects (WORKERS_DISTRIBUTE_GRAY_QUEUE);
 	if (old_next_pin_slot)
@@ -1835,30 +1913,22 @@ major_copy_or_mark_from_roots (size_t *old_next_pin_slot, CopyOrMarkFromRootsMod
 }
 
 static void
-major_finish_copy_or_mark (CopyOrMarkFromRootsMode mode)
+major_finish_copy_or_mark (void)
 {
-	switch (mode) {
-	case COPY_OR_MARK_FROM_ROOTS_START_CONCURRENT:
-		/*
-		 * Prepare the pin queue for the next collection.  Since pinning runs on the worker
-		 * threads we must wait for the jobs to finish before we can reset it.
-		 */
-		sgen_workers_wait_for_jobs_finished ();
-		sgen_finish_pinning ();
+	if (!concurrent_collection_in_progress)
+		return;
 
-		sgen_pin_stats_reset ();
+	/*
+	 * Prepare the pin queue for the next collection.  Since pinning runs on the worker
+	 * threads we must wait for the jobs to finish before we can reset it.
+	 */
+	sgen_workers_wait_for_jobs_finished ();
+	sgen_finish_pinning ();
 
-		if (do_concurrent_checks)
-			sgen_debug_check_nursery_is_clean ();
-		break;
-	case COPY_OR_MARK_FROM_ROOTS_FINISH_CONCURRENT:
-		sgen_workers_wait_for_jobs_finished ();
-		break;
-	case COPY_OR_MARK_FROM_ROOTS_SERIAL:
-		break;
-	default:
-		g_assert_not_reached ();
-	}
+	sgen_pin_stats_reset ();
+
+	if (do_concurrent_checks)
+		sgen_debug_check_nursery_is_clean ();
 }
 
 static void
@@ -1872,8 +1942,7 @@ major_start_collection (gboolean concurrent, size_t *old_next_pin_slot)
 
 	g_assert (sgen_section_gray_queue_is_empty (sgen_workers_get_distribute_section_gray_queue ()));
 
-	if (!concurrent)
-		sgen_cement_reset ();
+	sgen_cement_reset ();
 
 	if (concurrent) {
 		g_assert (major_collector.is_concurrent);
@@ -1900,16 +1969,15 @@ major_start_collection (gboolean concurrent, size_t *old_next_pin_slot)
 	if (major_collector.start_major_collection)
 		major_collector.start_major_collection ();
 
-	major_copy_or_mark_from_roots (old_next_pin_slot, concurrent ? COPY_OR_MARK_FROM_ROOTS_START_CONCURRENT : COPY_OR_MARK_FROM_ROOTS_SERIAL, object_ops);
-	major_finish_copy_or_mark (concurrent ? COPY_OR_MARK_FROM_ROOTS_START_CONCURRENT : COPY_OR_MARK_FROM_ROOTS_SERIAL);
+	major_copy_or_mark_from_roots (old_next_pin_slot, concurrent ? COPY_OR_MARK_FROM_ROOTS_START_CONCURRENT : COPY_OR_MARK_FROM_ROOTS_SERIAL, FALSE, object_ops);
+	major_finish_copy_or_mark ();
 }
 
 static void
-major_finish_collection (const char *reason, size_t old_next_pin_slot, gboolean forced)
+major_finish_collection (const char *reason, size_t old_next_pin_slot, gboolean forced, gboolean scan_whole_nursery)
 {
 	ScannedObjectCounts counts;
 	SgenObjectOperations *object_ops;
-	mword fragment_total;
 	TV_DECLARE (atv);
 	TV_DECLARE (btv);
 
@@ -1918,9 +1986,9 @@ major_finish_collection (const char *reason, size_t old_next_pin_slot, gboolean 
 	if (concurrent_collection_in_progress) {
 		object_ops = &major_collector.major_ops_concurrent_finish;
 
-		major_copy_or_mark_from_roots (NULL, COPY_OR_MARK_FROM_ROOTS_FINISH_CONCURRENT, object_ops);
+		major_copy_or_mark_from_roots (NULL, COPY_OR_MARK_FROM_ROOTS_FINISH_CONCURRENT, scan_whole_nursery, object_ops);
 
-		major_finish_copy_or_mark (COPY_OR_MARK_FROM_ROOTS_FINISH_CONCURRENT);
+		major_finish_copy_or_mark ();
 
 		sgen_workers_join ();
 
@@ -1929,7 +1997,11 @@ major_finish_collection (const char *reason, size_t old_next_pin_slot, gboolean 
 #ifdef SGEN_DEBUG_INTERNAL_ALLOC
 		main_gc_thread = NULL;
 #endif
+
+		if (do_concurrent_checks)
+			sgen_debug_check_nursery_is_clean ();
 	} else {
+		SGEN_ASSERT (0, !scan_whole_nursery, "scan_whole_nursery only applies to concurrent collections");
 		object_ops = &major_collector.major_ops_serial;
 	}
 
@@ -1973,25 +2045,22 @@ major_finish_collection (const char *reason, size_t old_next_pin_slot, gboolean 
 	reset_heap_boundaries ();
 	sgen_update_heap_boundaries ((mword)sgen_get_nursery_start (), (mword)sgen_get_nursery_end ());
 
-	/* walk the pin_queue, build up the fragment list of free memory, unmark
-	 * pinned objects as we go, memzero() the empty fragments so they are ready for the
-	 * next allocations.
-	 */
-	fragment_total = sgen_build_nursery_fragments (nursery_section, NULL);
-	if (!fragment_total)
-		degraded_mode = 1;
-	SGEN_LOG (4, "Free space in nursery after major %ld", (long)fragment_total);
+	if (!concurrent_collection_in_progress) {
+		/* walk the pin_queue, build up the fragment list of free memory, unmark
+		 * pinned objects as we go, memzero() the empty fragments so they are ready for the
+		 * next allocations.
+		 */
+		if (!sgen_build_nursery_fragments (nursery_section, NULL))
+			degraded_mode = 1;
 
-	if (do_concurrent_checks && concurrent_collection_in_progress)
-		sgen_debug_check_nursery_is_clean ();
+		/* prepare the pin queue for the next collection */
+		sgen_finish_pinning ();
 
-	/* prepare the pin queue for the next collection */
-	sgen_finish_pinning ();
+		/* Clear TLABs for all threads */
+		sgen_clear_tlabs ();
 
-	/* Clear TLABs for all threads */
-	sgen_clear_tlabs ();
-
-	sgen_pin_stats_reset ();
+		sgen_pin_stats_reset ();
+	}
 
 	sgen_cement_clear_below_threshold ();
 
@@ -2067,7 +2136,7 @@ major_do_collection (const char *reason, gboolean forced)
 	TV_GETTIME (time_start);
 
 	major_start_collection (FALSE, &old_next_pin_slot);
-	major_finish_collection (reason, old_next_pin_slot, forced);
+	major_finish_collection (reason, old_next_pin_slot, forced, FALSE);
 
 	TV_GETTIME (time_end);
 	gc_stats.major_gc_time += TV_ELAPSED (time_start, time_end);
@@ -2142,6 +2211,9 @@ major_finish_concurrent_collection (gboolean forced)
 {
 	TV_DECLARE (total_start);
 	TV_DECLARE (total_end);
+	gboolean late_pinned;
+	SgenGrayQueue unpin_queue;
+	memset (&unpin_queue, 0, sizeof (unpin_queue));
 
 	TV_GETTIME (total_start);
 
@@ -2161,15 +2233,19 @@ major_finish_concurrent_collection (gboolean forced)
 	major_collector.update_cardtable_mod_union ();
 	sgen_los_update_cardtable_mod_union ();
 
+	late_pinned = collect_nursery (&unpin_queue, TRUE);
+
 	if (mod_union_consistency_check)
 		sgen_check_mod_union_consistency ();
 
 	current_collection_generation = GENERATION_OLD;
-	sgen_cement_reset ();
-	major_finish_collection ("finishing", -1, forced);
+	major_finish_collection ("finishing", -1, forced, late_pinned);
 
 	if (whole_heap_check_before_collection)
 		sgen_check_whole_heap (FALSE);
+
+	unpin_objects_from_queue (&unpin_queue);
+	sgen_gray_object_queue_deinit (&unpin_queue);
 
 	TV_GETTIME (total_end);
 	gc_stats.major_gc_time += TV_ELAPSED (total_start, total_end) - TV_ELAPSED (last_minor_collection_start_tv, last_minor_collection_end_tv);
@@ -2256,9 +2332,13 @@ sgen_perform_collection (size_t requested_size, int generation_to_collect, const
 			major_finish_concurrent_collection (wait_to_finish);
 			oldest_generation_collected = GENERATION_OLD;
 		} else {
+			sgen_workers_signal_start_nursery_collection_and_wait ();
+
 			major_update_concurrent_collection ();
 			if (generation_to_collect == GENERATION_NURSERY)
 				collect_nursery (NULL, FALSE);
+
+			sgen_workers_signal_finish_nursery_collection ();
 		}
 
 		goto done;
@@ -2516,7 +2596,7 @@ sgen_have_pending_finalizers (void)
  * We do not coalesce roots.
  */
 int
-sgen_register_root (char *start, size_t size, SgenDescriptor descr, int root_type, int source, const char *msg)
+sgen_register_root (char *start, size_t size, SgenDescriptor descr, int root_type)
 {
 	RootRecord new_root;
 	int i;
@@ -2528,8 +2608,6 @@ sgen_register_root (char *start, size_t size, SgenDescriptor descr, int root_typ
 			size_t old_size = root->end_root - start;
 			root->end_root = start + size;
 			SGEN_ASSERT (0, !!root->root_desc == !!descr, "Can't change whether a root is precise or conservative.");
-			SGEN_ASSERT (0, root->source == source, "Can't change a root's source identifier.");
-			SGEN_ASSERT (0, !!root->msg == !!msg, "Can't change a root's message.");
 			root->root_desc = descr;
 			roots_size += size;
 			roots_size -= old_size;
@@ -2540,13 +2618,11 @@ sgen_register_root (char *start, size_t size, SgenDescriptor descr, int root_typ
 
 	new_root.end_root = start + size;
 	new_root.root_desc = descr;
-	new_root.source = source;
-	new_root.msg = msg;
 
 	sgen_hash_table_replace (&roots_hash [root_type], start, &new_root, NULL);
 	roots_size += size;
 
-	SGEN_LOG (3, "Added root for range: %p-%p, descr: %llx  (%d/%d bytes)", start, new_root.end_root, (long long)descr, (int)size, (int)roots_size);
+	SGEN_LOG (3, "Added root for range: %p-%p, descr: %llx  (%d/%d bytes)", start, new_root.end_root, descr, (int)size, (int)roots_size);
 
 	UNLOCK_GC;
 	return TRUE;
@@ -2746,6 +2822,48 @@ sgen_gc_get_used_size (void)
 	return tot;
 }
 
+GCObject*
+sgen_weak_link_get (void **link_addr)
+{
+	void * volatile *link_addr_volatile;
+	void *ptr;
+	GCObject *obj;
+ retry:
+	link_addr_volatile = link_addr;
+	ptr = (void*)*link_addr_volatile;
+	/*
+	 * At this point we have a hidden pointer.  If the GC runs
+	 * here, it will not recognize the hidden pointer as a
+	 * reference, and if the object behind it is not referenced
+	 * elsewhere, it will be freed.  Once the world is restarted
+	 * we reveal the pointer, giving us a pointer to a freed
+	 * object.  To make sure we don't return it, we load the
+	 * hidden pointer again.  If it's still the same, we can be
+	 * sure the object reference is valid.
+	 */
+	if (ptr)
+		obj = (GCObject*) REVEAL_POINTER (ptr);
+	else
+		return NULL;
+
+	mono_memory_barrier ();
+
+	/*
+	 * During the second bridge processing step the world is
+	 * running again.  That step processes all weak links once
+	 * more to null those that refer to dead objects.  Before that
+	 * is completed, those links must not be followed, so we
+	 * conservatively wait for bridge processing when any weak
+	 * link is dereferenced.
+	 */
+	sgen_client_bridge_wait_for_processing ();
+
+	if ((void*)*link_addr_volatile != ptr)
+		goto retry;
+
+	return obj;
+}
+
 gboolean
 sgen_set_allow_synchronous_major (gboolean flag)
 {
@@ -2857,7 +2975,6 @@ sgen_gc_init (void)
 	sgen_init_descriptors ();
 	sgen_init_gray_queues ();
 	sgen_init_allocator ();
-	sgen_init_gchandles ();
 
 	sgen_register_fixed_internal_mem_type (INTERNAL_MEM_SECTION, SGEN_SIZEOF_GC_MEM_SECTION);
 	sgen_register_fixed_internal_mem_type (INTERNAL_MEM_GRAY_QUEUE, sizeof (GrayQueueSection));
@@ -2889,6 +3006,9 @@ sgen_gc_init (void)
 	}
 
 	sgen_nursery_size = DEFAULT_NURSERY_SIZE;
+
+	if (major_collector.is_concurrent)
+		cement_enabled = FALSE;
 
 	if (opts) {
 		gboolean usage_printed = FALSE;
@@ -3046,6 +3166,11 @@ sgen_gc_init (void)
 
 	alloc_nursery ();
 
+	if (major_collector.is_concurrent && cement_enabled) {
+		sgen_env_var_error (MONO_GC_PARAMS_NAME, "Ignoring.", "`cementing` is not supported on concurrent major collectors.");
+		cement_enabled = FALSE;
+	}
+
 	sgen_cement_init (cement_enabled);
 
 	if ((env = g_getenv (MONO_GC_DEBUG_NAME))) {
@@ -3196,8 +3321,6 @@ sgen_gc_init (void)
 	memset (&remset, 0, sizeof (remset));
 
 	sgen_card_table_init (&remset);
-
-	sgen_register_root (NULL, 0, sgen_make_user_root_descriptor (sgen_mark_normal_gc_handles), ROOT_TYPE_NORMAL, MONO_ROOT_SOURCE_GC_HANDLE, "normal gc handles");
 
 	gc_initialized = 1;
 }

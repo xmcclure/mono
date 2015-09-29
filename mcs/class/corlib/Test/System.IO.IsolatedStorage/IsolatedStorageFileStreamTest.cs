@@ -116,6 +116,7 @@ namespace MonoTests.System.IO.IsolatedStorageTest {
 			new IsolatedStorageFileStream ("/rootpath", FileMode.Create);
 		}
 
+#if NET_4_0
 		[Test]
 		public void Constructor_StorageInvalid ()
 		{
@@ -142,5 +143,6 @@ namespace MonoTests.System.IO.IsolatedStorageTest {
 			} catch (InvalidOperationException) {
 			}
 		}
+#endif
 	}
 }

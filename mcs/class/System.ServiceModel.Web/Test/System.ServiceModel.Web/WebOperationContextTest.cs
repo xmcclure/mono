@@ -72,7 +72,7 @@ namespace MonoTests.System.ServiceModel.Web
 			ch.Close ();
 		}
 
-#if !MOBILE
+#if NET_4_0 && !MOBILE
 		[Test]
 		public void CreateAtom10Response ()
 		{
@@ -138,7 +138,7 @@ namespace MonoTests.System.ServiceModel.Web
 		string TestJson3 (string s1, string s2);
 	}
 
-#if !MOBILE
+#if NET_4_0 && !MOBILE
 	public class HogeService : IHogeService
 	{
 		static XmlWriterSettings settings = new XmlWriterSettings () { OmitXmlDeclaration = true };

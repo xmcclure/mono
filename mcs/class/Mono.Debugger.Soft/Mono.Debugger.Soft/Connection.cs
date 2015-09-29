@@ -382,8 +382,7 @@ namespace Mono.Debugger.Soft
 		ERR_UNLOADED = 103,
 		ERR_NO_INVOCATION = 104,
 		ABSENT_INFORMATION = 105,
-		NO_SEQ_POINT_AT_IL_OFFSET = 106,
-		INVOKE_ABORTED = 107
+		NO_SEQ_POINT_AT_IL_OFFSET = 106
 	}
 
 	public class ErrorHandlerEventArgs : EventArgs {
@@ -418,7 +417,7 @@ namespace Mono.Debugger.Soft
 		 * with newer runtimes, and vice versa.
 		 */
 		internal const int MAJOR_VERSION = 2;
-		internal const int MINOR_VERSION = 42;
+		internal const int MINOR_VERSION = 41;
 
 		enum WPSuspendPolicy {
 			NONE = 0,

@@ -344,7 +344,7 @@ selector_thread (gpointer data)
 		return;
 	}
 
-	states = mono_g_hash_table_new_type (g_direct_hash, g_direct_equal, MONO_HASH_VALUE_GC, MONO_ROOT_SOURCE_THREAD_POOL, "i/o thread pool states table");
+	states = mono_g_hash_table_new_type (g_direct_hash, g_direct_equal, MONO_HASH_VALUE_GC);
 
 	for (;;) {
 		gint i, j;
@@ -541,8 +541,8 @@ initialize (void)
 	g_assert (threadpool_io);
 
 	mono_mutex_init_recursive (&threadpool_io->updates_lock);
-	mono_cond_init (&threadpool_io->updates_cond, 0);
-	mono_gc_register_root ((void*)&threadpool_io->updates [0], sizeof (threadpool_io->updates), MONO_GC_DESCRIPTOR_NULL, MONO_ROOT_SOURCE_THREAD_POOL, "i/o thread pool updates list");
+	mono_cond_init (&threadpool_io->updates_cond, NULL);
+	mono_gc_register_root ((void*)&threadpool_io->updates [0], sizeof (threadpool_io->updates), MONO_GC_DESCRIPTOR_NULL);
 
 	threadpool_io->updates_size = 0;
 

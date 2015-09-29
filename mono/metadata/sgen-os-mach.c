@@ -40,8 +40,6 @@
 #endif
 
 #if defined(__MACH__) && MONO_MACH_ARCH_SUPPORTED
-
-#if !defined(USE_COOP_GC)
 gboolean
 sgen_resume_thread (SgenThreadInfo *info)
 {
@@ -154,6 +152,5 @@ mono_gc_get_restart_signal (void)
 {
 	return -1;
 }
-#endif
 #endif
 #endif

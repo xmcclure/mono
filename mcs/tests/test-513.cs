@@ -13,35 +13,35 @@ public class Test
 		if (resourceNames.Length != 3)
 			return 1;
 		if (resourceNames[0] != "test-513.cs")
-			return 2;
+			return 1;
 		if (resourceNames[1] != "test-512.cs")
-			return 3;
+			return 1;
 		if (resourceNames[2] != "test")
-			return 4;
+			return 1;
 		FileStream f = a.GetFile ("test-513.cs");
 		if (f == null)
-			return 5;
+			return 1;
 		f = a.GetFile ("test-512.cs");
 		if (f == null)
-			return 6;
+			return 1;
 		f = a.GetFile ("test-511.cs");
 		if (f == null)
-			return 7;
+			return 1;
 		f = a.GetFile ("test");
 		if (f != null)
-			return 8;
+			return 1;
 		Stream s = a.GetManifestResourceStream ("test-513.cs");
 		if (s == null)
-			return 9;
+			return 1;
 		s = a.GetManifestResourceStream ("test-512.cs");
 		if (s == null)
-			return 10;
+			return 1;
 		s = a.GetManifestResourceStream ("test");
 		if (s == null)
-			return 11;
+			return 1;
 		s = a.GetManifestResourceStream ("test-511.cs");
 		if (s != null)
-			return 12;
+			return 1;
 		
 		return 0;
 	}

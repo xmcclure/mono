@@ -131,8 +131,17 @@ namespace MonoTests.System.Web.Routing
 		{
 			var rd = new RouteCollection () { RouteExistingFiles = true }.GetRouteData (new HttpContextStub2 (null, null, null));
 			Assert.IsNull (rd, "#A1");
+#if NET_4_0
 			rd = new RouteCollection ().GetRouteData (new HttpContextStub2 (null, null, null));
 			Assert.IsNull (rd, "#A2");
+#else
+			try {
+				new RouteCollection ().GetRouteData (new HttpContextStub2 (null, null, null));
+				Assert.Fail ("#A3");
+			} catch (NotImplementedException) {
+				// it should fail due to the NIE on AppRelativeCurrentExecutionFilePath.
+			}
+#endif
 		}
 
 		[Test]
@@ -639,6 +648,7 @@ namespace MonoTests.System.Web.Routing
 			
 			Assert.IsNotNull (rd, "#A1");
 		}
+#if NET_4_0
 		[Test]
 		public void Ignore_String ()
 		{
@@ -916,5 +926,6 @@ namespace MonoTests.System.Web.Routing
 			Assert.AreEqual (typeof (PageRouteHandler), rd.RouteHandler.GetType (), "#A4-3");
 			Assert.IsFalse (((PageRouteHandler) rd.RouteHandler).CheckPhysicalUrlAccess, "#A4-4");
 		}
+#endif
 	}
 }

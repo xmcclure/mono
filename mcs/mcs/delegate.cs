@@ -308,8 +308,6 @@ namespace Mono.CSharp {
 
 			InvokeBuilder.PrepareEmit ();
 			if (BeginInvokeBuilder != null) {
-				BeginInvokeBuilder.TypeExpression = null;
-				EndInvokeBuilder.TypeExpression = null;
 				BeginInvokeBuilder.PrepareEmit ();
 				EndInvokeBuilder.PrepareEmit ();
 			}

@@ -1,3 +1,4 @@
+#if NET_4_0
 // 
 // SnziTests.cs
 //  
@@ -134,3 +135,4 @@ namespace MonoTests.Mono.Threading
 		}
 	}
 }
+#endif

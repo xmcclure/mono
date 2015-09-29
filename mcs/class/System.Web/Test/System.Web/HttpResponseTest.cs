@@ -33,8 +33,10 @@ using System.Configuration.Provider;
 using System.IO;
 using System.Text;
 using System.Web;
+#if NET_4_0
 using System.Web.Routing;
 using System.Web.Caching;
+#endif
 
 using NUnit.Framework;
 
@@ -632,6 +634,7 @@ namespace MonoTests.System.Web {
 			var resp = new HttpResponse (null);
 			Assert.IsNull (resp.Output, "#A1");
 		}
+#if NET_4_0
 		[Test]
 		public void RedirectPermanent ()
 		{
@@ -730,6 +733,7 @@ namespace MonoTests.System.Web {
 				context.Response.Write ((object) null);
 			}, "#A3-5");
 		}
+#endif
 	}
 
 	[TestFixture]

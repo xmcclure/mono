@@ -20,5 +20,3 @@ FRAMEWORK_VERSION = 2.1
 
 # This is utility build only
 NO_INSTALL = yes
-MOBILE_STATIC = yes
-MOBILE_PROFILE = yes

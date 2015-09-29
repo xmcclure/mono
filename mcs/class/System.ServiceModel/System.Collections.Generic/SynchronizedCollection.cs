@@ -147,15 +147,14 @@ namespace System.Collections.Generic
 			InsertItem (index, item);
 		}
 
+		[MonoTODO ("should we lock and remove item without invoking RemoveItem() instead?")]
 		public bool Remove (T item)
 		{
-			lock (root) {
-				int index = IndexOf (item);
-				if (index < 0)
-					return false;
-				RemoveAt (index);
-				return true;
-			}
+			int index = IndexOf (item);
+			if (index < 0)
+				return false;
+			RemoveAt (index);
+			return true;
 		}
 
 		public void RemoveAt (int index)

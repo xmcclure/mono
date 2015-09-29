@@ -63,12 +63,8 @@
     <ClCompile Include="..\mono\utils\mono-stdlib.c" />
     <ClCompile Include="..\mono\utils\mono-threads-mach.c" />
     <ClCompile Include="..\mono\utils\mono-threads-posix.c" />
-    <ClCompile Include="..\mono\utils\mono-threads-posix-signals.c" />
     <ClCompile Include="..\mono\utils\mono-threads-windows.c" />
     <ClCompile Include="..\mono\utils\mono-threads.c" />
-    <ClCompile Include="..\mono\utils\mono-threads-posix-abort-syscall.c" />
-    <ClCompile Include="..\mono\utils\mono-threads-mach-abort-syscall.c" />
-    <ClCompile Include="..\mono\utils\mono-threads-windows-abort-syscall.c" />
     <ClCompile Include="..\mono\utils\mono-time.c" />
     <ClCompile Include="..\mono\utils\mono-tls.c" />
     <ClCompile Include="..\mono\utils\mono-uri.c" />
@@ -133,7 +129,6 @@
     <ClInclude Include="..\mono\utils\mono-stdlib.h" />
     <ClInclude Include="..\mono\utils\mono-string.h" />
     <ClInclude Include="..\mono\utils\mono-threads.h" />
-    <ClCompile Include="..\mono\utils\mono-threads-posix-signals.h" />
     <ClInclude Include="..\mono\utils\mono-time.h" />
     <ClInclude Include="..\mono\utils\mono-tls.h" />
     <ClInclude Include="..\mono\utils\mono-uri.h" />
@@ -201,19 +196,19 @@
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
-    <OutDir>$(Platform)\lib\$(Configuration)\</OutDir>
+    <OutDir>$(Platform)\lib\</OutDir>
     <IntDir>$(Platform)\obj\$(ProjectName)\$(Configuration)\</IntDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
-    <OutDir>$(Platform)\lib\$(Configuration)\</OutDir>
+    <OutDir>$(Platform)\lib\</OutDir>
     <IntDir>$(Platform)\obj\$(ProjectName)\$(Configuration)\</IntDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
-    <OutDir>$(Platform)\lib\$(Configuration)\</OutDir>
+    <OutDir>$(Platform)\lib\</OutDir>
     <IntDir>$(Platform)\obj\$(ProjectName)\$(Configuration)\</IntDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
-    <OutDir>$(Platform)\lib\$(Configuration)\</OutDir>
+    <OutDir>$(Platform)\lib\</OutDir>
     <IntDir>$(Platform)\obj\$(ProjectName)\$(Configuration)\</IntDir>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">

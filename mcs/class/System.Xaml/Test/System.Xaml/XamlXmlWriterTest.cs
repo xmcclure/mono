@@ -636,7 +636,11 @@ namespace MonoTests.System.Xaml
 
 		string ReadXml (string name)
 		{
-			string ver = "net_4_x";
+#if NET_4_5
+			string ver = "net_4_5";
+#else
+			string ver = "net_4_0";
+#endif
 			return File.ReadAllText ("Test/XmlFiles/" + name).Trim ().Replace (">\n", ">\r\n").Replace ("net_4_0", ver).Replace ("\r\n", Environment.NewLine);
 		}
 

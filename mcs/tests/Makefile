@@ -14,14 +14,12 @@ with_mono_path = MONO_PATH="$(topdir)/class/lib/$(PROFILE)$(PLATFORM_PATH_SEPARA
 ilasm = $(topdir)/class/lib/$(PROFILE)/ilasm.exe
 ILASM = MONO_PATH="$(topdir)/class/lib/$(PROFILE)$(PLATFORM_PATH_SEPARATOR)$$MONO_PATH" $(RUNTIME) $(RUNTIME_FLAGS) $(ilasm)
 
--include $(mcs_topdir)/build/config.make
-
 USE_MCS_FLAGS :=
 
 # mention all targets
 all-local $(STD_TARGETS:=-local):
 
-VALID_PROFILE := $(filter $(DEFAULT_PROFILE), $(PROFILE))
+VALID_PROFILE := $(filter net_4_5, $(PROFILE))
 ifdef VALID_PROFILE
 # casts
 bootstrap-cast.exe: gen-cast-test.cs
@@ -48,7 +46,7 @@ test-casts: boot-casts.out mcs-casts.out
 
 TEST_PATTERN = 'v2'
 
-ifeq (net_4_x, $(PROFILE))
+ifeq (net_4_5, $(PROFILE))
 TEST_PATTERN = 'v4'
 DEFINES = -compiler-options:"-d:NET_4_0;NET_4_5"
 endif

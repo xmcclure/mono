@@ -197,6 +197,7 @@ namespace MonoTests.System.ComponentModel
 			}
 		}
 
+#if NET_4_0
 		[Test]
 		public void GetCultureName ()
 		{
@@ -216,5 +217,6 @@ namespace MonoTests.System.ComponentModel
 				return base.GetCultureName (culture);
 			}
 		}
+#endif
 	}
 }

@@ -146,15 +146,19 @@ namespace System.Runtime.InteropServices
 		{
 			if (!_fullyInitialized)
 				throw new InvalidOperationException ();
-
-			DangerousReleaseInternal (true);
-			GC.SuppressFinalize (this);
+			DisposeInternal ();
 		}
 
 		void InternalFinalize ()
 		{
 			if (_fullyInitialized)
-				DangerousReleaseInternal (true);
+				DisposeInternal ();
+		}
+
+		void DisposeInternal ()
+		{
+			DangerousReleaseInternal (true);
+			GC.SuppressFinalize (this);
 		}
 
 		void DangerousReleaseInternal (bool dispose)
@@ -188,27 +192,23 @@ namespace System.Runtime.InteropServices
 				if ((old_state & RefCount_Mask) == 0)
 					throw new ObjectDisposedException ("handle");
 
-				if ((old_state & RefCount_Mask) != RefCount_One)
+				perform_release =
+					(old_state & RefCount_Mask) == RefCount_One
+					 && (old_state & (int) State.Closed) == 0
+					 && _ownsHandle;
+
+				if (perform_release && IsInvalid)
 					perform_release = false;
-				else if ((old_state & (int) State.Closed) != 0)
-					perform_release = false;
-				else if (!_ownsHandle)
-					perform_release = false;
-				else if (IsInvalid)
-					perform_release = false;
-				else
-					perform_release = true;
 
 				/* Attempt the update to the new state, fail and retry if the initial
 				 * state has been modified in the meantime. Decrement the ref count by
 				 * substracting SH_RefCountOne from the state then OR in the bits for
 				 * Dispose (if that's the reason for the Release) and closed (if the
 				 * initial ref count was 1). */
-				new_state = (old_state & RefCount_Mask) - RefCount_One;
-				if ((old_state & RefCount_Mask) == RefCount_One)
-					new_state |= (int) State.Closed;
-				if (dispose)
-					new_state |= (int) State.Disposed;
+				new_state =
+					(old_state - RefCount_One)
+					 | ((old_state & RefCount_Mask) == RefCount_One ? (int) State.Closed : 0)
+					 | (dispose ? (int) State.Disposed : 0);
 			} while (Interlocked.CompareExchange (ref _state, new_state, old_state) != old_state);
 
 			if (perform_release)

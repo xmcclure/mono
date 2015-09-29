@@ -482,7 +482,10 @@ namespace Mono.CSharp {
 				return null;
 			}
 
-			Type.CheckObsoleteness (context, expression.StartLocation);
+			ObsoleteAttribute obsolete_attr = Type.GetAttributeObsolete ();
+			if (obsolete_attr != null) {
+				AttributeTester.Report_ObsoleteMessage (obsolete_attr, Type.GetSignatureForError (), Location, Report);
+			}
 
 			ResolveContext rc = null;
 
@@ -576,6 +579,8 @@ namespace Mono.CSharp {
 					return false;
 				}
 
+				ObsoleteAttribute obsolete_attr;
+
 				if (member is PropertyExpr) {
 					var pi = ((PropertyExpr) member).PropertyInfo;
 
@@ -591,9 +596,7 @@ namespace Mono.CSharp {
 						return false;
 					}
 
-//					if (!context.IsObsolete)
-						pi.CheckObsoleteness (ec, member.StartLocation);
-					
+					obsolete_attr = pi.GetAttributeObsolete ();
 					pi.MemberDefinition.SetIsAssigned ();
 				} else {
 					var fi = ((FieldExpr) member).Spec;
@@ -609,11 +612,12 @@ namespace Mono.CSharp {
 						return false;
 					}
 
-//					if (!context.IsObsolete)
-						fi.CheckObsoleteness (ec, member.StartLocation);
-
+					obsolete_attr = fi.GetAttributeObsolete ();
 					fi.MemberDefinition.SetIsAssigned ();
 				}
+
+				if (obsolete_attr != null && !context.IsObsolete)
+					AttributeTester.Report_ObsoleteMessage (obsolete_attr, member.GetSignatureForError (), member.Location, Report);
 
 				if (a.Type != member.Type) {
 					a.Expr = Convert.ImplicitConversionRequired (ec, a.Expr, member.Type, a.Expr.Location);

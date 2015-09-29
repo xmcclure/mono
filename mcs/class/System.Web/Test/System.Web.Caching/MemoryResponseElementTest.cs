@@ -28,6 +28,7 @@
 // WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 //
 
+#if NET_4_0
 using System;
 using System.Web;
 using System.Web.Caching;
@@ -73,3 +74,4 @@ namespace MonoTests.System.Web.Caching
 		}
 	}
 }
+#endif

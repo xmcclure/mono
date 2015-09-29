@@ -23,6 +23,3 @@
 [assembly: System.Runtime.CompilerServices.TypeForwardedToAttribute(typeof(System.Text.UnicodeEncoding))]
 [assembly: System.Runtime.CompilerServices.TypeForwardedToAttribute(typeof(System.Text.UTF8Encoding))]
 
-[assembly: System.Runtime.CompilerServices.TypeForwardedToAttribute(typeof(System.Text.ASCIIEncoding))]
-[assembly: System.Runtime.CompilerServices.TypeForwardedToAttribute(typeof(System.Text.UTF32Encoding))]
-[assembly: System.Runtime.CompilerServices.TypeForwardedToAttribute(typeof(System.Text.UTF7Encoding))]

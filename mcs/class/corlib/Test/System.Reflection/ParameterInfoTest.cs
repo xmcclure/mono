@@ -243,6 +243,7 @@ namespace MonoTests.System.Reflection
 		{
 		}
 
+#if NET_4_0
 		public static void TestC (decimal u = decimal.MaxValue) {
 		}
 
@@ -450,5 +451,6 @@ namespace MonoTests.System.Reflection
 			Assert.AreEqual (p2.myList, p2.CustomAttributes, "#3");
 #endif
 		}
+#endif
 	}
 }

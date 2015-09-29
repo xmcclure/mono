@@ -89,6 +89,8 @@ typedef struct
 	gchar *filename;
 } RuntimeConfig;
 
+mono_mutex_t mono_delegate_section;
+
 static gunichar2 process_guid [36];
 static gboolean process_guid_set = FALSE;
 
@@ -253,6 +255,8 @@ mono_runtime_init (MonoDomain *domain, MonoThreadStartCB start_cb,
 	domain->domain = ad;
 	domain->setup = setup;
 
+	mono_mutex_init_recursive (&mono_delegate_section);
+	
 	mono_thread_attach (domain);
 
 	mono_type_initialization_init ();
@@ -620,9 +624,9 @@ ves_icall_System_AppDomain_GetData (MonoAppDomain *ad, MonoString *name)
 
 	MONO_CHECK_ARG_NULL (name, NULL);
 
-	g_assert (ad);
+	g_assert (ad != NULL);
 	add = ad->data;
-	g_assert (add);
+	g_assert (add != NULL);
 
 	str = mono_string_to_utf8 (name);
 
@@ -665,9 +669,9 @@ ves_icall_System_AppDomain_SetData (MonoAppDomain *ad, MonoString *name, MonoObj
 
 	MONO_CHECK_ARG_NULL (name,);
 
-	g_assert (ad);
+	g_assert (ad != NULL);
 	add = ad->data;
-	g_assert (add);
+	g_assert (add != NULL);
 
 	mono_domain_lock (add);
 
@@ -679,8 +683,8 @@ ves_icall_System_AppDomain_SetData (MonoAppDomain *ad, MonoString *name, MonoObj
 MonoAppDomainSetup *
 ves_icall_System_AppDomain_getSetup (MonoAppDomain *ad)
 {
-	g_assert (ad);
-	g_assert (ad->data);
+	g_assert (ad != NULL);
+	g_assert (ad->data != NULL);
 
 	return ad->data->setup;
 }
@@ -688,8 +692,8 @@ ves_icall_System_AppDomain_getSetup (MonoAppDomain *ad)
 MonoString *
 ves_icall_System_AppDomain_getFriendlyName (MonoAppDomain *ad)
 {
-	g_assert (ad);
-	g_assert (ad->data);
+	g_assert (ad != NULL);
+	g_assert (ad->data != NULL);
 
 	return mono_string_new (ad->data, ad->data->friendly_name);
 }
@@ -1958,7 +1962,7 @@ ves_icall_System_AppDomain_LoadAssembly (MonoAppDomain *ad,  MonoString *assRef,
 	gchar *name;
 	gboolean parsed;
 
-	g_assert (assRef);
+	g_assert (assRef != NULL);
 
 	name = mono_string_to_utf8 (assRef);
 	parsed = mono_assembly_name_parse (name, &aname);
@@ -2030,12 +2034,6 @@ ves_icall_System_AppDomain_InternalIsFinalizingForUnload (gint32 domain_id)
 		return TRUE;
 
 	return mono_domain_is_unloading (domain);
-}
-
-void
-ves_icall_System_AppDomain_DoUnhandledException (MonoException *exc)
-{
-	mono_unhandled_exception ((MonoObject*) exc);
 }
 
 gint32
@@ -2368,9 +2366,9 @@ guarded_wait (HANDLE handle, guint32 timeout, gboolean alertable)
 {
 	guint32 result;
 
-	MONO_PREPARE_BLOCKING;
+	MONO_PREPARE_BLOCKING
 	result = WaitForSingleObjectEx (handle, timeout, alertable);
-	MONO_FINISH_BLOCKING;
+	MONO_FINISH_BLOCKING
 
 	return result;
 }

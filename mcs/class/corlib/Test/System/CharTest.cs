@@ -570,12 +570,6 @@ public class CharTest
 	}
 
 	[Test]
-	public void TestToUpperInvariant ()
-	{
-		Assert.AreEqual ('\u01c5', char.ToUpperInvariant ('\u01c5'));
-	}
-
-	[Test]
 	public void TestToString()
 	{
 		char c1 = 'a';

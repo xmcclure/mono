@@ -905,6 +905,7 @@ namespace MonoTests.Microsoft.Build.BuildEngine {
 			Assert.AreEqual (0, logger.NormalMessageCount, "Unexpected extra messages found");
 		}
 
+#if NET_4_0
 		[Test]
 		[Category ("NotDotNet")]
 		public void TestBeforeAndAfterTargets ()
@@ -959,6 +960,7 @@ namespace MonoTests.Microsoft.Build.BuildEngine {
 			//warnings for referencing unknown targets: NonExistant and Foo
 			Assert.AreEqual (2, logger.WarningsCount, "Expected warnings not raised");
 		}
+#endif
 
 		[Test]
 		public void TestTargetReturns ()

@@ -109,16 +109,14 @@ static void
 add_record (RecordType record_kind, RuntimeLocks kind, gpointer lock)
 {
 	int i = 0;
-	const int no_frames = 6;
-	gpointer frames[no_frames];
-
+	gpointer frames[10];
 	char *msg;
  	if (!trace_file)
 		return;
 
-	memset (frames, 0, sizeof (gpointer) * no_frames);
-	mono_backtrace (frames, no_frames);
-	for (i = 0; i < no_frames; ++i)
+	memset (frames, 0, sizeof (gpointer));
+	mono_backtrace (frames, 6);
+	for (i = 0; i < 6; ++i)
 		frames [i] = (gpointer)((size_t)frames[i] - base_address);
 
 	/*We only dump 5 frames, which should be more than enough to most analysis.*/

@@ -97,6 +97,7 @@ namespace MonoTests.System.Runtime.Serialization
 			Assert.That (ret.TypeArguments [0].BaseType, Is.EqualTo ("System.Int32"), "#6");
 		}
 
+#if NET_4_0		
 		[Test]
 		public void TestSimpleList3 ()
 		{
@@ -117,6 +118,7 @@ namespace MonoTests.System.Runtime.Serialization
 			Assert.That (ret.TypeArguments.Count, Is.EqualTo (1), "#5");
 			Assert.That (ret.TypeArguments [0].BaseType, Is.EqualTo ("System.Int32"), "#6");
 		}
+#endif
 		
 		[Test]
 		public void TestListOfFoo ()

@@ -451,14 +451,14 @@ mono_arch_get_throw_corlib_exception (MonoTrampInfo **info, gboolean aot)
 
 /*------------------------------------------------------------------*/
 /*                                                                  */
-/* Name		- mono_arch_unwind_frame                           */
+/* Name		- mono_arch_find_jit_info                           */
 /*                                                                  */
 /* Function	- See exceptions-amd64.c for docs.                  */
 /*                                                                  */
 /*------------------------------------------------------------------*/
 
 gboolean
-mono_arch_unwind_frame (MonoDomain *domain, MonoJitTlsData *jit_tls, 
+mono_arch_find_jit_info (MonoDomain *domain, MonoJitTlsData *jit_tls, 
 			 MonoJitInfo *ji, MonoContext *ctx, 
 			 MonoContext *new_ctx, MonoLMF **lmf,
 			 mgreg_t **save_locations,
@@ -478,10 +478,7 @@ mono_arch_unwind_frame (MonoDomain *domain, MonoJitTlsData *jit_tls,
 		guint8 *unwind_info;
 		mgreg_t regs[16];
 
-		if (ji->is_trampoline)
-			frame->type = FRAME_TYPE_TRAMPOLINE;
-		else
-			frame->type = FRAME_TYPE_MANAGED;
+		frame->type = FRAME_TYPE_MANAGED;
 
 		unwind_info = mono_jinfo_get_unwind_info (ji, &unwind_info_len);
 

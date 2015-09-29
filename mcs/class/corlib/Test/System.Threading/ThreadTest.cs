@@ -800,17 +800,15 @@ namespace MonoTests.System.Threading
 		[Test]
 		public void Test_Interrupt ()
 		{
-			ManualResetEvent mre = new ManualResetEvent (false);
 			bool interruptedExceptionThrown = false;
-
 			ThreadPool.QueueUserWorkItem (Test_Interrupt_Worker, Thread.CurrentThread);
 
 			try {
 				try {
-					mre.WaitOne (3000);
+					Thread.Sleep (3000);
 				} finally {
 					try {
-						mre.WaitOne (0);
+						Thread.Sleep (0);
 					} catch (ThreadInterruptedException) {
 						Assert.Fail ("ThreadInterruptedException thrown twice");
 					}
@@ -840,12 +838,11 @@ namespace MonoTests.System.Threading
 		[Category ("NotDotNet")] // it crashes nunit.
 		public void Test_InterruptCurrentThread ()
 		{
-			ManualResetEvent mre = new ManualResetEvent (false);
 			bool interruptedExceptionThrown = false;
 
 			Thread.CurrentThread.Interrupt ();
 			try {
-				mre.WaitOne (0);
+				Thread.Sleep (0);
 				Assert.Fail ();
 			} catch (ThreadInterruptedException) {
 			}

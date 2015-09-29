@@ -368,10 +368,7 @@ namespace MonoTests.System.Runtime.CompilerServices
 		public void NestedLeakingSynchronizationContext ()
 		{
 			var sc = SynchronizationContext.Current;
-			if (sc == null)
-				Assert.IsTrue (NestedLeakingSynchronizationContext_MainAsync (sc).Wait (5000), "#1");
-			else
-				Assert.Ignore ("NestedSynchronizationContext may never complete on custom context");
+			Assert.IsTrue (NestedLeakingSynchronizationContext_MainAsync (sc).Wait (5000), "#1");
 		}
 
 		static async Task NestedLeakingSynchronizationContext_MainAsync (SynchronizationContext sc)

@@ -103,6 +103,7 @@ common_sources = \
 	assembly.c		\
 	attach.h		\
 	attach.c		\
+	char-conversions.h	\
 	cil-coff.h		\
 	class.c			\
 	class-internals.h	\
@@ -234,7 +235,6 @@ sgen_sources = \
 	sgen-os-posix.c		\
 	sgen-os-mach.c		\
 	sgen-os-win32.c		\
-	sgen-os-coop.c		\
 	sgen-bridge.c		\
 	sgen-bridge.h		\
 	sgen-bridge-internal.h	\

@@ -1729,9 +1729,21 @@ namespace Mono.CSharp
 				return;
 
 			foreach (var member in members) {
-				var pbm = member as MemberBase;
-				if (pbm != null)
+				var pbm = member as PropertyBasedMember;
+				if (pbm != null) {
 					pbm.PrepareEmit ();
+					continue;
+				}
+
+				var mc = member as MethodCore;
+				if (mc != null) {
+					mc.PrepareEmit ();
+					continue;
+				}
+
+				var c = member as Const;
+				if (c != null)
+					c.DefineValue ();
 			}
 
 			base.PrepareEmit ();
@@ -1901,7 +1913,9 @@ namespace Mono.CSharp
 					if (compiled_iface != null)
 						compiled_iface.Define ();
 
-					iface_type.CheckObsoleteness (this, Location);
+					ObsoleteAttribute oa = iface_type.GetAttributeObsolete ();
+					if (oa != null && !IsObsolete)
+						AttributeTester.Report_ObsoleteMessage (oa, iface_type.GetSignatureForError (), Location, Report);
 
 					if (iface_type.Arity > 0) {
 						// TODO: passing `this' is wrong, should be base type iface instead
@@ -1942,7 +1956,9 @@ namespace Mono.CSharp
 				// Run checks skipped during DefineType (e.g FullNamedExpression::ResolveAsType)
 				//
 				if (base_type_expr != null) {
-					base_type.CheckObsoleteness (this, base_type_expr.Location);
+					ObsoleteAttribute obsolete_attr = base_type.GetAttributeObsolete ();
+					if (obsolete_attr != null && !IsObsolete)
+						AttributeTester.Report_ObsoleteMessage (obsolete_attr, base_type.GetSignatureForError (), base_type_expr.Location, Report);
 
 					if (IsGenericOrParentIsGeneric && base_type.IsAttribute) {
 						Report.Error (698, base_type_expr.Location,
@@ -3757,9 +3773,6 @@ namespace Mono.CSharp
 			get {
 				return type_expr;
 			}
-			set {
-				type_expr = value;
-			}
 		}
 
 		#endregion
@@ -3863,12 +3876,6 @@ namespace Mono.CSharp
 		public override string GetSignatureForDocumentation ()
 		{
 			return Parent.GetSignatureForDocumentation () + "." + MemberName.Basename;
-		}
-
-		public virtual void PrepareEmit ()
-		{
-			if (member_type != null && type_expr != null)
-				member_type.CheckObsoleteness (this, type_expr.Location);
 		}
 
 		protected virtual bool ResolveMemberType ()

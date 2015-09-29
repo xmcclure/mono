@@ -2124,6 +2124,7 @@ namespace MonoTests.System.Linq
 			Assert.That (Enumerable.AsEnumerable<object> (null), Is.Null);
 		}
 		
+#if NET_4_0
 		[Test]
 		[ExpectedException (typeof (ArgumentNullException))]
 		public void Zip_FirstSourceNull_ThrowsArgumentNullException ()
@@ -2156,6 +2157,7 @@ namespace MonoTests.System.Linq
 			b = new [] { 100, 200, 300 };
 			a.Zip (b, (f, s) => f + s.ToString ()).AssertEquals ("a100");
 		}
+#endif
 
 
 		private Reader<T> Read<T> (params T [] source)

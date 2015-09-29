@@ -58,10 +58,16 @@ namespace MonoTests.System.ComponentModel.DataAnnotations
 			Assert.AreEqual (10, sla.MaximumLength, "#A1-1");
 			Assert.AreEqual (null, sla.ErrorMessage, "#A1-2");
 			Assert.AreEqual ("The field {0} must be a string with a maximum length of {1}.", sla.GetErrorMessageString (), "#A1-3");
+#if NET_4_0
 			Assert.AreEqual (0, sla.MinimumLength, "#A1-4");
 
 			sla = new StringLengthAttributePoker (-10);
 			Assert.AreEqual (-10, sla.MaximumLength, "#B1");
+#else
+			AssertExtensions.Throws<ArgumentOutOfRangeException> (() => {
+				sla = new StringLengthAttributePoker (-10);
+			}, "#B1");
+#endif
 			sla = new StringLengthAttributePoker (0);
 			Assert.AreEqual (0, sla.MaximumLength, "#C1");
 		}
@@ -72,8 +78,14 @@ namespace MonoTests.System.ComponentModel.DataAnnotations
 			var sla = new StringLengthAttributePoker (10);
 
 			Assert.AreEqual ("The field MyField must be a string with a maximum length of 10.", sla.FormatErrorMessage ("MyField"), "#A1-1");
+#if !NET_4_0
+			sla = new StringLengthAttributePoker (10);
+#endif
 			sla.ErrorMessage = "Param 0: {0}";
 			Assert.AreEqual ("Param 0: MyField", sla.FormatErrorMessage ("MyField"), "#A1-2");
+#if !NET_4_0
+			sla = new StringLengthAttributePoker (10);
+#endif
 			sla.ErrorMessage = "Param 0: {0}; Param 1: {1}";
 			Assert.AreEqual ("Param 0: MyField; Param 1: 10", sla.FormatErrorMessage ("MyField"), "#A1-2");
 			Assert.AreEqual ("Param 0: ; Param 1: 10", sla.FormatErrorMessage (null), "#A1-3");
@@ -100,6 +112,7 @@ namespace MonoTests.System.ComponentModel.DataAnnotations
 			Assert.IsTrue (sla.IsValid (null), "#B1-1");
 			Assert.IsTrue (sla.IsValid (String.Empty), "#B1-2");
 			Assert.IsFalse (sla.IsValid ("string"), "#B1-3");
+#if NET_4_0
 			sla = new StringLengthAttributePoker (-10);
 			AssertExtensions.Throws <InvalidOperationException> (() => {
 				sla.IsValid ("123");
@@ -114,6 +127,7 @@ namespace MonoTests.System.ComponentModel.DataAnnotations
 			sla.MinimumLength = 5;
 			Assert.IsFalse (sla.IsValid ("123"), "#C2-1");
 			Assert.IsTrue (sla.IsValid ("12345"), "#C2-2");
+#endif
 		}
 	}
 }

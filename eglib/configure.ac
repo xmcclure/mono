@@ -136,7 +136,6 @@ AC_CHECK_SIZEOF(long)
 AC_CHECK_SIZEOF(long long)
 AC_CHECK_FUNCS(strlcpy stpcpy strtok_r rewinddir vasprintf)
 AC_CHECK_FUNCS(getrlimit)
-AC_CHECK_FUNCS(fork execv execve)
 
 #
 # Mono currently supports 10.6, but strndup is not available prior to 10.7; avoiding
@@ -151,7 +150,7 @@ elif test x$target_ios = xno; then
 AC_CHECK_FUNCS(strndup getpwuid_r)
 fi
 
-AM_CONDITIONAL(NEED_VASPRINTF, test x$ac_cv_func_vasprintf = xno )
+AM_CONDITIONAL(NEED_VASPRINTF, test x$have_vasprintf = x )
 AM_ICONV()
 AC_SEARCH_LIBS(sqrtf, m)
 
@@ -182,7 +181,6 @@ fi
 AC_SUBST(G_HAVE_ISO_VARARGS)
 
 AC_CHECK_HEADERS(getopt.h sys/select.h sys/time.h sys/wait.h pwd.h langinfo.h iconv.h localcharset.h sys/types.h sys/resource.h)
-AC_CHECK_LIB([iconv], [locale_charset],[],[AC_CHECK_LIB([charset], [locale_charset],[LIBS+="-liconv -lcharset"])])
 AC_CHECK_HEADER(alloca.h, [HAVE_ALLOCA_H=1], [HAVE_ALLOCA_H=0])
 AC_SUBST(HAVE_ALLOCA_H)
 

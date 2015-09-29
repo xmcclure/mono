@@ -739,8 +739,10 @@ namespace Mono.CSharp
 				return is_checked ? SLE.Expression.NegateChecked (expr) : SLE.Expression.Negate (expr);
 			case Operator.LogicalNot:
 				return SLE.Expression.Not (expr);
+#if NET_4_0 || MOBILE_DYNAMIC
 			case Operator.OnesComplement:
 				return SLE.Expression.OnesComplement (expr);
+#endif
 			default:
 				throw new NotImplementedException (Oper.ToString ());
 			}
@@ -1420,12 +1422,14 @@ namespace Mono.CSharp
 		}
 
 
+#if NET_4_0 || MOBILE_DYNAMIC
 		public override SLE.Expression MakeExpression (BuilderContext ctx)
 		{
 			var target = ((RuntimeValueExpression) expr).MetaObject.Expression;
 			var source = SLE.Expression.Convert (operation.MakeExpression (ctx), target.Type);
 			return SLE.Expression.Assign (target, source);
 		}
+#endif
 
 		public static string OperName (Mode oper)
 		{
@@ -2701,7 +2705,7 @@ namespace Mono.CSharp
 			temp_storage.Release (ec);
 		}
 
-#if !STATIC
+#if (NET_4_0 || MOBILE_DYNAMIC) && !STATIC
 		public override SLE.Expression MakeExpression (BuilderContext ctx)
 		{
 			return SLE.Expression.Default (type.GetMetaInfo ());
@@ -6921,7 +6925,12 @@ namespace Mono.CSharp
 
 			protected override MethodGroupExpr DoResolveOverload (ResolveContext rc)
 			{
-				mg.BestCandidate.CheckObsoleteness (rc, loc);
+				if (!rc.IsObsolete) {
+					var member = mg.BestCandidate;
+					ObsoleteAttribute oa = member.GetAttributeObsolete ();
+					if (oa != null)
+						AttributeTester.Report_ObsoleteMessage (oa, member.GetSignatureForError (), loc, rc.Report);
+				}
 
 				return mg;
 			}
@@ -8311,6 +8320,7 @@ namespace Mono.CSharp
 			return data;
 		}
 
+#if NET_4_0 || MOBILE_DYNAMIC
 		public override SLE.Expression MakeExpression (BuilderContext ctx)
 		{
 #if STATIC
@@ -8327,6 +8337,7 @@ namespace Mono.CSharp
 			return SLE.Expression.NewArrayInit (array_element_type.GetMetaInfo (), initializers);
 #endif
 		}
+#endif
 #if STATIC
 		//
 		// Emits the initializers for the array
@@ -10636,7 +10647,11 @@ namespace Mono.CSharp
 
 		public SLE.Expression MakeAssignExpression (BuilderContext ctx, Expression source)
 		{
+#if NET_4_0 || MOBILE_DYNAMIC
 			return SLE.Expression.ArrayAccess (ea.Expr.MakeExpression (ctx), MakeExpressionArguments (ctx));
+#else
+			throw new NotImplementedException ();
+#endif
 		}
 
 		public override SLE.Expression MakeExpression (BuilderContext ctx)
@@ -10829,9 +10844,13 @@ namespace Mono.CSharp
 #else
 			var value = new[] { source.MakeExpression (ctx) };
 			var args = Arguments.MakeExpression (arguments, ctx).Concat (value);
+#if NET_4_0 || MOBILE_DYNAMIC
 			return SLE.Expression.Block (
 					SLE.Expression.Call (InstanceExpression.MakeExpression (ctx), (MethodInfo) Setter.GetMetaInfo (), args),
 					value [0]);
+#else
+			return args.First ();
+#endif
 #endif
 		}
 
@@ -11224,7 +11243,9 @@ namespace Mono.CSharp
 			
 		protected override Expression DoResolve (ResolveContext ec)
 		{
-			method.CheckObsoleteness (ec, source.Location);
+			ObsoleteAttribute oa = method.GetAttributeObsolete ();
+			if (oa != null)
+				AttributeTester.Report_ObsoleteMessage (oa, GetSignatureForError (), loc, ec.Report);
 
 			eclass = ExprClass.Value;
 			return this;
@@ -11783,13 +11804,8 @@ namespace Mono.CSharp
 			args.Add (new Argument (mg.CreateExpressionTree (ec)));
 
 			var expr_initializers = new ArrayInitializer (arguments.Count, loc);
-			foreach (Argument a in arguments) {
-				if (a.ArgType == Argument.AType.ExtensionType) {
-					ec.Report.Error (8075, a.Expr.Location, "An expression tree cannot contain a collection initializer with extension method");
-					continue;
-				}
+			foreach (Argument a in arguments)
 				expr_initializers.Add (a.CreateExpressionTree (ec));
-			}
 
 			args.Add (new Argument (new ArrayCreation (
 				CreateExpressionTypeExpression (ec, loc), expr_initializers, loc)));

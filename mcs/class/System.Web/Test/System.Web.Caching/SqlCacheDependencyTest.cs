@@ -65,6 +65,7 @@ namespace MonoTests.System.Web.Caching
 			//}, "#A3");
 		}
 
+#if NET_4_0
 		[Test]
 		public void CreateOutputCacheDependency ()
 		{
@@ -89,6 +90,7 @@ namespace MonoTests.System.Web.Caching
 			//sqc = SqlCacheDependency.CreateOutputCacheDependency ("Database:table; AnotherDatabase:table");
 			//Assert.IsTrue (sql is AggregateCacheDependency, "#B2");
 		}
+#endif
 	}
 }
 

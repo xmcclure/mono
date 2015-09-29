@@ -1,3 +1,4 @@
+#if NET_4_0
 // ConcurrentStackTests.cs
 //
 // Copyright (c) 2008 Jérémie "Garuma" Laval
@@ -302,3 +303,4 @@ namespace MonoTests.System.Collections.Concurrent
 		}
 	}
 }
+#endif

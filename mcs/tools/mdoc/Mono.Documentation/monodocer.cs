@@ -449,10 +449,8 @@ class MDocUpdater : MDocCommand
 			}
 			if (r == null)
 				continue;
-			if (c [n.Name] != null) {
-				c.RemoveNamedItem (n.Name);
-				c.InsertBefore (n, r);
-			}
+			c.Remove (n);
+			c.InsertBefore (n, r);
 		}
 	}
 	
@@ -678,6 +676,12 @@ class MDocUpdater : MDocCommand
 			XmlElement td = StubType(type, output);
 			if (td == null)
 				return null;
+			
+			System.IO.DirectoryInfo dir = new System.IO.DirectoryInfo (DocUtils.PathCombine (dest, type.Namespace));
+			if (!dir.Exists) {
+				dir.Create();
+				Console.WriteLine("Namespace Directory Created: " + type.Namespace);
+			}
 		}
 		return reltypefile;
 	}
@@ -1006,49 +1010,32 @@ class MDocUpdater : MDocCommand
 					XmlElement e = doc.SelectSingleNode("/Type") as XmlElement;
 					string assemblyName = doc.SelectSingleNode ("/Type/AssemblyInfo/AssemblyName").InnerText;
 					AssemblyDefinition assembly = assemblies.FirstOrDefault (a => a.Name.Name == assemblyName);
-
-					Action saveDoc = () => {
+					if (e != null && !no_assembly_versions && assembly != null && assemblyName != null && UpdateAssemblyVersions(e, assembly, GetAssemblyVersions(assemblyName), false)) {
 						using (TextWriter writer = OpenWrite (typefile.FullName, FileMode.Truncate))
 							WriteXml(doc.DocumentElement, writer);
-					};
-
-					if (e != null && !no_assembly_versions && assembly != null && assemblyName != null && UpdateAssemblyVersions (e, assembly, GetAssemblyVersions(assemblyName), false)) {
-						saveDoc ();
 						goodfiles.Add (relTypeFile);
 						continue;
 					}
 
 					Action actuallyDelete = () => {
 						string newname = typefile.FullName + ".remove";
-						try { System.IO.File.Delete (newname); } catch (Exception) { Warning ("Unable to delete existing file: {0}", newname); }
-						try { typefile.MoveTo (newname); } catch (Exception) { Warning ("Unable to rename to: {0}", newname); }
+						try { System.IO.File.Delete (newname); } catch (Exception ex) { Warning ("Unable to delete existing file: {0}", newname); }
+						try { typefile.MoveTo (newname); } catch (Exception ex) { Warning ("Unable to rename to: {0}", newname); }
 						Console.WriteLine ("Class no longer present; file renamed: " + Path.Combine (nsdir.Name, typefile.Name));
 					};
 
 					if (string.IsNullOrWhiteSpace (PreserveTag)) { // only do this if there was not a -preserve
-						saveDoc ();
-
+						using (TextWriter writer = OpenWrite (typefile.FullName, FileMode.Truncate))
+							WriteXml (doc.DocumentElement, writer);
+						
 						var unifiedAssemblyNode = doc.SelectSingleNode ("/Type/AssemblyInfo[@apistyle='unified']");
 						var classicAssemblyNode = doc.SelectSingleNode ("/Type/AssemblyInfo[@apistyle='classic']");
-						var unifiedMembers = doc.SelectNodes ("//Member[@apistyle='unified']|//Member/AssemblyInfo[@apistyle='unified']");
-						var classicMembers = doc.SelectNodes ("//Member[@apistyle='classic']|//Member/AssemblyInfo[@apistyle='classic']");
 						bool isUnifiedRun = HasDroppedAnyNamespace ();
 						bool isClassicOrNormalRun = !isUnifiedRun;
-
-						Action<XmlNode, ApiStyle> removeStyles = (x, style) => {
-							var styledNodes = doc.SelectNodes("//*[@apistyle='"+ style.ToString ().ToLowerInvariant () +"']");
-							if (styledNodes != null && styledNodes.Count > 0) {
-								foreach(var node in styledNodes.Cast<XmlNode> ()) {
-									node.ParentNode.RemoveChild (node);
-								}
-							}
-							saveDoc ();
-						};
 						if (isClassicOrNormalRun) {
-							if (unifiedAssemblyNode != null || unifiedMembers.Count > 0) {
+							if (unifiedAssemblyNode != null) {
 								Warning ("*** this type is marked as unified, not deleting during this run: {0}", typefile.FullName);
 								// if truly removed from both assemblies, it will be removed fully during the unified run
-								removeStyles (doc, ApiStyle.Classic);
 								continue;
 							} else {
 								// we should be safe to delete here because it was not marked as a unified assembly
@@ -1056,7 +1043,7 @@ class MDocUpdater : MDocCommand
 							}
 						}
 						if (isUnifiedRun) {
-							if (classicAssemblyNode != null || classicMembers.Count > 0) {
+							if (classicAssemblyNode != null) {
 								Warning ("*** this type is marked as classic, not deleting {0}", typefile.FullName);
 								continue; 
 							} else {
@@ -1354,9 +1341,7 @@ class MDocUpdater : MDocCommand
 		bool unifiedRun = HasDroppedNamespace (type);
 
 		var classicAssemblyInfo = member.SelectSingleNode ("AssemblyInfo[@apistyle='classic']");
-		bool nodeIsClassic = classicAssemblyInfo != null || member.HasApiStyle (ApiStyle.Classic);
-		var unifiedAssemblyInfo = member.SelectSingleNode ("AssemblyInfo[@apistyle='unified']");
-		bool nodeIsUnified = unifiedAssemblyInfo != null || member.HasApiStyle (ApiStyle.Unified);
+		bool nodeIsClassic = classicAssemblyInfo != null;
 
 		Action actuallyDelete = () => {
 			todelete.Add (member);
@@ -1371,15 +1356,14 @@ class MDocUpdater : MDocCommand
 			Warning (message, signature);
 		} else if (unifiedRun && nodeIsClassic) {
 			// this is a unified run, and the member doesn't exist, but is marked as being in the classic assembly.
-			member.RemoveApiStyle (ApiStyle.Unified);
-			Warning ("Not removing '{0}' since it's still in the classic assembly.", signature);
+				Warning ("Not removing '{0}' since it's still in the classic assembly.", signature);
 		} else if (unifiedRun && !nodeIsClassic) {
 			// unified run, and the node is not classic, which means it doesn't exist anywhere.
 			actuallyDelete ();
-		} else { 
-			if (!nodeIsClassic && !nodeIsUnified) { // regular codepath (ie. not classic/unified)
+		} else {
+			if (!nodeIsClassic) {
 				actuallyDelete ();
-			} else { // this is a classic run
+			} else {
 				Warning ("Removing classic from '{0}' ... will be removed in the unified run if not present there.", signature);
 				member.RemoveApiStyle (ApiStyle.Classic);
 				if (classicAssemblyInfo != null) {
@@ -2414,27 +2398,40 @@ class MDocUpdater : MDocCommand
 
 	public static string MakeAttributesValueString (object v, TypeReference valueType)
 	{
-		var formatters = new [] { 
-			new AttributeValueFormatter (), 
-			new ApplePlatformEnumFormatter (), 
-			new StandardFlagsEnumFormatter (), 
-			new DefaultAttributeValueFormatter (),
-		};
-
-		ResolvedTypeInfo type = new ResolvedTypeInfo (valueType);
-		foreach (var formatter in formatters) {
-			string formattedValue;
-			if (formatter.TryFormatValue (v, type, out formattedValue)) {
-				return formattedValue;
+		if (v == null)
+			return "null";
+			if (valueType.FullName == "System.Type") {
+				var vTypeRef = v as TypeReference;
+				if (vTypeRef != null)
+					return "typeof(" + NativeTypeManager.GetTranslatedName (vTypeRef) + ")"; // TODO: drop NS handling
+				else
+					return "typeof(" + v.ToString () + ")";
 			}
+		if (valueType.FullName == "System.String")
+			return "\"" + v.ToString () + "\"";
+		if (valueType.FullName == "System.Char")
+			return "'" + v.ToString () + "'";
+		if (v is Boolean)
+			return (bool)v ? "true" : "false";
+		TypeDefinition valueDef = valueType.Resolve ();
+		if (valueDef == null || !valueDef.IsEnum)
+			return v.ToString ();
+		string typename = GetDocTypeFullName (valueType);
+		var values = GetEnumerationValues (valueDef);
+		long c = ToInt64 (v);
+		if (values.ContainsKey (c))
+			return typename + "." + values [c];
+		if (valueDef.CustomAttributes.Any (ca => ca.AttributeType.FullName == "System.FlagsAttribute")) {
+			return string.Join (" | ",
+					(from i in values.Keys
+					 where (c & i) != 0
+					 select typename + "." + values [i])
+					.DefaultIfEmpty (v.ToString ()).ToArray ());
 		}
-
-		// this should never occur because the DefaultAttributeValueFormatter will always
-		// successfully format the value ... but this is needed to satisfy the compiler :)
-		throw new InvalidDataException (string.Format ("Unable to format attribute value ({0})", v.ToString ()));
+		return "(" + GetDocTypeFullName (valueType) + ") " + v.ToString ();
 	}
 
-	internal static IDictionary<long, string> GetEnumerationValues (TypeDefinition type)
+	private static Dictionary<long, string> GetEnumerationValues (TypeDefinition type)
 	{
 		var values = new Dictionary<long, string> ();
 		foreach (var f in 
@@ -2446,7 +2443,7 @@ class MDocUpdater : MDocCommand
 		return values;
 	}
 
-	internal static long ToInt64 (object value)
+	static long ToInt64 (object value)
 	{
 		if (value is ulong)
 			return (long) (ulong) value;
@@ -2957,11 +2954,6 @@ static class DocUtils {
 		string styleString = style.ToString ().ToLowerInvariant ();
 		return element.GetAttribute ("apistyle") == styleString;
 	}
-	public static bool HasApiStyle(this XmlNode node, ApiStyle style) 
-	{
-		var attribute = node.Attributes ["apistyle"];
-		return attribute != null && attribute.Value == style.ToString ().ToLowerInvariant ();
-	}
 	public static void AddApiStyle(this XmlElement element, ApiStyle style) {
 		string styleString = style.ToString ().ToLowerInvariant ();
 		var existingValue = element.GetAttribute ("apistyle");
@@ -2971,16 +2963,12 @@ static class DocUtils {
 	}
 	public static void RemoveApiStyle (this XmlElement element, ApiStyle style) 
 	{
-		string styleString = style.ToString ().ToLowerInvariant ();
-		string existingValue = element.GetAttribute ("apistyle");
-		if (string.IsNullOrWhiteSpace (existingValue) || existingValue == styleString) {
-			element.RemoveAttribute ("apistyle");
-		}
+		element.RemoveAttribute (style.ToString ().ToLowerInvariant ());
 	}
 	public static void RemoveApiStyle (this XmlNode node, ApiStyle style) 
 	{
 		var styleAttribute = node.Attributes ["apistyle"];
-		if (styleAttribute != null && styleAttribute.Value == style.ToString ().ToLowerInvariant ()) {
+		if (styleAttribute != null) {
 			node.Attributes.Remove (styleAttribute);
 		}
 	}
@@ -5736,190 +5724,4 @@ class FileNameMemberFormatter : SlashDocMemberFormatter {
 	}
 }
 
-class ResolvedTypeInfo {
-	TypeDefinition typeDef;
-
-	public ResolvedTypeInfo (TypeReference value) {
-		Reference = value;
-	}
-
-	public TypeReference Reference { get; private set; }
-
-	public TypeDefinition Definition {
-		get {
-			if (typeDef == null) {
-				typeDef = Reference.Resolve ();
-			}
-			return typeDef;
-		}
-	}
-}
-
-/// <summary>Formats attribute values. Should return true if it is able to format the value.</summary>
-class AttributeValueFormatter {
-	public virtual bool TryFormatValue (object v, ResolvedTypeInfo type, out string returnvalue)
-	{
-		TypeReference valueType = type.Reference;
-		if (v == null) {
-			returnvalue = "null";
-			return true;
-		}
-		if (valueType.FullName == "System.Type") {
-			var vTypeRef = v as TypeReference;
-			if (vTypeRef != null) 
-				returnvalue = "typeof(" + NativeTypeManager.GetTranslatedName (vTypeRef) + ")"; // TODO: drop NS handling
-			else
-				returnvalue = "typeof(" + v.ToString () + ")";
-			
-			return true;
-		}
-		if (valueType.FullName == "System.String") {
-			returnvalue = "\"" + v.ToString () + "\"";
-			return true;
-		}
-		if (valueType.FullName == "System.Char") {
-			returnvalue = "'" + v.ToString () + "'";
-			return true;
-		}
-		if (v is Boolean) {
-			returnvalue = (bool)v ? "true" : "false";
-			return true;
-		}
-
-		TypeDefinition valueDef = type.Definition;
-		if (valueDef == null || !valueDef.IsEnum) {
-			returnvalue = v.ToString ();
-			return true;
-		}
-
-		string typename = MDocUpdater.GetDocTypeFullName (valueType);
-		var values = MDocUpdater.GetEnumerationValues (valueDef);
-		long c = MDocUpdater.ToInt64 (v);
-		if (values.ContainsKey (c)) {
-			returnvalue = typename + "." + values [c];
-			return true;
-		}
-
-		returnvalue = null;
-		return false;
-	}
-}
-
-/// <summary>The final value formatter in the pipeline ... if no other formatter formats the value,
-/// then this one will serve as the default implementation.</summary>
-class DefaultAttributeValueFormatter : AttributeValueFormatter {
-	public override bool TryFormatValue (object v, ResolvedTypeInfo type, out string returnvalue)
-	{
-		returnvalue = "(" + MDocUpdater.GetDocTypeFullName (type.Reference) + ") " + v.ToString ();
-		return true;
-	}
-}
-
-/// <summary>Flags enum formatter that assumes powers of two values.</summary>
-/// <remarks>As described here: https://msdn.microsoft.com/en-us/library/vstudio/ms229062(v=vs.100).aspx</remarks>
-class StandardFlagsEnumFormatter : AttributeValueFormatter {
-	public override bool TryFormatValue (object v, ResolvedTypeInfo type, out string returnvalue)
-	{
-		TypeReference valueType = type.Reference;
-		TypeDefinition valueDef = type.Definition;
-		if (valueDef.CustomAttributes.Any (ca => ca.AttributeType.FullName == "System.FlagsAttribute")) {
-
-			string typename = MDocUpdater.GetDocTypeFullName (valueType);
-			var values = MDocUpdater.GetEnumerationValues (valueDef);
-			long c = MDocUpdater.ToInt64 (v);
-			returnvalue = string.Join (" | ",
-				(from i in values.Keys
-				 where (c & i) == i && i != 0
-				 select typename + "." + values [i])
-				.DefaultIfEmpty (c.ToString ()).ToArray ());
-			
-			return true;
-		}
-
-		returnvalue = null;
-		return false;
-	}
-}
-
-/// <summary>A custom formatter for the ObjCRuntime.Platform enumeration.</summary>
-class ApplePlatformEnumFormatter : AttributeValueFormatter {
-	public override bool TryFormatValue (object v, ResolvedTypeInfo type, out string returnvalue)
-	{
-		TypeReference valueType = type.Reference;
-		string typename = MDocUpdater.GetDocTypeFullName (valueType);
-		TypeDefinition valueDef = type.Definition;
-		if (typename.Contains ("ObjCRuntime.Platform") && valueDef.CustomAttributes.Any (ca => ca.AttributeType.FullName == "System.FlagsAttribute")) {
-
-			var values = MDocUpdater.GetEnumerationValues (valueDef);
-			long c = MDocUpdater.ToInt64 (v);
-
-			returnvalue = Format (c, values, typename);
-			return true;
-		}
-
-		returnvalue = null;
-		return false;
-	}
-
-	string Format (long c, IDictionary<long, string> values, string typename)
-	{
-		int iosarch, iosmajor, iosminor, iossubminor;
-		int macarch, macmajor, macminor, macsubminor;
-		GetEncodingiOS (c, out iosarch, out iosmajor, out iosminor, out iossubminor);
-		GetEncodingMac ((ulong)c, out macarch, out macmajor, out macminor, out macsubminor);
-
-		if (iosmajor == 0 & iosminor == 0 && iossubminor == 0) {
-			return FormatValues ("Mac", macarch, macmajor, macminor, macsubminor);
-		}
-
-		if (macmajor == 0 & macminor == 0 && macsubminor == 0) {
-			return FormatValues ("iOS", iosarch, iosmajor, iosminor, iossubminor);
-		}
-
-		return string.Format ("(Platform){0}", c);
-	}
-
-	string FormatValues (string plat, int arch, int major, int minor, int subminor) 
-	{
-		string archstring = "";
-		switch (arch) {
-		case 1:
-			archstring = "32";
-			break;
-		case 2:
-			archstring = "64";
-			break;
-		}
-		return string.Format ("Platform.{4}_{0}_{1}{2} | Platform.{4}_Arch{3}",
-			major,
-			minor,
-			subminor == 0 ? "" : "_" + subminor.ToString (),
-			archstring,
-			plat
-		);
-	}
-
-	void GetEncodingiOS (long entireLong, out int archindex, out int major, out int minor, out int subminor)
-	{
-		long lowerBits = entireLong & 0xffffffff; 
-		int lowerBitsAsInt = (int) lowerBits;
-		GetEncoding (lowerBitsAsInt, out archindex, out major, out minor, out subminor);
-	}
-
-	void GetEncodingMac (ulong entireLong, out int archindex, out int major, out int minor, out int subminor)
-	{
-		ulong higherBits = entireLong & 0xffffffff00000000; 
-		int higherBitsAsInt = (int) ((higherBits) >> 32);
-		GetEncoding (higherBitsAsInt, out archindex, out major, out minor, out subminor);
-	}
-
-	void GetEncoding (Int32 encodedBits, out int archindex, out int major, out int minor, out int subminor)
-	{
-		// format is AAJJNNSS
-		archindex = (int)((encodedBits & 0xFF000000) >> 24);
-		major = (int)((encodedBits & 0x00FF0000) >> 16);
-		minor = (int)((encodedBits & 0x0000FF00) >> 8);
-		subminor = (int)((encodedBits & 0x000000FF) >> 0);
-	}
-}
 }
