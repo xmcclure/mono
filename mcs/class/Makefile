@@ -139,6 +139,8 @@ net_4_x_dirs := \
 	System.Security			\
 	System.Configuration	\
 	$(resgen_dir)			\
+	System.IO.Compression 		\
+	System.IO.Compression.FileSystem \
 	System.Drawing			\
 	System.Transactions		\
 	System.EnterpriseServices	\
@@ -249,8 +251,6 @@ net_4_x_parallel_dirs := \
 	System.Json.Microsoft \
 	System.Threading.Tasks.Dataflow \
 	System.ComponentModel.Composition.4.5 \
-	System.IO.Compression \
-	System.IO.Compression.FileSystem \
 	System.Windows \
 	System.Xml.Serialization \
 	Mono.Security.Providers \
