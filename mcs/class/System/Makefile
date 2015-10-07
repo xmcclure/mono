@@ -33,19 +33,20 @@ ifndef PROFILE_ANY_MOBILE
 EXTERN_ALIAS_FLAGS = -d:MONO_SECURITY_ALIAS -d:MONO_X509_ALIAS
 endif
 
-ifeq (monotouch, $(subst _runtime,,$(PROFILE)))
-LIB_MCS_FLAGS += -d:SECURITY_DEP
-endif
-ifeq (monotouch_watch, $(PROFILE))
-LIB_MCS_FLAGS += -d:SECURITY_DEP
-endif
-ifeq (monodroid, $(PROFILE))
-LIB_MCS_FLAGS += -d:SECURITY_DEP
-endif
 ifeq (xammac, $(PROFILE))
 EXTERN_ALIAS_FLAGS = -d:MONO_SECURITY_ALIAS -d:MONO_X509_ALIAS
 endif
-ifndef PROFILE_ANY_MOBILE
+
+#
+# MOBILE_PROFILE needs SECURITY_DEP, except for XAMMAC
+#
+ifdef MOBILE_PROFILE
+ifneq ($(PROFILE),xammac)
+LIB_MCS_FLAGS += -d:SECURITY_DEP
+endif
+endif
+
+ifndef MOBILE_PROFILE
 FINAL_MCS_FLAGS = -r:System.Configuration.dll -d:CONFIGURATION_DEP
 endif
 

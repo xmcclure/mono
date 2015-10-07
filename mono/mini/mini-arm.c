@@ -103,6 +103,7 @@ static gboolean v5_supported = FALSE;
 static gboolean v6_supported = FALSE;
 static gboolean v7_supported = FALSE;
 static gboolean v7s_supported = FALSE;
+static gboolean v7k_supported = FALSE;
 static gboolean thumb_supported = FALSE;
 static gboolean thumb2_supported = FALSE;
 /*
@@ -970,6 +971,7 @@ mono_arch_init (void)
 	v6_supported = mono_hwcap_arm_is_v6;
 	v7_supported = mono_hwcap_arm_is_v7;
 	v7s_supported = mono_hwcap_arm_is_v7s;
+	v7k_supported = mono_hwcap_arm_is_v7k;
 
 #if defined(__APPLE__)
 	/* iOS is special-cased here because we don't yet
@@ -991,6 +993,7 @@ mono_arch_init (void)
 			v6_supported = cpu_arch [4] >= '6';
 			v7_supported = cpu_arch [4] >= '7';
 			v7s_supported = strncmp (cpu_arch, "armv7s", 6) == 0;
+			v7k_supported = strncmp (cpu_arch, "armv7k", 6) == 0;
 		}
 
 		thumb_supported = strstr (cpu_arch, "thumb") != NULL;
@@ -1036,7 +1039,7 @@ mono_arch_cpu_enumerate_simd_versions (void)
 gboolean
 mono_arch_opcode_needs_emulation (MonoCompile *cfg, int opcode)
 {
-	if (v7s_supported) {
+	if (v7s_supported || v7k_supported) {
 		switch (opcode) {
 		case OP_IDIV:
 		case OP_IREM:
@@ -4884,20 +4887,20 @@ mono_arch_output_basic_block (MonoCompile *cfg, MonoBasicBlock *bb)
 			ARM_AND_REG_IMM (code, ins->dreg, ins->sreg1, imm8, rot_amount);
 			break;
 		case OP_IDIV:
-			g_assert (v7s_supported);
+			g_assert (v7s_supported || v7k_supported);
 			ARM_SDIV (code, ins->dreg, ins->sreg1, ins->sreg2);
 			break;
 		case OP_IDIV_UN:
-			g_assert (v7s_supported);
+			g_assert (v7s_supported || v7k_supported);
 			ARM_UDIV (code, ins->dreg, ins->sreg1, ins->sreg2);
 			break;
 		case OP_IREM:
-			g_assert (v7s_supported);
+			g_assert (v7s_supported || v7k_supported);
 			ARM_SDIV (code, ARMREG_LR, ins->sreg1, ins->sreg2);
 			ARM_MLS (code, ins->dreg, ARMREG_LR, ins->sreg2, ins->sreg1);
 			break;
 		case OP_IREM_UN:
-			g_assert (v7s_supported);
+			g_assert (v7s_supported || v7k_supported);
 			ARM_UDIV (code, ARMREG_LR, ins->sreg1, ins->sreg2);
 			ARM_MLS (code, ins->dreg, ARMREG_LR, ins->sreg2, ins->sreg1);
 			break;
@@ -5214,8 +5217,8 @@ mono_arch_output_basic_block (MonoCompile *cfg, MonoBasicBlock *bb)
 		}
 		case OP_LOCALLOC: {
 			/* round the size to 8 bytes */
-			ARM_ADD_REG_IMM8 (code, ins->dreg, ins->sreg1, 7);
-			ARM_BIC_REG_IMM8 (code, ins->dreg, ins->dreg, 7);
+			ARM_ADD_REG_IMM8 (code, ins->dreg, ins->sreg1, (MONO_ARCH_FRAME_ALIGNMENT - 1));
+			ARM_BIC_REG_IMM8 (code, ins->dreg, ins->dreg, (MONO_ARCH_FRAME_ALIGNMENT - 1));
 			ARM_SUB_REG_REG (code, ARMREG_SP, ARMREG_SP, ins->dreg);
 			/* memzero the area: dreg holds the size, sp is the pointer */
 			if (ins->flags & MONO_INST_INIT) {
@@ -5290,14 +5293,15 @@ mono_arch_output_basic_block (MonoCompile *cfg, MonoBasicBlock *bb)
 		}
 		case OP_START_HANDLER: {
 			MonoInst *spvar = mono_find_spvar_for_region (cfg, bb->region);
+			int param_area = ALIGN_TO (cfg->param_area, MONO_ARCH_FRAME_ALIGNMENT);
 			int i, rot_amount;
 
 			/* Reserve a param area, see filter-stack.exe */
-			if (cfg->param_area) {
-				if ((i = mono_arm_is_rotated_imm8 (cfg->param_area, &rot_amount)) >= 0) {
+			if (param_area) {
+				if ((i = mono_arm_is_rotated_imm8 (param_area, &rot_amount)) >= 0) {
 					ARM_SUB_REG_IMM (code, ARMREG_SP, ARMREG_SP, i, rot_amount);
 				} else {
-					code = mono_arm_emit_load_imm (code, ARMREG_IP, cfg->param_area);
+					code = mono_arm_emit_load_imm (code, ARMREG_IP, param_area);
 					ARM_SUB_REG_REG (code, ARMREG_SP, ARMREG_SP, ARMREG_IP);
 				}
 			}
@@ -5312,14 +5316,15 @@ mono_arch_output_basic_block (MonoCompile *cfg, MonoBasicBlock *bb)
 		}
 		case OP_ENDFILTER: {
 			MonoInst *spvar = mono_find_spvar_for_region (cfg, bb->region);
+			int param_area = ALIGN_TO (cfg->param_area, MONO_ARCH_FRAME_ALIGNMENT);
 			int i, rot_amount;
 
 			/* Free the param area */
-			if (cfg->param_area) {
-				if ((i = mono_arm_is_rotated_imm8 (cfg->param_area, &rot_amount)) >= 0) {
+			if (param_area) {
+				if ((i = mono_arm_is_rotated_imm8 (param_area, &rot_amount)) >= 0) {
 					ARM_ADD_REG_IMM (code, ARMREG_SP, ARMREG_SP, i, rot_amount);
 				} else {
-					code = mono_arm_emit_load_imm (code, ARMREG_IP, cfg->param_area);
+					code = mono_arm_emit_load_imm (code, ARMREG_IP, param_area);
 					ARM_ADD_REG_REG (code, ARMREG_SP, ARMREG_SP, ARMREG_IP);
 				}
 			}
@@ -5338,14 +5343,15 @@ mono_arch_output_basic_block (MonoCompile *cfg, MonoBasicBlock *bb)
 		}
 		case OP_ENDFINALLY: {
 			MonoInst *spvar = mono_find_spvar_for_region (cfg, bb->region);
+			int param_area = ALIGN_TO (cfg->param_area, MONO_ARCH_FRAME_ALIGNMENT);
 			int i, rot_amount;
 
 			/* Free the param area */
-			if (cfg->param_area) {
-				if ((i = mono_arm_is_rotated_imm8 (cfg->param_area, &rot_amount)) >= 0) {
+			if (param_area) {
+				if ((i = mono_arm_is_rotated_imm8 (param_area, &rot_amount)) >= 0) {
 					ARM_ADD_REG_IMM (code, ARMREG_SP, ARMREG_SP, i, rot_amount);
 				} else {
-					code = mono_arm_emit_load_imm (code, ARMREG_IP, cfg->param_area);
+					code = mono_arm_emit_load_imm (code, ARMREG_IP, param_area);
 					ARM_ADD_REG_REG (code, ARMREG_SP, ARMREG_SP, ARMREG_IP);
 				}
 			}
@@ -6262,8 +6268,7 @@ mono_arch_emit_prolog (MonoCompile *cfg)
 	}
 
 	/* the stack used in the pushed regs */
-	if (prev_sp_offset & 4)
-		alloc_size += 4;
+	alloc_size += ALIGN_TO (prev_sp_offset, MONO_ARCH_FRAME_ALIGNMENT) - prev_sp_offset;
 	cfg->stack_usage = alloc_size;
 	if (alloc_size) {
 		if ((i = mono_arm_is_rotated_imm8 (alloc_size, &rot_amount)) >= 0) {
@@ -6316,7 +6321,6 @@ mono_arch_emit_prolog (MonoCompile *cfg)
 			code = mono_arm_emit_load_imm (code, ARMREG_R0, (guint32)cfg->method);
 		mono_add_patch_info (cfg, code - cfg->native_code, MONO_PATCH_INFO_INTERNAL_METHOD, "mono_arm_unaligned_stack");
 		code = emit_call_seq (cfg, code);
-		code = emit_call_reg (code, ARMREG_LR);
 		arm_patch (buf [0], code);
 	}
 	*/
@@ -7677,6 +7681,9 @@ mono_arch_set_target (char *mtriple)
 	}
 	if (strstr (mtriple, "armv7s")) {
 		v7s_supported = TRUE;
+	}
+	if (strstr (mtriple, "armv7k")) {
+		v7k_supported = TRUE;
 	}
 	if (strstr (mtriple, "thumbv7s")) {
 		v5_supported = TRUE;
