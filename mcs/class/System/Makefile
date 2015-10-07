@@ -25,17 +25,8 @@ TEST_MCS_FLAGS = -r:System.Drawing.dll -r:Mono.Security.dll -r:System.Data -r:Sy
 REFERENCE_SOURCES_FLAGS = -d:FEATURE_PAL,SYSTEM_NAMESPACE,MONO,PLATFORM_UNIX,INSIDE_SYSTEM
 LIB_MCS_FLAGS = -nowarn:618 -d:CONFIGURATION_2_0 $(REFERENCE_SOURCES_FLAGS) -unsafe $(RESOURCE_FILES:%=-resource:%)
 TEST_MCS_FLAGS += -r:System.Configuration
-PROFILE_ANY_MOBILE := $(filter monotouch monotouch_runtime monotouch_watch monodroid xammac mobile mobile_static, $(PROFILE))
 
 RESOURCE_STRINGS = ../../../external/referencesource/System/System.txt
-
-ifndef PROFILE_ANY_MOBILE
-EXTERN_ALIAS_FLAGS = -d:MONO_SECURITY_ALIAS -d:MONO_X509_ALIAS
-endif
-
-ifeq (xammac, $(PROFILE))
-EXTERN_ALIAS_FLAGS = -d:MONO_SECURITY_ALIAS -d:MONO_X509_ALIAS
-endif
 
 #
 # MOBILE_PROFILE needs SECURITY_DEP, except for XAMMAC
@@ -46,7 +37,12 @@ LIB_MCS_FLAGS += -d:SECURITY_DEP
 endif
 endif
 
+ifneq ($(PROFILE),xammac)
+EXTERN_ALIAS_FLAGS = -d:MONO_SECURITY_ALIAS -d:MONO_X509_ALIAS
+endif
+
 ifndef MOBILE_PROFILE
+EXTERN_ALIAS_FLAGS = -d:MONO_SECURITY_ALIAS -d:MONO_X509_ALIAS
 FINAL_MCS_FLAGS = -r:System.Configuration.dll -d:CONFIGURATION_DEP
 endif
 
