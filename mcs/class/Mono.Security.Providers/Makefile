@@ -8,13 +8,16 @@ mobile_static_SUBDIRS = $(PROVIDERS)
 
 net_4_x_SUBDIRS = $(PROVIDERS)
 
-monodroid_SUBDIRS = $(net_4_5_SUBDIRS)
+monodroid_SUBDIRS = $(PROVIDERS)
 
-monotouch_SUBDIRS = $(net_4_5_SUBDIRS)
+monotouch_SUBDIRS = $(PROVIDERS)
 
-xammac_SUBDIRS = $(net_4_5_SUBDIRS)
+monotouch_watch_SUBDIRS := $(PROVIDERS)
+monotouch_tv_SUBDIRS := $(PROVIDERS)
 
-xammac_net_4_5_SUBDIRS = $(net_4_5_SUBDIRS)
+xammac_SUBDIRS = $(PROVIDERS)
+
+xammac_net_4_5_SUBDIRS = $(PROVIDERS)
 
 PROFILE_SUBDIRS = $(PROVIDERS)
 
