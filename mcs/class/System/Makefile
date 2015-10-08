@@ -32,16 +32,12 @@ RESOURCE_STRINGS = ../../../external/referencesource/System/System.txt
 # MOBILE_PROFILE needs SECURITY_DEP, except for XAMMAC
 #
 ifdef MOBILE_PROFILE
-ifneq ($(PROFILE),xammac)
+ifeq ($(PROFILE),xammac)
+EXTERN_ALIAS_FLAGS = -d:MONO_SECURITY_ALIAS -d:MONO_X509_ALIAS
+else
 LIB_MCS_FLAGS += -d:SECURITY_DEP
 endif
-endif
-
-ifneq ($(PROFILE),xammac)
-EXTERN_ALIAS_FLAGS = -d:MONO_SECURITY_ALIAS -d:MONO_X509_ALIAS
-endif
-
-ifndef MOBILE_PROFILE
+else
 EXTERN_ALIAS_FLAGS = -d:MONO_SECURITY_ALIAS -d:MONO_X509_ALIAS
 FINAL_MCS_FLAGS = -r:System.Configuration.dll -d:CONFIGURATION_DEP
 endif
