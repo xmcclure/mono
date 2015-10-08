@@ -2,9 +2,7 @@ thisdir = class/Mono.Security.Providers/NewSystemSource
 SUBDIRS = 
 include ../../../build/rules.make
 
-PROFILE_ANY_MOBILE := $(filter monotouch monotouch_runtime monodroid xammac mobile mobile_static, $(PROFILE))
-
-ifdef PROFILE_ANY_MOBILE
+ifdef MOBILE_PROFILE
 EXTERN_ALIAS_FLAGS = -r:Mono.Security
 else
 EXTERN_ALIAS_FLAGS = -d:MONO_SECURITY_ALIAS -r:MonoSecurity=Mono.Security
