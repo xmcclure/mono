@@ -77,19 +77,6 @@ using MNS = Mono.Net.Security;
 
 namespace System.Net.Security 
 {
-	public delegate bool RemoteCertificateValidationCallback (
-		object sender,
-		X509Certificate certificate,
-		X509Chain chain,
-		SslPolicyErrors sslPolicyErrors);
-
-	public delegate X509Certificate LocalCertificateSelectionCallback (
-		object sender,
-		string targetHost,
-		X509CertificateCollection localCertificates,
-		X509Certificate remoteCertificate,
-		string [] acceptableIssuers);
-
 	/*
 	 * These two are defined by the referencesource; add them heere to make
 	 * it easy to switch between the two implementations.
