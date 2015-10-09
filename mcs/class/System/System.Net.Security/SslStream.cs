@@ -77,27 +77,6 @@ using MNS = Mono.Net.Security;
 
 namespace System.Net.Security 
 {
-	[Flags]
-	public enum SslPolicyErrors
-	{
-		None = 0,
-		RemoteCertificateNotAvailable = 1,
-		RemoteCertificateNameMismatch = 2,
-		RemoteCertificateChainErrors = 4,
-	}
-
-	public enum EncryptionPolicy
-	{
-		// Prohibit null ciphers (current system defaults)
-		RequireEncryption = 0,
-
-		// Add null ciphers to current system defaults
-		AllowNoEncryption,
-
-		// Request null ciphers only
-		NoEncryption
-	}
-
 	public delegate bool RemoteCertificateValidationCallback (
 		object sender,
 		X509Certificate certificate,

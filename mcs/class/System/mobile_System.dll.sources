@@ -107,8 +107,10 @@ System.Net.NetworkInformation/UnicastIPAddressInformationCollection.cs
 System.Net.NetworkInformation/Win32NetworkInterfaceMarshal.cs
 System.Net.Security/AuthenticatedStream.cs
 System.Net.Security/AuthenticationLevel.cs
+System.Net.Security/EncryptionPolicy.cs
 System.Net.Security/NegotiateStream.cs
 System.Net.Security/ProtectionLevel.cs
+System.Net.Security/SslPolicyErrors.cs
 System.Net.Security/SslStream.cs
 System.Net/SocketAddress.cs
 System.Net/SocketPermissionAttribute.cs
