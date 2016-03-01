@@ -24,6 +24,62 @@
 #include <execinfo.h>
 #endif
 
+// Selective-enable support
+
+typedef enum {
+	MONO_CHECK_MODE_NONE = 0,
+	MONO_CHECK_MODE_GC = 0x1,
+	MONO_CHECK_MODE_METADATA = 0x2,
+	MONO_CHECK_MODE_THREAD = 0x4,
+	MONO_CHECK_MODE_ALL = MONO_CHECK_MODE_GC | MONO_CHECK_MODE_METADATA | MONO_CHECK_MODE_THREAD,
+	MONO_CHECK_MODE_UNKNOWN = 0x8
+} MonoCheckMode;
+
+#if !defined(CHECKED_BUILD)
+#define MONO_CHECK_MODE_ENABLED(_) (false)
+#elif !defined(CHECKED_BUILD_NEEDS_ENV_VAR)
+#define MONO_CHECK_MODE_ENABLED(_) (true)
+#else
+#define MONO_CHECK_MODE_ENABLED mono_check_mode_enabled
+#endif
+
+// Returns true for check modes which are allowed by both the current DISABLE_ macros and the MONO_CHECK_MODE env var.
+// Argument may be a bitmask; if so, result is true if at least one specified mode is enabled.
+static mono_bool
+mono_check_mode_enabled (MonoCheckMode query)
+{
+	static MonoCheckMode check_mode = MONO_CHECK_MODE_UNKNOWN;
+	if (G_UNLIKELY (check_mode == MONO_CHECK_MODE_UNKNOWN))
+	{
+		MonoCheckMode env_check_mode = MONO_CHECK_MODE_NONE;
+		gchar *env_string = g_getenv ("MONO_CHECK_MODE");
+		if (env_string)
+		{
+			gchar **env_split = g_strsplit (env_string, ",", 0);
+			for (const gchar **env_component = env_split; *env_component; env_component++)
+			{
+				mono_bool check_all = g_str_equal (*env_component, "all");
+#if !defined(DISABLE_CHECKED_BUILD_GC)
+				if (check_all || g_str_equal (*env_component, "gc"))
+					env_check_mode |= MONO_CHECK_MODE_GC;
+#endif
+#if !defined(DISABLE_CHECKED_BUILD_METADATA)
+				if (check_all || g_str_equal (*env_component, "metadata"))
+					env_check_mode |= MONO_CHECK_MODE_METADATA;
+#endif
+#if !defined(DISABLE_CHECKED_BUILD_THREAD)
+				if (check_all || g_str_equal (*env_component, "thread"))
+					env_check_mode |= MONO_CHECK_MODE_THREAD;
+#endif
+			}
+			g_strfreev (env_split);
+		}
+		g_warning ("CHECK BUILD STATUS: %d\n", (int)env_check_mode); // DO NOT COMMIT THIS LINE
+		check_mode = env_check_mode;
+	}
+	return check_mode & query;
+}
+
 typedef struct {
 	GPtrArray *transitions;
 	guint32 in_gc_critical_region;
@@ -34,7 +90,8 @@ static MonoNativeTlsKey thread_status;
 void
 checked_build_init (void)
 {
-	mono_native_tls_alloc (&thread_status, NULL);
+	if (MONO_CHECK_MODE_ENABLED (MONO_CHECK_MODE_GC | MONO_CHECK_MODE_THREAD))
+		mono_native_tls_alloc (&thread_status, NULL);
 }
 
 static CheckState*
@@ -124,6 +181,9 @@ free_transition (ThreadTransition *t)
 void
 checked_build_thread_transition (const char *transition, void *info, int from_state, int suspend_count, int next_state, int suspend_count_delta)
 {
+	if (!MONO_CHECK_MODE_ENABLED (MONO_CHECK_MODE_THREAD))
+		return;
+
 	MonoThreadInfo *cur = mono_thread_info_current_unchecked ();
 	CheckState *state = get_state ();
 	/* We currently don't record external changes as those are hard to reason about. */
@@ -184,6 +244,9 @@ assertion_fail (const char *msg, ...)
 void
 assert_gc_safe_mode (void)
 {
+	if (!MONO_CHECK_MODE_ENABLED (MONO_CHECK_MODE_GC))
+		return;
+
 	MonoThreadInfo *cur = mono_thread_info_current ();
 	int state;
 
@@ -202,6 +265,9 @@ assert_gc_safe_mode (void)
 void
 assert_gc_unsafe_mode (void)
 {
+	if (!MONO_CHECK_MODE_ENABLED (MONO_CHECK_MODE_GC))
+		return;
+
 	MonoThreadInfo *cur = mono_thread_info_current ();
 	int state;
 
@@ -221,6 +287,9 @@ assert_gc_unsafe_mode (void)
 void
 assert_gc_neutral_mode (void)
 {
+	if (!MONO_CHECK_MODE_ENABLED (MONO_CHECK_MODE_GC))
+		return;
+
 	MonoThreadInfo *cur = mono_thread_info_current ();
 	int state;
 
@@ -242,6 +311,9 @@ assert_gc_neutral_mode (void)
 void *
 critical_gc_region_begin(void)
 {
+	if (!MONO_CHECK_MODE_ENABLED (MONO_CHECK_MODE_GC))
+		return NULL;
+
 	CheckState *state = get_state ();
 	state->in_gc_critical_region++;
 	return state;
@@ -251,6 +323,9 @@ critical_gc_region_begin(void)
 void
 critical_gc_region_end(void* token)
 {
+	if (!MONO_CHECK_MODE_ENABLED (MONO_CHECK_MODE_GC))
+		return;
+
 	CheckState *state = get_state();
 	g_assert (state == token);
 	state->in_gc_critical_region--;
@@ -259,6 +334,9 @@ critical_gc_region_end(void* token)
 void
 assert_not_in_gc_critical_region(void)
 {
+	if (!MONO_CHECK_MODE_ENABLED (MONO_CHECK_MODE_GC))
+		return;
+
 	CheckState *state = get_state();
 	if (state->in_gc_critical_region > 0) {
 		assertion_fail("Expected GC Unsafe mode, but was in %s state", mono_thread_state_name (mono_thread_info_current_state (mono_thread_info_current ())));
@@ -268,6 +346,9 @@ assert_not_in_gc_critical_region(void)
 void
 assert_in_gc_critical_region (void)
 {
+	if (!MONO_CHECK_MODE_ENABLED (MONO_CHECK_MODE_GC))
+		return;
+
 	CheckState *state = get_state();
 	if (state->in_gc_critical_region == 0)
 		assertion_fail("Expected GC critical region");
@@ -543,6 +624,9 @@ mono_find_mempool_owner (void *ptr)
 static void
 check_mempool_may_reference_mempool (void *from_ptr, void *to_ptr, gboolean require_local)
 {
+	if (!MONO_CHECK_MODE_ENABLED (MONO_CHECK_MODE_METADATA))
+		return;
+
 	// Null pointers are OK
 	if (!to_ptr)
 		return;
