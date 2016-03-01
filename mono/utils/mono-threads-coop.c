@@ -120,6 +120,8 @@ mono_threads_prepare_blocking (void* stackdata)
 {
 	MonoThreadInfo *info;
 
+	MONO_REQ_GC_UNSAFE_MODE;
+
 	if (!mono_threads_is_coop_enabled ())
 		return NULL;
 
