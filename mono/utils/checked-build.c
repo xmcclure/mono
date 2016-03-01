@@ -36,9 +36,7 @@ typedef enum {
 } MonoCheckMode;
 
 #if !defined(CHECKED_BUILD)
-#define MONO_CHECK_MODE_ENABLED(_) (false)
-#elif !defined(CHECKED_BUILD_NEEDS_ENV_VAR)
-#define MONO_CHECK_MODE_ENABLED(_) (true)
+#define MONO_CHECK_MODE_ENABLED(_) (FALSE)
 #else
 #define MONO_CHECK_MODE_ENABLED mono_check_mode_enabled
 #endif
@@ -52,11 +50,11 @@ mono_check_mode_enabled (MonoCheckMode query)
 	if (G_UNLIKELY (check_mode == MONO_CHECK_MODE_UNKNOWN))
 	{
 		MonoCheckMode env_check_mode = MONO_CHECK_MODE_NONE;
-		gchar *env_string = g_getenv ("MONO_CHECK_MODE");
+		const gchar *env_string = g_getenv ("MONO_CHECK_MODE");
 		if (env_string)
 		{
 			gchar **env_split = g_strsplit (env_string, ",", 0);
-			for (const gchar **env_component = env_split; *env_component; env_component++)
+			for (gchar **env_component = env_split; *env_component; env_component++)
 			{
 				mono_bool check_all = g_str_equal (*env_component, "all");
 #if !defined(DISABLE_CHECKED_BUILD_GC)
