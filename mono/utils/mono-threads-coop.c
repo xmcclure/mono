@@ -39,6 +39,33 @@
 
 volatile size_t mono_polling_required;
 
+// TODO: Don't use the stack
+#if defined(CHECKED_BUILD) && !defined(DISABLE_CHECKED_BUILD_GC)
+// Maintains a single per-thread stack of ints, used to ensure nesting is not violated
+MonoNativeTlsKey coop_reset_count_stack_key;
+static int coop_tls_push(int v) {
+	GArray *stack = mono_native_tls_get_value(coop_reset_count_stack_key);
+	if (!stack) {
+		stack = g_array_new (FALSE,FALSE,sizeof(int));
+		mono_native_tls_set_value(coop_reset_count_stack_key, stack);
+	}
+	g_array_append_val(stack, v);
+	return stack->len;
+}
+static int coop_tls_pop(int *v) {
+	GArray *stack = mono_native_tls_get_value(coop_reset_count_stack_key);
+	if (!stack || 0 == stack->len)
+		return -1;
+	stack->len--;
+	*v = g_array_index(stack, int, stack->len);
+	if (0 == stack->len) {
+		g_array_free(stack,TRUE);
+		mono_native_tls_set_value(coop_reset_count_stack_key, NULL);
+	}
+	return stack->len;
+}
+#endif
+
 static int coop_reset_blocking_count;
 static int coop_try_blocking_count;
 static int coop_do_blocking_count;
@@ -195,9 +222,16 @@ mono_threads_reset_blocking_start (void* stackdata)
 	if (!mono_threads_is_coop_enabled ())
 		return NULL;
 
-	++coop_reset_blocking_count;
-
 	info = mono_thread_info_current_unchecked ();
+
+#if defined(CHECKED_BUILD) && !defined(DISABLE_CHECKED_BUILD_GC)
+	int reset_blocking_count = InterlockedIncrement(&coop_reset_blocking_count);
+	if (reset_blocking_count < 0)
+		reset_blocking_count = coop_reset_blocking_count = 1;
+#else
+	++coop_reset_blocking_count;
+#endif
+
 	/* If the thread is not attached, it doesn't make sense prepare for suspend. */
 	if (!info || !mono_thread_info_is_live (info))
 		return NULL;
@@ -213,13 +247,21 @@ mono_threads_reset_blocking_start (void* stackdata)
 		return NULL;
 	case AbortBlockingOk:
 		info->thread_saved_state [SELF_SUSPEND_STATE_INDEX].valid = FALSE;
-		return info;
+		break;
 	case AbortBlockingOkAndPool:
 		mono_threads_state_poll ();
-		return info;
+		break;
 	default:
 		g_error ("Unknown thread state");
 	}
+
+#if defined(CHECKED_BUILD) && !defined(DISABLE_CHECKED_BUILD_GC)
+	int level = coop_tls_push (reset_blocking_count);
+//	g_warning("Entering reset nest; level %d; cookie %d\n", level, reset_blocking_count);
+	return (void *)(intptr_t)reset_blocking_count;
+#else
+	return info;
+#endif
 }
 
 void
@@ -230,11 +272,24 @@ mono_threads_reset_blocking_end (void *cookie, void* stackdata)
 	if (!mono_threads_is_coop_enabled ())
 		return;
 
+#if defined(CHECKED_BUILD) && !defined(DISABLE_CHECKED_BUILD_GC)
+	if (!cookie)
+		return;
+	int received_cookie = (int)(intptr_t)cookie;
+	int desired_cookie;
+	int level = coop_tls_pop(&desired_cookie);
+//	g_warning("Leaving reset nest; back to level %d; desired cookie %d; received cookie %d\n", level, desired_cookie, received_cookie);
+	if (level < 0)
+		g_error("Expected cookie %d but found no stack at all\n", desired_cookie);
+	if (desired_cookie != received_cookie)
+		g_error("Expected cookie %d but received %d\n", desired_cookie, received_cookie);
+#else
 	info = (MonoThreadInfo *)cookie;
 	if (!info)
 		return;
-
 	g_assert (info == mono_thread_info_current_unchecked ());
+#endif
+
 	mono_threads_prepare_blocking (stackdata);
 }
 
@@ -250,6 +305,10 @@ mono_threads_init_coop (void)
 	mono_counters_register ("Coop Do Polling", MONO_COUNTER_GC | MONO_COUNTER_INT, &coop_do_polling_count);
 	mono_counters_register ("Coop Save Count", MONO_COUNTER_GC | MONO_COUNTER_INT, &coop_save_count);
 	//See the above for what's wrong here.
+
+#if defined(CHECKED_BUILD) && !defined(DISABLE_CHECKED_BUILD_GC)
+	mono_native_tls_alloc(&coop_reset_count_stack_key, NULL);
+#endif
 }
 
 void
