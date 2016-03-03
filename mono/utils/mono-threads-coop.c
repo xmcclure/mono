@@ -58,11 +58,12 @@ static int coop_tls_pop(int *v) {
 		return -1;
 	stack->len--;
 	*v = g_array_index(stack, int, stack->len);
-	if (0 == stack->len) {
+	int len = stack->len;
+	if (0 == len) {
 		g_array_free(stack,TRUE);
 		mono_native_tls_set_value(coop_reset_count_stack_key, NULL);
 	}
-	return stack->len;
+	return len;
 }
 #endif
 
@@ -257,7 +258,7 @@ mono_threads_reset_blocking_start (void* stackdata)
 
 #if defined(CHECKED_BUILD) && !defined(DISABLE_CHECKED_BUILD_GC)
 	int level = coop_tls_push (reset_blocking_count);
-//	g_warning("Entering reset nest; level %d; cookie %d\n", level, reset_blocking_count);
+	g_warning("Entering reset nest; level %d; cookie %d\n", level, reset_blocking_count);
 	return (void *)(intptr_t)reset_blocking_count;
 #else
 	return info;
@@ -278,7 +279,7 @@ mono_threads_reset_blocking_end (void *cookie, void* stackdata)
 	int received_cookie = (int)(intptr_t)cookie;
 	int desired_cookie;
 	int level = coop_tls_pop(&desired_cookie);
-//	g_warning("Leaving reset nest; back to level %d; desired cookie %d; received cookie %d\n", level, desired_cookie, received_cookie);
+	g_warning("Leaving reset nest; back to level %d; desired cookie %d; received cookie %d\n", level, desired_cookie, received_cookie);
 	if (level < 0)
 		g_error("Expected cookie %d but found no stack at all\n", desired_cookie);
 	if (desired_cookie != received_cookie)
