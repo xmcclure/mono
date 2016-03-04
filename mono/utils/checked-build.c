@@ -78,6 +78,19 @@ mono_check_mode_enabled (MonoCheckMode query)
 	return check_mode & query;
 }
 
+static int
+mono_check_transition_limit (void)
+{
+	static int transition_limit = -1;
+	if (transition_limit < -1) {
+		const gchar *env_string = g_getenv ("MONO_CHECK_THREAD_TRANSITION_HISTORY");
+		if (env_string)
+			transition_limit = atoi(env_string);
+		else
+			transition_limit = 3;
+	}
+}
+
 typedef struct {
 	GPtrArray *transitions;
 	guint32 in_gc_critical_region;
@@ -109,7 +122,7 @@ get_state (void)
 
 #define MAX_NATIVE_BT 6
 #define MAX_NATIVE_BT_PROBE (MAX_NATIVE_BT + 5)
-#define MAX_TRANSITIONS 3
+#define MAX_TRANSITIONS (mono_check_transition_limit ())
 
 #ifdef HAVE_BACKTRACE_SYMBOLS
 
