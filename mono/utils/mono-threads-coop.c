@@ -25,6 +25,7 @@
 #include <mono/utils/mono-counters.h>
 #include <mono/utils/mono-threads-coop.h>
 #include <mono/utils/mono-threads-api.h>
+#include <mono/utils/checked-build.h>
 
 #ifdef TARGET_OSX
 #include <mono/utils/mach-support.h>
@@ -257,39 +258,38 @@ mono_threads_reset_blocking_start (void* stackdata)
 	}
 
 #if defined(CHECKED_BUILD) && !defined(DISABLE_CHECKED_BUILD_GC)
-	int level = coop_tls_push (reset_blocking_count);
-	//g_warning("Entering reset nest; level %d; cookie %d\n", level, reset_blocking_count);
-	return (void *)(intptr_t)reset_blocking_count;
-#else
-	return info;
+	if (mono_check_mode_enabled (MONO_CHECK_MODE_GC)) {
+		int level = coop_tls_push (reset_blocking_count);
+		//g_warning("Entering reset nest; level %d; cookie %d\n", level, reset_blocking_count);
+		return (void *)(intptr_t)reset_blocking_count;
+	}
 #endif
+
+	return info;
 }
 
 void
 mono_threads_reset_blocking_end (void *cookie, void* stackdata)
 {
-	MonoThreadInfo *info;
-
 	if (!mono_threads_is_coop_enabled ())
 		return;
 
-#if defined(CHECKED_BUILD) && !defined(DISABLE_CHECKED_BUILD_GC)
 	if (!cookie)
 		return;
-	int received_cookie = (int)(intptr_t)cookie;
-	int desired_cookie;
-	int level = coop_tls_pop(&desired_cookie);
-	//g_warning("Leaving reset nest; back to level %d; desired cookie %d; received cookie %d\n", level, desired_cookie, received_cookie);
-	if (level < 0)
-		g_error("Expected cookie %d but found no stack at all\n", desired_cookie);
-	if (desired_cookie != received_cookie)
-		g_error("Expected cookie %d but received %d\n", desired_cookie, received_cookie);
-#else
-	info = (MonoThreadInfo *)cookie;
-	if (!info)
-		return;
-	g_assert (info == mono_thread_info_current_unchecked ());
+
+#if defined(CHECKED_BUILD) && !defined(DISABLE_CHECKED_BUILD_GC)
+	if (mono_check_mode_enabled (MONO_CHECK_MODE_GC)) {
+		int received_cookie = (int)(intptr_t)cookie;
+		int desired_cookie;
+		int level = coop_tls_pop(&desired_cookie);
+		//g_warning("Leaving reset nest; back to level %d; desired cookie %d; received cookie %d\n", level, desired_cookie, received_cookie);
+		if (level < 0)
+			g_error("Expected cookie %d but found no stack at all\n", desired_cookie);
+		if (desired_cookie != received_cookie)
+			g_error("Expected cookie %d but received %d\n", desired_cookie, received_cookie);
+	} else // Notice whitespace trickery here
 #endif
+		g_assert (((MonoThreadInfo *)cookie) == mono_thread_info_current_unchecked ());
 
 	mono_threads_prepare_blocking (stackdata);
 }

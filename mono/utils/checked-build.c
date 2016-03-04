@@ -10,6 +10,7 @@
 
 #ifdef CHECKED_BUILD
 
+#include <glib.h>
 #include <mono/utils/checked-build.h>
 #include <mono/utils/mono-threads.h>
 #include <mono/utils/mono-tls.h>
@@ -18,7 +19,6 @@
 #include <mono/metadata/image-internals.h>
 #include <mono/metadata/class-internals.h>
 #include <mono/metadata/reflection-internals.h>
-#include <glib.h>
 
 #ifdef HAVE_BACKTRACE_SYMBOLS
 #include <execinfo.h>
@@ -26,24 +26,9 @@
 
 // Selective-enable support
 
-typedef enum {
-	MONO_CHECK_MODE_NONE = 0,
-	MONO_CHECK_MODE_GC = 0x1,
-	MONO_CHECK_MODE_METADATA = 0x2,
-	MONO_CHECK_MODE_THREAD = 0x4,
-	MONO_CHECK_MODE_ALL = MONO_CHECK_MODE_GC | MONO_CHECK_MODE_METADATA | MONO_CHECK_MODE_THREAD,
-	MONO_CHECK_MODE_UNKNOWN = 0x8
-} MonoCheckMode;
-
-#if !defined(CHECKED_BUILD)
-#define MONO_CHECK_MODE_ENABLED(_) (FALSE)
-#else
-#define MONO_CHECK_MODE_ENABLED mono_check_mode_enabled
-#endif
-
 // Returns true for check modes which are allowed by both the current DISABLE_ macros and the MONO_CHECK_MODE env var.
 // Argument may be a bitmask; if so, result is true if at least one specified mode is enabled.
-static mono_bool
+mono_bool
 mono_check_mode_enabled (MonoCheckMode query)
 {
 	static MonoCheckMode check_mode = MONO_CHECK_MODE_UNKNOWN;
@@ -82,13 +67,15 @@ static int
 mono_check_transition_limit (void)
 {
 	static int transition_limit = -1;
-	if (transition_limit < -1) {
+	if (transition_limit < 0) {
 		const gchar *env_string = g_getenv ("MONO_CHECK_THREAD_TRANSITION_HISTORY");
 		if (env_string)
 			transition_limit = atoi(env_string);
 		else
 			transition_limit = 3;
+		g_warning("ZZZZZ Transition limit is %d\n", transition_limit);
 	}
+	return transition_limit;
 }
 
 typedef struct {
@@ -101,7 +88,7 @@ static MonoNativeTlsKey thread_status;
 void
 checked_build_init (void)
 {
-	if (MONO_CHECK_MODE_ENABLED (MONO_CHECK_MODE_GC | MONO_CHECK_MODE_THREAD))
+	if (mono_check_mode_enabled (MONO_CHECK_MODE_GC | MONO_CHECK_MODE_THREAD))
 		mono_native_tls_alloc (&thread_status, NULL);
 }
 
@@ -192,7 +179,7 @@ free_transition (ThreadTransition *t)
 void
 checked_build_thread_transition (const char *transition, void *info, int from_state, int suspend_count, int next_state, int suspend_count_delta)
 {
-	if (!MONO_CHECK_MODE_ENABLED (MONO_CHECK_MODE_THREAD))
+	if (!mono_check_mode_enabled (MONO_CHECK_MODE_THREAD))
 		return;
 
 	MonoThreadInfo *cur = mono_thread_info_current_unchecked ();
@@ -255,7 +242,7 @@ assertion_fail (const char *msg, ...)
 void
 assert_gc_safe_mode (void)
 {
-	if (!MONO_CHECK_MODE_ENABLED (MONO_CHECK_MODE_GC))
+	if (!mono_check_mode_enabled (MONO_CHECK_MODE_GC))
 		return;
 
 	MonoThreadInfo *cur = mono_thread_info_current ();
@@ -276,7 +263,7 @@ assert_gc_safe_mode (void)
 void
 assert_gc_unsafe_mode (void)
 {
-	if (!MONO_CHECK_MODE_ENABLED (MONO_CHECK_MODE_GC))
+	if (!mono_check_mode_enabled (MONO_CHECK_MODE_GC))
 		return;
 
 	MonoThreadInfo *cur = mono_thread_info_current ();
@@ -298,7 +285,7 @@ assert_gc_unsafe_mode (void)
 void
 assert_gc_neutral_mode (void)
 {
-	if (!MONO_CHECK_MODE_ENABLED (MONO_CHECK_MODE_GC))
+	if (!mono_check_mode_enabled (MONO_CHECK_MODE_GC))
 		return;
 
 	MonoThreadInfo *cur = mono_thread_info_current ();
@@ -322,7 +309,7 @@ assert_gc_neutral_mode (void)
 void *
 critical_gc_region_begin(void)
 {
-	if (!MONO_CHECK_MODE_ENABLED (MONO_CHECK_MODE_GC))
+	if (!mono_check_mode_enabled (MONO_CHECK_MODE_GC))
 		return NULL;
 
 	CheckState *state = get_state ();
@@ -334,7 +321,7 @@ critical_gc_region_begin(void)
 void
 critical_gc_region_end(void* token)
 {
-	if (!MONO_CHECK_MODE_ENABLED (MONO_CHECK_MODE_GC))
+	if (!mono_check_mode_enabled (MONO_CHECK_MODE_GC))
 		return;
 
 	CheckState *state = get_state();
@@ -345,7 +332,7 @@ critical_gc_region_end(void* token)
 void
 assert_not_in_gc_critical_region(void)
 {
-	if (!MONO_CHECK_MODE_ENABLED (MONO_CHECK_MODE_GC))
+	if (!mono_check_mode_enabled (MONO_CHECK_MODE_GC))
 		return;
 
 	CheckState *state = get_state();
@@ -357,7 +344,7 @@ assert_not_in_gc_critical_region(void)
 void
 assert_in_gc_critical_region (void)
 {
-	if (!MONO_CHECK_MODE_ENABLED (MONO_CHECK_MODE_GC))
+	if (!mono_check_mode_enabled (MONO_CHECK_MODE_GC))
 		return;
 
 	CheckState *state = get_state();
@@ -635,7 +622,7 @@ mono_find_mempool_owner (void *ptr)
 static void
 check_mempool_may_reference_mempool (void *from_ptr, void *to_ptr, gboolean require_local)
 {
-	if (!MONO_CHECK_MODE_ENABLED (MONO_CHECK_MODE_METADATA))
+	if (!mono_check_mode_enabled (MONO_CHECK_MODE_METADATA))
 		return;
 
 	// Null pointers are OK
