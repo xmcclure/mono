@@ -203,9 +203,13 @@ void check_metadata_store_local(void *from, void *to);
 
 void checked_build_thread_transition(const char *transition, void *info, int from_state, int suspend_count, int next_state, int suspend_count_delta);
 
+void mono_thread_state_assertion_fail(const char *msg, ...);
+
 #else
 
 #define CHECKED_BUILD_THREAD_TRANSITION(transition, info, from_state, suspend_count, next_state, suspend_count_delta)
+
+#define mono_thread_state_assertion_fail g_error
 
 #endif /* defined(CHECKED_BUILD) && !defined(DISABLE_CHECKED_BUILD_THREAD) */
 

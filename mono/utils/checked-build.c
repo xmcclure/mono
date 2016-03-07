@@ -88,6 +88,7 @@ static MonoNativeTlsKey thread_status;
 void
 checked_build_init (void)
 {
+	// FIXME: _GC strictly correct?
 	if (mono_check_mode_enabled (MONO_CHECK_MODE_GC | MONO_CHECK_MODE_THREAD))
 		mono_native_tls_alloc (&thread_status, NULL);
 }
@@ -201,17 +202,13 @@ checked_build_thread_transition (const char *transition, void *info, int from_st
 	g_ptr_array_add (state->transitions, t);
 }
 
-#endif /* !defined(DISABLE_CHECKED_BUILD_THREAD) */
-
-#if !defined(DISABLE_CHECKED_BUILD_GC)
-
-static void
-assertion_fail (const char *msg, ...)
+void
+mono_thread_state_assertion_fail (const char *msg, ...)
 {
 	int i;
 	GString* err = g_string_sized_new (100);
-	CheckState *state = get_state ();
 
+	g_warning("Failure, gathering stack trace...\n"); // DO NOT CHECK IN TO GIT
 	g_string_append_printf (err, "Assertion failure in thread %p due to: ", mono_native_thread_id_get ());
 
 	va_list args;
@@ -219,25 +216,34 @@ assertion_fail (const char *msg, ...)
 	g_string_append_vprintf (err, msg, args);
 	va_end (args);
 
-	g_string_append_printf (err, "\nLast %d state transitions: (most recent first)\n", state->transitions->len);
+	if (mono_check_mode_enabled (MONO_CHECK_MODE_GC | MONO_CHECK_MODE_THREAD))
+	{
+		CheckState *state = get_state ();
 
-	for (i = state->transitions->len - 1; i >= 0; --i) {
-		ThreadTransition *t = state->transitions->pdata [i];
-		char *bt = translate_backtrace (t->backtrace, t->size);
-		g_string_append_printf (err, "[%s] %s -> %s (%d) %s%d at:\n%s",
-			t->name,
-			mono_thread_state_name (t->from_state),
-			mono_thread_state_name (t->next_state),
-			t->suspend_count,
-			t->suspend_count_delta > 0 ? "+" : "", //I'd like to see this sort of values: -1, 0, +1
-			t->suspend_count_delta,
-			bt);
-		g_free (bt);
+		g_string_append_printf (err, "\nLast %d state transitions: (most recent first)\n", state->transitions->len);
+
+		for (i = state->transitions->len - 1; i >= 0; --i) {
+			ThreadTransition *t = state->transitions->pdata [i];
+			char *bt = translate_backtrace (t->backtrace, t->size);
+			g_string_append_printf (err, "[%s] %s -> %s (%d) %s%d at:\n%s",
+				t->name,
+				mono_thread_state_name (t->from_state),
+				mono_thread_state_name (t->next_state),
+				t->suspend_count,
+				t->suspend_count_delta > 0 ? "+" : "", //I'd like to see this sort of values: -1, 0, +1
+				t->suspend_count_delta,
+				bt);
+			g_free (bt);
+		}
 	}
 
 	g_error (err->str);
 	g_string_free (err, TRUE);
 }
+
+#endif /* !defined(DISABLE_CHECKED_BUILD_THREAD) */
+
+#if !defined(DISABLE_CHECKED_BUILD_GC)
 
 void
 assert_gc_safe_mode (void)
@@ -249,14 +255,14 @@ assert_gc_safe_mode (void)
 	int state;
 
 	if (!cur)
-		assertion_fail ("Expected GC Safe mode but thread is not attached");
+		mono_thread_state_assertion_fail ("Expected GC Safe mode but thread is not attached");
 
 	switch (state = mono_thread_info_current_state (cur)) {
 	case STATE_BLOCKING:
 	case STATE_BLOCKING_AND_SUSPENDED:
 		break;
 	default:
-		assertion_fail ("Expected GC Safe mode but was in %s state", mono_thread_state_name (state));
+		mono_thread_state_assertion_fail ("Expected GC Safe mode but was in %s state", mono_thread_state_name (state));
 	}
 }
 
@@ -270,7 +276,7 @@ assert_gc_unsafe_mode (void)
 	int state;
 
 	if (!cur)
-		assertion_fail ("Expected GC Unsafe mode but thread is not attached");
+		mono_thread_state_assertion_fail ("Expected GC Unsafe mode but thread is not attached");
 
 	switch (state = mono_thread_info_current_state (cur)) {
 	case STATE_RUNNING:
@@ -278,7 +284,7 @@ assert_gc_unsafe_mode (void)
 	case STATE_SELF_SUSPEND_REQUESTED:
 		break;
 	default:
-		assertion_fail ("Expected GC Unsafe mode but was in %s state", mono_thread_state_name (state));
+		mono_thread_state_assertion_fail ("Expected GC Unsafe mode but was in %s state", mono_thread_state_name (state));
 	}
 }
 
@@ -292,7 +298,7 @@ assert_gc_neutral_mode (void)
 	int state;
 
 	if (!cur)
-		assertion_fail ("Expected GC Neutral mode but thread is not attached");
+		mono_thread_state_assertion_fail ("Expected GC Neutral mode but thread is not attached");
 
 	switch (state = mono_thread_info_current_state (cur)) {
 	case STATE_RUNNING:
@@ -302,7 +308,7 @@ assert_gc_neutral_mode (void)
 	case STATE_BLOCKING_AND_SUSPENDED:
 		break;
 	default:
-		assertion_fail ("Expected GC Neutral mode but was in %s state", mono_thread_state_name (state));
+		mono_thread_state_assertion_fail ("Expected GC Neutral mode but was in %s state", mono_thread_state_name (state));
 	}
 }
 
@@ -337,7 +343,7 @@ assert_not_in_gc_critical_region(void)
 
 	CheckState *state = get_state();
 	if (state->in_gc_critical_region > 0) {
-		assertion_fail("Expected GC Unsafe mode, but was in %s state", mono_thread_state_name (mono_thread_info_current_state (mono_thread_info_current ())));
+		mono_thread_state_assertion_fail("Expected GC Unsafe mode, but was in %s state", mono_thread_state_name (mono_thread_info_current_state (mono_thread_info_current ())));
 	}
 }
 
@@ -349,7 +355,7 @@ assert_in_gc_critical_region (void)
 
 	CheckState *state = get_state();
 	if (state->in_gc_critical_region == 0)
-		assertion_fail("Expected GC critical region");
+		mono_thread_state_assertion_fail("Expected GC critical region");
 }
 
 #endif /* !defined(DISABLE_CHECKED_BUILD_GC) */
