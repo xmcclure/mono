@@ -7132,7 +7132,7 @@ mono_marshal_emit_native_wrapper (MonoImage *image, MonoMethodBuilder *mb, MonoM
 	int i, argnum, *tmp_locals;
 	int type, param_shift = 0;
 	static MonoMethodSignature *get_last_error_sig = NULL;
-	int coop_gc_stack_dummy, coop_gc_var;
+	int coop_gc_stack_dummy, coop_gc_var, aot_icall_addr;
 	int leave_pos;
 
 	memset (&m, 0, sizeof (m));
@@ -7199,6 +7199,16 @@ mono_marshal_emit_native_wrapper (MonoImage *image, MonoMethodBuilder *mb, MonoM
 		tmp_locals [i] = emit_marshal (&m, i + param_shift, sig->params [i], mspecs [i + 1], 0, &csig->params [i], MARSHAL_ACTION_CONV_IN);
 	}
 
+	// Look up the call address early, before entering coop blocking mode.
+	// This is necessary because CEE_MONO_ICALL_ADDR can throw an exception.
+	if (!func_param && aot) {
+		aot_icall_addr = mono_mb_add_local(mb, &mono_defaults.int_class->byval_arg);
+		/* Reuse the ICALL_ADDR opcode for pinvokes too */
+		mono_mb_emit_byte (mb, MONO_CUSTOM_PREFIX);
+		mono_mb_emit_op (mb, CEE_MONO_ICALL_ADDR, &piinfo->method);
+		mono_mb_emit_stloc (mb, aot_icall_addr);
+	}
+
 	if (mono_threads_is_coop_enabled ()) {
 		clause->try_offset = mono_mb_get_label (mb);
 
@@ -7231,9 +7241,7 @@ mono_marshal_emit_native_wrapper (MonoImage *image, MonoMethodBuilder *mb, MonoM
 	}
 	else {
 		if (aot) {
-			/* Reuse the ICALL_ADDR opcode for pinvokes too */
-			mono_mb_emit_byte (mb, MONO_CUSTOM_PREFIX);
-			mono_mb_emit_op (mb, CEE_MONO_ICALL_ADDR, &piinfo->method);
+			mono_mb_emit_ldloc (mb, aot_icall_addr);
 			mono_mb_emit_calli (mb, csig);
 		} else {			
 			mono_mb_emit_native_call (mb, csig, func);
