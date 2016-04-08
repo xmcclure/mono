@@ -123,6 +123,12 @@ static int do_coverage = 0;
 static gboolean debug_coverage = FALSE;
 static MonoProfileSamplingMode sampling_mode = MONO_PROFILER_STAT_MODE_PROCESS;
 
+static guint64 sigprof_counter = 0;
+static guint64 serviced_frames_counter = 0;
+static guint64 dropped_frames_counter = 0;
+static guint64 logbuffers_counter = 0;
+static guint64 statbuffers_counter = 0;
+
 typedef struct _LogBuffer LogBuffer;
 
 /*
@@ -619,6 +625,7 @@ ensure_logbuf_inner (LogBuffer *old, int bytes)
 	LogBuffer *new_ = (LogBuffer *)create_buffer ();
 	new_->thread_id = thread_id ();
 	new_->next = old;
+	InterlockedIncrement64(&statbuffers_counter);
 
 	if (old)
 		new_->call_depth = old->call_depth;
@@ -2046,6 +2053,8 @@ mono_sample_hit (MonoProfiler *profiler, unsigned char *ip, void *context)
 		return;
 	now = current_time ();
 
+	InterlockedIncrement64(&sigprof_counter);
+
 	mono_stack_walk_async_safe (&async_walk_stack, context, &bt_data);
 
 	elapsed = (now - profiler->startup_time) / 10000;
@@ -2069,6 +2078,7 @@ mono_sample_hit (MonoProfiler *profiler, unsigned char *ip, void *context)
 	if (timedout || (sbuf->cursor + 400 >= sbuf->buf_end)) {
 		StatBuffer *oldsb, *foundsb;
 		sbuf = create_stat_buffer ();
+		InterlockedIncrement64(&statbuffers_counter);
 		do {
 			oldsb = profiler->stat_buffers;
 			sbuf->next = oldsb;
@@ -2087,10 +2097,14 @@ mono_sample_hit (MonoProfiler *profiler, unsigned char *ip, void *context)
 	do {
 		old_data = sbuf->cursor;
 		new_data = old_data + SAMPLE_EVENT_SIZE_IN_SLOTS (bt_data.count);
-		if (new_data > sbuf->buf_end)
+		if (new_data > sbuf->buf_end) {
+			InterlockedIncrement64(&dropped_frames_counter);
 			return; /* Not enough room in buf to hold this event-- lost event */
+		}
 		data = (uintptr_t *)InterlockedCompareExchangePointer ((void * volatile*)&sbuf->cursor, new_data, old_data);
 	} while (data != old_data);
+
+	InterlockedIncrement64(&serviced_frames_counter);
 
 	old_data [0] = 1 | (sample_type << 16) | (bt_data.count << 8);
 	old_data [1] = thread_id ();
@@ -4693,6 +4707,17 @@ mono_profiler_startup (const char *desc)
 		MONO_PROFILE_MONITOR_EVENTS|MONO_PROFILE_MODULE_EVENTS|MONO_PROFILE_GC_ROOTS|
 		MONO_PROFILE_INS_COVERAGE|MONO_PROFILE_APPDOMAIN_EVENTS|MONO_PROFILE_CONTEXT_EVENTS|
 		MONO_PROFILE_ASSEMBLY_EVENTS;
+
+	mono_counters_register("Profiler-logging: Signals handled", MONO_COUNTER_ULONG|MONO_COUNTER_RUNTIME|MONO_COUNTER_MONOTONIC,
+		&sigprof_counter);
+	mono_counters_register("Profiler-logging: Serviced signal frames", MONO_COUNTER_ULONG|MONO_COUNTER_RUNTIME|MONO_COUNTER_MONOTONIC,
+		&serviced_frames_counter);
+	mono_counters_register("Profiler-logging: Dropped signal frames", MONO_COUNTER_ULONG|MONO_COUNTER_RUNTIME|MONO_COUNTER_MONOTONIC,
+		&dropped_frames_counter);
+	mono_counters_register("Profiler-logging: Logbuffers used", MONO_COUNTER_ULONG|MONO_COUNTER_RUNTIME|MONO_COUNTER_MONOTONIC,
+		&logbuffers_counter);
+	mono_counters_register("Profiler-logging: Statbuffers used", MONO_COUNTER_ULONG|MONO_COUNTER_RUNTIME|MONO_COUNTER_MONOTONIC,
+		&statbuffers_counter);
 
 	p = desc;
 	if (strncmp (p, "log", 3))
