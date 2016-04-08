@@ -65,4 +65,6 @@ void mono_hazard_pointer_install_free_queue_size_callback (MonoHazardFreeQueueSi
 
 void mono_thread_smr_init (void);
 void mono_thread_smr_cleanup (void);
+
+MONO_API gboolean is_pointer_hazardous (gpointer p);
 #endif /*__MONO_HAZARD_POINTER_H__*/

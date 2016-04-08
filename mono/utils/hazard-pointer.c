@@ -153,7 +153,7 @@ mono_thread_small_id_free (int id)
 	mono_os_mutex_unlock (&small_id_mutex);
 }
 
-static gboolean
+gboolean
 is_pointer_hazardous (gpointer p)
 {
 	int i, j;
