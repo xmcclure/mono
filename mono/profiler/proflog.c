@@ -621,7 +621,7 @@ ensure_logbuf_inner (LogBuffer *old, int bytes)
 	LogBuffer *new_ = (LogBuffer *)create_buffer ();
 	new_->thread_id = thread_id ();
 	new_->next = old;
-	InterlockedIncrement(&statbuffers_counter);
+	InterlockedIncrement(&logbuffers_counter);
 
 	if (old)
 		new_->call_depth = old->call_depth;
