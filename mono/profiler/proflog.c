@@ -2082,6 +2082,7 @@ mono_sample_hit (MonoProfiler *profiler, unsigned char *ip, void *context)
 		data [4 + 4 * i + 3] = (uintptr_t)frames [i].offset;
 	}
 
+	mono_lock_free_queue_node_init (&sbuf->node, FALSE);
 	mono_lock_free_queue_enqueue(&profiler->pending_stat_buffers, &sbuf->node);
 
 	char c = 0;
@@ -4109,6 +4110,7 @@ helper_thread (void* arg)
 					fprintf (stderr, "stat buffer dump\n");
 				if (sbuf) {
 					dump_sample_hits (prof, sbuf);
+					mono_lock_free_queue_node_init (&sbuf->node, FALSE);
 					mono_lock_free_queue_enqueue(&prof->free_stat_buffers, &sbuf->node);
 					safe_send_threadless (prof, ensure_logbuf (0));
 				}
