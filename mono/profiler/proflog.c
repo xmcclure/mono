@@ -125,6 +125,14 @@ static int do_coverage = 0;
 static gboolean debug_coverage = FALSE;
 static MonoProfileSamplingMode sampling_mode = MONO_PROFILER_STAT_MODE_PROCESS;
 
+#define MAX_SAMPLEHIT_CIRCULATION 5000
+
+static guint32 sigprof_counter = 0;
+static guint32 dropped_frames_counter = 0;
+static guint32 serviced_frames_counter = 0;
+static guint32 logbuffers_counter = 0;
+static guint32 samplehit_counter = 0;
+
 typedef struct _LogBuffer LogBuffer;
 
 /*
@@ -548,6 +556,9 @@ static LogBuffer*
 create_buffer (void)
 {
 	LogBuffer* buf = (LogBuffer *)alloc_buffer (BUFFER_SIZE);
+
+	InterlockedIncrement(&logbuffers_counter);
+
 	buf->size = BUFFER_SIZE;
 	buf->time_base = current_time ();
 	buf->last_time = buf->time_base;
@@ -2020,6 +2031,8 @@ mono_sample_hit (MonoProfiler *profiler, unsigned char *ip, void *context)
 	if (in_shutdown)
 		return;
 
+	InterlockedIncrement(&sigprof_counter);
+
 	uint64_t now = current_time ();
 
 	SampleHit *sample = (SampleHit *) mono_lock_free_queue_dequeue (&profiler->sample_reuse_queue);
@@ -2034,9 +2047,16 @@ mono_sample_hit (MonoProfiler *profiler, unsigned char *ip, void *context)
 		InterlockedDecrement (&reuse_queue_size);
 
 	if (!sample || hazardous) {
-		sample = mono_lock_free_alloc (&profiler->sample_allocator);
-		mono_lock_free_queue_node_init (&sample->node, FALSE);
-		sample->prof = profiler;
+		if (samplehit_counter < MAX_SAMPLEHIT_CIRCULATION) {
+			sample = mono_lock_free_alloc (&profiler->sample_allocator);
+			InterlockedIncrement(&samplehit_counter);
+
+			mono_lock_free_queue_node_init (&sample->node, FALSE);
+			sample->prof = profiler;
+		} else {
+			InterlockedIncrement(&dropped_frames_counter);
+			return;
+		}
 	}
 
 	sample->count = 0;
@@ -4257,6 +4277,8 @@ handle_dumper_queue_entry (MonoProfiler *prof)
 	if ((sample = (SampleHit *) mono_lock_free_queue_dequeue (&prof->dumper_queue))) {
 		mono_lock_free_queue_node_init (&sample->node, TRUE);
 
+		InterlockedIncrement(&serviced_frames_counter);
+
 		for (int i = 0; i < sample->count; ++i) {
 			MonoMethod *method = sample->frames [i].method;
 			MonoDomain *domain = sample->frames [i].domain;
@@ -4662,6 +4684,17 @@ mono_profiler_startup (const char *desc)
 		MONO_PROFILE_MONITOR_EVENTS|MONO_PROFILE_MODULE_EVENTS|MONO_PROFILE_GC_ROOTS|
 		MONO_PROFILE_INS_COVERAGE|MONO_PROFILE_APPDOMAIN_EVENTS|MONO_PROFILE_CONTEXT_EVENTS|
 		MONO_PROFILE_ASSEMBLY_EVENTS;
+
+	mono_counters_register("Profiler-logging: Signals handled", MONO_COUNTER_UINT|MONO_COUNTER_RUNTIME|MONO_COUNTER_MONOTONIC,
+		&sigprof_counter);
+	mono_counters_register("Profiler-logging: Serviced signal frames", MONO_COUNTER_UINT|MONO_COUNTER_RUNTIME|MONO_COUNTER_MONOTONIC,
+		&serviced_frames_counter);
+	mono_counters_register("Profiler-logging: Dropped signal frames", MONO_COUNTER_UINT|MONO_COUNTER_RUNTIME|MONO_COUNTER_MONOTONIC,
+		&dropped_frames_counter);
+	mono_counters_register("Profiler-logging: Logbuffers allocated", MONO_COUNTER_UINT|MONO_COUNTER_RUNTIME|MONO_COUNTER_MONOTONIC,
+		&logbuffers_counter);
+	mono_counters_register("Profiler-logging: SampleHits allocated", MONO_COUNTER_UINT|MONO_COUNTER_RUNTIME|MONO_COUNTER_MONOTONIC,
+		&samplehit_counter);
 
 	p = desc;
 	if (strncmp (p, "log", 3))

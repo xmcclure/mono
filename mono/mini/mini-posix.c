@@ -76,6 +76,8 @@
 #include <mach/clock.h>
 #endif
 
+static guint32 sigprof_issued_counter = 0;
+
 #if defined(__native_client__) || defined(HOST_WATCHOS)
 
 void
@@ -705,6 +707,7 @@ sampling_thread_func (void *data)
 			g_assert (mono_thread_info_get_tid (info) != mono_native_thread_id_get ());
 
 			mono_threads_pthread_kill (info, profiler_signal);
+			sigprof_issued_counter++;
 		} FOREACH_THREAD_SAFE_END
 
 		clock_sleep_ns_abs (sleep);
@@ -755,6 +758,8 @@ mono_runtime_setup_stat_profiler (void)
 #endif
 
 	add_signal_handler (profiler_signal, profiler_signal_handler, SA_RESTART);
+	mono_counters_register("Profiler-logging: Signals issued", MONO_COUNTER_UINT|MONO_COUNTER_RUNTIME|MONO_COUNTER_MONOTONIC,
+		&sigprof_issued_counter);
 
 	InterlockedWrite (&sampling_thread_running, 1);
 	mono_native_thread_create (&sampling_thread, sampling_thread_func, NULL);
