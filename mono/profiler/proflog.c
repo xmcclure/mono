@@ -460,24 +460,23 @@ ign_res (int G_GNUC_UNUSED unused, ...)
 #define ENTER_LOG(lb,str) if ((lb)->locked) {ign_res (write(2, str, strlen(str))); ign_res (write(2, "\n", 1));return;} else {(lb)->locked++;}
 #define EXIT_LOG(lb) (lb)->locked--;
 
-// Shared queue of sample snapshots taken at signal time.
-// The queue is written into by signal handlers for all threads;
-// the helper thread later unqueues and writes into its own LogBuffer.
+// Number of frames a stack capture may take
+#define MAX_FRAMES 32
+
+// Calculation of maximum slots that might get used in a StatBuffer.
+// Note this calculation is based on the assumption COUNT is 1 (see below)
+#define STATBUFFER_SLOTS_PER_MANAGED_FRAME 4
+#define STATBUFFER_HEADER_SLOTS 4
+#define SINGLE_STATBUFFER_SLOTS (STATBUFFER_HEADER_SLOTS + (MAX_FRAMES*STATBUFFER_SLOTS_PER_MANAGED_FRAME))
+
+// How many statbuffers will be in circulation?
+#define STATBUFFER_POOL_SIZE 128
+
+// A StatBuffer holds the data recorded by a single fire of a SIGPROF signal handler.
 typedef struct _StatBuffer StatBuffer;
 struct _StatBuffer {
-	// Next (older) StatBuffer in processing queue
-	StatBuffer *next;
+	MonoLockFreeQueueNode node;
 
-	// Bytes allocated for this StatBuffer
-	uintptr_t size;
-
-	// Start of currently unused space in buffer
-	uintptr_t *cursor;
-
-	// Pointer to start-of-structure-plus-size (for convenience)
-	uintptr_t *buf_end;
-
-	// Start of data in buffer.
 	// Data consists of a series of sample packets consisting of:
 	// 1 ptrword: Metadata
 	//    Low 8 bits: COUNT, the count of native stack frames in this sample (currently always 1)
@@ -492,8 +491,11 @@ struct _StatBuffer {
 	//    Word 2: MonoDomain ptr
 	//    Word 3: Base address of method
 	//    Word 4: Offset within method
-	uintptr_t buf [1];
+	uintptr_t buf [SINGLE_STATBUFFER_SLOTS];
 };
+
+// Store statbuffer allocation buffer in a static so valgrind doesn't get confused
+static StatBuffer *stat_buffer_pool;
 
 typedef struct _BinaryObject BinaryObject;
 
@@ -504,7 +506,12 @@ struct _BinaryObject {
 };
 
 struct _MonoProfiler {
-	StatBuffer *stat_buffers;
+	// Filled-out StatBuffers to be read by helper thread
+	MonoLockFreeQueue pending_stat_buffers;
+	// StatBuffers are allocated at startup, and never deallocated;
+	// when a StatBuffer is no longer in use it should be returned to this queue.
+	MonoLockFreeQueue free_stat_buffers;
+
 	FILE* file;
 #if defined (HAVE_SYS_ZLIB)
 	gzFile gzfile;
@@ -526,7 +533,6 @@ struct _MonoProfiler {
 	mono_mutex_t method_table_mutex;
 	BinaryObject *binary_objects;
 	GPtrArray *coverage_filters;
-	GPtrArray *sorted_sample_events;
 };
 
 typedef struct _WriterQueueEntry WriterQueueEntry;
@@ -576,16 +582,6 @@ pstrdup (const char *s)
 	char *p = (char *)malloc (len);
 	memcpy (p, s, len);
 	return p;
-}
-
-static StatBuffer*
-create_stat_buffer (void)
-{
-	StatBuffer* buf = (StatBuffer *)alloc_buffer (BUFFER_SIZE);
-	buf->size = BUFFER_SIZE;
-	buf->buf_end = (uintptr_t*)((unsigned char*)buf + buf->size);
-	buf->cursor = buf->buf;
-	return buf;
 }
 
 static LogBuffer*
@@ -1106,7 +1102,6 @@ gc_resize (MonoProfiler *profiler, int64_t new_size) {
 	EXIT_LOG (logbuffer);
 }
 
-#define MAX_FRAMES 32
 typedef struct {
 	int count;
 	MonoMethod* methods [MAX_FRAMES];
@@ -2045,7 +2040,7 @@ mono_sample_hit (MonoProfiler *profiler, unsigned char *ip, void *context)
 	AsyncFrameInfo frames [num_frames];
 	AsyncFrameData bt_data = { 0, &frames [0]};
 	uint64_t now;
-	uintptr_t *data, *new_data, *old_data;
+	uintptr_t *data;
 	uintptr_t elapsed;
 	int timedout = 0;
 	int i;
@@ -2065,57 +2060,34 @@ mono_sample_hit (MonoProfiler *profiler, unsigned char *ip, void *context)
 		len = strlen (buf);
 		ign_res (write (2, buf, len));
 	}
-	sbuf = profiler->stat_buffers;
-	if (!sbuf)
+
+	sbuf = (StatBuffer *) mono_lock_free_queue_dequeue (&profiler->free_stat_buffers);
+
+	if (!sbuf) {
+		InterlockedIncrement(&dropped_frames_counter); // No free buffers
 		return;
-	/* flush the buffer at 1 second intervals */
-	if (sbuf->cursor > sbuf->buf && (elapsed - sbuf->buf [2]) > 100000) {
-		timedout = 1;
 	}
-	/* overflow: 400 slots is a big enough number to reduce the chance of losing this event if many
-	 * threads hit this same spot at the same time
-	 */
-	if (timedout || (sbuf->cursor + 400 >= sbuf->buf_end)) {
-		StatBuffer *oldsb, *foundsb;
-		sbuf = create_stat_buffer ();
-		InterlockedIncrement(&statbuffers_counter);
-		do {
-			oldsb = profiler->stat_buffers;
-			sbuf->next = oldsb;
-			foundsb = (StatBuffer *)InterlockedCompareExchangePointer ((void * volatile*)&profiler->stat_buffers, sbuf, oldsb);
-		} while (foundsb != oldsb);
-		if (do_debug)
-			ign_res (write (2, "overflow\n", 9));
-		/* notify the helper thread */
-		if (sbuf->next->next) {
-			char c = 0;
-			ign_res (write (profiler->pipes [1], &c, 1));
-			if (do_debug)
-				ign_res (write (2, "notify\n", 7));
-		}
-	}
-	do {
-		old_data = sbuf->cursor;
-		new_data = old_data + SAMPLE_EVENT_SIZE_IN_SLOTS (bt_data.count);
-		if (new_data > sbuf->buf_end) {
-			InterlockedIncrement(&dropped_frames_counter);
-			return; /* Not enough room in buf to hold this event-- lost event */
-		}
-		data = (uintptr_t *)InterlockedCompareExchangePointer ((void * volatile*)&sbuf->cursor, new_data, old_data);
-	} while (data != old_data);
 
 	InterlockedIncrement(&serviced_frames_counter);
 
-	old_data [0] = 1 | (sample_type << 16) | (bt_data.count << 8);
-	old_data [1] = thread_id ();
-	old_data [2] = elapsed;
-	old_data [3] = (uintptr_t)ip;
+	data = sbuf->buf;
+	data [0] = 1 | (sample_type << 16) | (bt_data.count << 8);
+	data [1] = thread_id ();
+	data [2] = elapsed;
+	data [3] = (uintptr_t)ip;
 	for (i = 0; i < bt_data.count; ++i) {
-		old_data [4 + 4 * i + 0] = (uintptr_t)frames [i].method;
-		old_data [4 + 4 * i + 1] = (uintptr_t)frames [i].domain;
-		old_data [4 + 4 * i + 2] = (uintptr_t)frames [i].base_address;
-		old_data [4 + 4 * i + 3] = (uintptr_t)frames [i].offset;
+		data [4 + 4 * i + 0] = (uintptr_t)frames [i].method;
+		data [4 + 4 * i + 1] = (uintptr_t)frames [i].domain;
+		data [4 + 4 * i + 2] = (uintptr_t)frames [i].base_address;
+		data [4 + 4 * i + 3] = (uintptr_t)frames [i].offset;
 	}
+
+	mono_lock_free_queue_enqueue(&profiler->pending_stat_buffers, &sbuf->node);
+
+	char c = 0;
+	ign_res (write (profiler->pipes [1], &c, 1));
+	if (do_debug)
+		ign_res (write (2, "notify\n", 7));
 }
 
 static uintptr_t *code_pages = 0;
@@ -2472,87 +2444,64 @@ dump_sample_hits (MonoProfiler *prof, StatBuffer *sbuf)
 	LogBuffer *logbuffer;
 	if (!sbuf)
 		return;
-	if (sbuf->next) {
-		dump_sample_hits (prof, sbuf->next);
-		free_buffer (sbuf->next, sbuf->next->size);
-		sbuf->next = NULL;
+
+	uintptr_t *sample = sbuf->buf;
+	int count = sample [0] & 0xff;
+	int mbt_count = (sample [0] & 0xff00) >> 8;
+	int type = sample [0] >> 16;
+	uintptr_t *managed_sample_base = sample + count + 3;
+	uintptr_t thread_id = sample [1];
+
+	for (int i = 0; i < mbt_count; ++i) {
+		MonoMethod *method = (MonoMethod*)managed_sample_base [i * 4 + 0];
+		MonoDomain *domain = (MonoDomain*)managed_sample_base [i * 4 + 1];
+		void *address = (void*)managed_sample_base [i * 4 + 2];
+
+		if (!method) {
+			g_assert (domain);
+			MonoJitInfo *ji = mono_jit_info_table_find (domain, (char *)address);
+
+			if (ji)
+				managed_sample_base [i * 4 + 0] = (uintptr_t)mono_jit_info_get_method (ji);
+		}
 	}
 
-	g_ptr_array_set_size (prof->sorted_sample_events, 0);
-
-	for (uintptr_t *sample = sbuf->buf; sample < sbuf->cursor;) {
-		int count = sample [0] & 0xff;
-		int mbt_count = (sample [0] & 0xff00) >> 8;
-
-		if (sample + SAMPLE_EVENT_SIZE_IN_SLOTS (mbt_count) > sbuf->cursor)
-			break;
-
-		g_ptr_array_add (prof->sorted_sample_events, sample);
-
-		sample += count + 3 + 4 * mbt_count;
+	logbuffer = ensure_logbuf (
+		EVENT_SIZE /* event */ +
+		LEB128_SIZE /* type */ +
+		LEB128_SIZE /* time */ +
+		LEB128_SIZE /* tid */ +
+		LEB128_SIZE /* count */ +
+		count * (
+			LEB128_SIZE /* ip */
+		) +
+		LEB128_SIZE /* managed count */ +
+		mbt_count * (
+			LEB128_SIZE /* method */ +
+			LEB128_SIZE /* il offset */ +
+			LEB128_SIZE /* native offset */
+		)
+	);
+	emit_byte (logbuffer, TYPE_SAMPLE | TYPE_SAMPLE_HIT);
+	emit_value (logbuffer, type);
+	emit_uvalue (logbuffer, prof->startup_time + (uint64_t)sample [2] * (uint64_t)10000);
+	emit_ptr (logbuffer, (void *) thread_id);
+	emit_value (logbuffer, count);
+	for (int i = 0; i < count; ++i) {
+		emit_ptr (logbuffer, (void*)sample [i + 3]);
+		add_code_pointer (sample [i + 3]);
 	}
 
-	g_ptr_array_sort (prof->sorted_sample_events, compare_sample_events);
+	sample += count + 3;
+	/* new in data version 6 */
+	emit_uvalue (logbuffer, mbt_count);
+	for (int i = 0; i < mbt_count; ++i) {
+		MonoMethod *method = (MonoMethod *) sample [i * 4 + 0];
+		uintptr_t native_offset = sample [i * 4 + 3];
 
-	for (guint sidx = 0; sidx < prof->sorted_sample_events->len; sidx++) {
-		uintptr_t *sample = (uintptr_t *)g_ptr_array_index (prof->sorted_sample_events, sidx);
-		int count = sample [0] & 0xff;
-		int mbt_count = (sample [0] & 0xff00) >> 8;
-		int type = sample [0] >> 16;
-		uintptr_t *managed_sample_base = sample + count + 3;
-		uintptr_t thread_id = sample [1];
-
-		for (int i = 0; i < mbt_count; ++i) {
-			MonoMethod *method = (MonoMethod*)managed_sample_base [i * 4 + 0];
-			MonoDomain *domain = (MonoDomain*)managed_sample_base [i * 4 + 1];
-			void *address = (void*)managed_sample_base [i * 4 + 2];
-
-			if (!method) {
-				g_assert (domain);
-				MonoJitInfo *ji = mono_jit_info_table_find (domain, (char *)address);
-
-				if (ji)
-					managed_sample_base [i * 4 + 0] = (uintptr_t)mono_jit_info_get_method (ji);
-			}
-		}
-
-		logbuffer = ensure_logbuf (
-			EVENT_SIZE /* event */ +
-			LEB128_SIZE /* type */ +
-			LEB128_SIZE /* time */ +
-			LEB128_SIZE /* tid */ +
-			LEB128_SIZE /* count */ +
-			count * (
-				LEB128_SIZE /* ip */
-			) +
-			LEB128_SIZE /* managed count */ +
-			mbt_count * (
-				LEB128_SIZE /* method */ +
-				LEB128_SIZE /* il offset */ +
-				LEB128_SIZE /* native offset */
-			)
-		);
-		emit_byte (logbuffer, TYPE_SAMPLE | TYPE_SAMPLE_HIT);
-		emit_value (logbuffer, type);
-		emit_uvalue (logbuffer, prof->startup_time + (uint64_t)sample [2] * (uint64_t)10000);
-		emit_ptr (logbuffer, (void *) thread_id);
-		emit_value (logbuffer, count);
-		for (int i = 0; i < count; ++i) {
-			emit_ptr (logbuffer, (void*)sample [i + 3]);
-			add_code_pointer (sample [i + 3]);
-		}
-
-		sample += count + 3;
-		/* new in data version 6 */
-		emit_uvalue (logbuffer, mbt_count);
-		for (int i = 0; i < mbt_count; ++i) {
-			MonoMethod *method = (MonoMethod *) sample [i * 4 + 0];
-			uintptr_t native_offset = sample [i * 4 + 3];
-
-			emit_method (prof, logbuffer, method);
-			emit_svalue (logbuffer, 0); /* il offset will always be 0 from now on */
-			emit_svalue (logbuffer, native_offset);
-		}
+		emit_method (prof, logbuffer, method);
+		emit_svalue (logbuffer, 0); /* il offset will always be 0 from now on */
+		emit_svalue (logbuffer, native_offset);
 	}
 
 	dump_unmanaged_coderefs (prof);
@@ -3988,8 +3937,6 @@ log_shutdown (MonoProfiler *prof)
 	}
 #endif
 
-	g_ptr_array_free (prof->sorted_sample_events, TRUE);
-
 	if (TLS_GET (LogBuffer, tlsbuffer))
 		send_buffer (prof, TLS_GET (GPtrArray, tlsmethodlist), TLS_GET (LogBuffer, tlsbuffer));
 
@@ -4157,23 +4104,23 @@ helper_thread (void* arg)
 			char c;
 			int r = read (prof->pipes [0], &c, 1);
 			if (r == 1 && c == 0) {
-				StatBuffer *sbufbase = prof->stat_buffers;
-				StatBuffer *sbuf;
-				if (!sbufbase->next)
-					continue;
-				sbuf = sbufbase->next->next;
-				sbufbase->next->next = NULL;
+				StatBuffer *sbuf = (StatBuffer *) mono_lock_free_queue_dequeue (&prof->pending_stat_buffers);
 				if (do_debug)
 					fprintf (stderr, "stat buffer dump\n");
 				if (sbuf) {
 					dump_sample_hits (prof, sbuf);
-					free_buffer (sbuf, sbuf->size);
+					mono_lock_free_queue_enqueue(&prof->free_stat_buffers, &sbuf->node);
 					safe_send_threadless (prof, ensure_logbuf (0));
 				}
 				continue;
 			}
 			/* time to shut down */
-			dump_sample_hits (prof, prof->stat_buffers);
+			while (1) {
+				StatBuffer *sbuf = (StatBuffer *) mono_lock_free_queue_dequeue (&prof->pending_stat_buffers);
+				if (!sbuf)
+					break;
+				dump_sample_hits (prof, sbuf);
+			}
 			if (thread)
 				mono_thread_detach (thread);
 			if (do_debug)
@@ -4483,14 +4430,11 @@ create_profiler (const char *filename, GPtrArray *filters)
 	}
 #endif
 	if (do_mono_sample) {
-		prof->stat_buffers = create_stat_buffer ();
 		need_helper_thread = 1;
 	}
 	if (do_counters && !need_helper_thread) {
 		need_helper_thread = 1;
 	}
-
-	prof->sorted_sample_events = g_ptr_array_sized_new (BUFFER_SIZE / SAMPLE_EVENT_SIZE_IN_SLOTS (0));
 
 #ifdef DISABLE_HELPER_THREAD
 	if (hs_mode_ondemand)
@@ -4500,6 +4444,15 @@ create_profiler (const char *filename, GPtrArray *filters)
 		fprintf (stderr, "Coverage unavailable on this arch.\n");
 
 #endif
+
+	mono_lock_free_queue_init (&prof->pending_stat_buffers);
+	mono_lock_free_queue_init (&prof->free_stat_buffers);
+	stat_buffer_pool = (StatBuffer *)calloc (STATBUFFER_POOL_SIZE, sizeof (StatBuffer));
+	for (int idx = 0; idx < STATBUFFER_POOL_SIZE; idx++) {
+		MonoLockFreeQueueNode *node = &stat_buffer_pool [idx].node;
+		mono_lock_free_queue_node_init (node, FALSE);
+		mono_lock_free_queue_enqueue (&prof->free_stat_buffers, node);
+	}
 
 	mono_lock_free_queue_init (&prof->writer_queue);
 	mono_os_sem_init (&prof->writer_queue_sem, 1);
