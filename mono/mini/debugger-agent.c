@@ -4330,6 +4330,7 @@ set_bp_in_method (MonoDomain *domain, MonoMethod *method, MonoSeqPointInfo *seq_
 		MonoError oerror;
 
 		/* Might be AOTed code */
+		mono_class_init (method->klass);
 		code = mono_aot_get_method_checked (domain, method, &oerror);
 		g_assert (code);
 		mono_error_assert_ok (&oerror);
@@ -9140,7 +9141,7 @@ frame_commands (int command, guint8 *p, guint8 *end, Buffer *buf)
 
 	sig = mono_method_signature (frame->actual_method);
 
-	if (!mono_get_seq_points (frame->domain, frame->actual_method))
+	if (!jit->has_var_info || !mono_get_seq_points (frame->domain, frame->actual_method))
 		/*
 		 * The method is probably from an aot image compiled without soft-debug, variables might be dead, etc.
 		 */
@@ -9458,10 +9459,10 @@ object_commands (int command, guint8 *p, guint8 *end, Buffer *buf)
 				g_free (val);
 			} else {
 				guint8 *field_value = NULL;
-				void *field_storage = NULL;
 
 				if (remote_obj) {
 #ifndef DISABLE_REMOTING
+					void *field_storage = NULL;
 					field_value = mono_load_remote_field_checked(obj, obj_type, f, &field_storage, &error);
 					if (!is_ok (&error)) {
 						mono_error_cleanup (&error); /* FIXME report the error */
