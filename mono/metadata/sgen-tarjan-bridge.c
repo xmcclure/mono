@@ -26,6 +26,9 @@
 
 #include "sgen-dynarray.h"
 
+#define BREAKOUT_FREQ 137
+#define BREAKOUT_FREQ_PLUS (BREAKOUT_FREQ+1)
+#define SHOULD_BREAKOUT(index, freq) ((index)  > 0 && ((index) % (freq) == 0))
 /*
  * See comments in sgen-bridge.h
  *
@@ -936,8 +939,22 @@ processing_build_callback_data (int generation)
 	printf ("number of SCCs %d\n", num_colors_with_bridges);
 #endif
 
+	// Count breakouts
+	int num_sccs = 0;
+	for (cur = root_color_bucket; cur; cur = cur->next) {
+		ColorData *cd;
+		for (cd = &cur->data [0]; cd < cur->next_data; ++cd) {
+			int bridges = dyn_array_ptr_size (&cd->bridges);
+			if (!bridges)
+				continue;
+			num_sccs++;
+			if (SHOULD_BREAKOUT(num_sccs, BREAKOUT_FREQ_PLUS))
+				num_sccs++;
+		}
+	}
+
 	/* This is a straightforward translation from colors to the bridge callback format. */
-	api_sccs = (MonoGCBridgeSCC **)sgen_alloc_internal_dynamic (sizeof (MonoGCBridgeSCC*) * num_colors_with_bridges, INTERNAL_MEM_BRIDGE_DATA, TRUE);
+	api_sccs = (MonoGCBridgeSCC **)sgen_alloc_internal_dynamic (sizeof (MonoGCBridgeSCC*) * num_sccs, INTERNAL_MEM_BRIDGE_DATA, TRUE);
 	api_index = xref_count = 0;
 
 	for (cur = root_color_bucket; cur; cur = cur->next) {
@@ -956,6 +973,13 @@ processing_build_callback_data (int generation)
 			for (j = 0; j < bridges; ++j)
 				api_sccs [api_index]->objs [j] = (MonoObject *)dyn_array_ptr_get (&cd->bridges, j);
 			api_index++;
+
+			if (SHOULD_BREAKOUT(api_index, BREAKOUT_FREQ_PLUS)) {
+				api_sccs [api_index] = (MonoGCBridgeSCC *)sgen_alloc_internal_dynamic (sizeof (MonoGCBridgeSCC), INTERNAL_MEM_BRIDGE_DATA, TRUE);
+				api_sccs [api_index]->is_alive = FALSE;
+				api_sccs [api_index]->num_objs = 0;
+				api_index++;
+			}
 		}
 	}
 
@@ -973,6 +997,9 @@ processing_build_callback_data (int generation)
 			reset_xrefs (cd);
 			dyn_array_ptr_set_all (&cd->other_colors, &color_merge_array);
 			xref_count += dyn_array_ptr_size (&cd->other_colors);
+
+			if (SHOULD_BREAKOUT(cd->api_index + 1, BREAKOUT_FREQ_PLUS))
+				xref_count++;
 		}
 	}
 
@@ -992,11 +1019,19 @@ processing_build_callback_data (int generation)
 			if (!bridges)
 				continue;
 
+			int breakout = (SHOULD_BREAKOUT(src->api_index + 1, BREAKOUT_FREQ_PLUS)) ? 1 : 0;
+
+			if (breakout) {
+				api_xrefs [api_index].src_scc_index = src->api_index;
+				api_xrefs [api_index].dst_scc_index = src->api_index + 1;
+				++api_index;
+			}
+
 			for (j = 0; j < dyn_array_ptr_size (&src->other_colors); ++j) {
 				ColorData *dest = (ColorData *)dyn_array_ptr_get (&src->other_colors, j);
 				g_assert (dyn_array_ptr_size (&dest->bridges)); /* We flattened the color graph, so this must never happen. */
 
-				api_xrefs [api_index].src_scc_index = src->api_index;
+				api_xrefs [api_index].src_scc_index = src->api_index + breakout;
 				api_xrefs [api_index].dst_scc_index = dest->api_index;
 				++api_index;
 			}
@@ -1013,7 +1048,7 @@ processing_build_callback_data (int generation)
 #endif
 
 	//FIXME move half of the cleanup to before the bridge callback?
-	bridge_processor->num_sccs = num_colors_with_bridges;
+	bridge_processor->num_sccs = num_sccs;
 	bridge_processor->api_sccs = api_sccs;
 	bridge_processor->num_xrefs = xref_count;
 	bridge_processor->api_xrefs = api_xrefs;
