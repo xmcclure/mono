@@ -7400,6 +7400,8 @@ mono_class_get_checked (MonoImage *image, guint32 type_token, MonoError *error)
 		mono_error_set_bad_image (error, image, "Unknown type token %x", type_token & 0xff000000);
 	}
 
+	g_warning("Now what? type_token %x klass %p", type_token, klass);
+
 done:
 	/* Generic case, should be avoided for when a better error is possible. */
 	if (!klass && mono_error_ok (error)) {
@@ -7790,11 +7792,14 @@ mono_class_from_name_checked_aux (MonoImage *image, const char* name_space, cons
 	char *nested;
 	char buf [1024];
 
+	g_warning("name %s name_space %s image is %p aka %s", name, name_space, image, image?image->name:"NULL");
+
 	mono_error_init (error);
 
 	// Checking visited images avoids stack overflows when cyclic references exist.
 	if (g_hash_table_lookup (visited_images, image))
 		return NULL;
+	g_warning("alive 1");
 
 	g_hash_table_insert (visited_images, image, GUINT_TO_POINTER(1));
 
@@ -7808,23 +7813,32 @@ mono_class_from_name_checked_aux (MonoImage *image, const char* name_space, cons
 		nested = buf + pos + 1;
 		name = buf;
 	}
+	g_warning("alive 2");
 
 	/* FIXME: get_class_from_name () can't handle types in the EXPORTEDTYPE table */
 	if (get_class_from_name && image->tables [MONO_TABLE_EXPORTEDTYPE].rows == 0) {
 		gboolean res = get_class_from_name (image, name_space, name, &klass);
+
+		g_warning("alive 2.1");
 		if (res) {
+			g_warning("alive 2.2");
 			if (!klass) {
+
+				g_warning("alive 2.3");
 				klass = search_modules (image, name_space, name, error);
-				if (!is_ok (error))
+				if (!is_ok (error)) {
+					g_warning("dead 2.4");
 					return NULL;
+				}
 			}
+			g_warning("alive 2.5 nested %s klass %p", nested?"Y":"N", klass);
 			if (nested)
 				return klass ? return_nested_in (klass, nested) : NULL;
 			else
 				return klass;
 		}
 	}
-
+g_warning("alive 3");
 	mono_image_init_name_cache (image);
 	mono_image_lock (image);
 
@@ -7847,11 +7861,14 @@ mono_class_from_name_checked_aux (MonoImage *image, const char* name_space, cons
 	}
 
 	if (!token) {
+		g_warning("NO TOKEN PATH", image);
 		klass = search_modules (image, name_space, name, error);
 		if (klass || !is_ok (error))
 			return klass;
 		return NULL;
 	}
+
+	g_warning("alive 4");
 
 	if (mono_metadata_token_table (token) == MONO_TABLE_EXPORTEDTYPE) {
 		MonoTableInfo  *t = &image->tables [MONO_TABLE_EXPORTEDTYPE];
@@ -7890,6 +7907,8 @@ mono_class_from_name_checked_aux (MonoImage *image, const char* name_space, cons
 	}
 
 	token = MONO_TOKEN_TYPE_DEF | token;
+
+	g_warning("Still here token is %x", token);
 
 	klass = mono_class_get_checked (image, token, error);
 	if (nested)
@@ -7966,10 +7985,10 @@ mono_class_load_from_name (MonoImage *image, const char* name_space, const char 
 	MonoClass *klass;
 
 	klass = mono_class_from_name_checked (image, name_space, name, &error);
-	if (!klass)
-		g_error ("Runtime critical type %s.%s not found", name_space, name);
 	if (!mono_error_ok (&error))
 		g_error ("Could not load runtime critical type %s.%s due to %s", name_space, name, mono_error_get_message (&error));
+	if (!klass)
+		g_error ("Runtime critical type %s.%s not found", name_space, name);
 	return klass;
 }
 

@@ -2469,6 +2469,7 @@ mono_aot_get_cached_class_info (MonoClass *klass, MonoCachedClassInfo *res)
 gboolean
 mono_aot_get_class_from_name (MonoImage *image, const char *name_space, const char *name, MonoClass **klass)
 {
+	g_warning("mono_aot_get_class_from_name");
 	MonoAotModule *amodule = (MonoAotModule *)image->aot_module;
 	guint16 *table, *entry;
 	guint16 table_size;
@@ -2479,7 +2480,7 @@ mono_aot_get_class_from_name (MonoImage *image, const char *name_space, const ch
 	MonoTableInfo  *t;
 	guint32 cols [MONO_TYPEDEF_SIZE];
 	GHashTable *nspace_table;
-
+	g_warning("amodule %p class_name_table %p", amodule, amodule?amodule->class_name_table:NULL);
 	if (!amodule || !amodule->class_name_table)
 		return FALSE;
 
@@ -2499,8 +2500,12 @@ mono_aot_get_class_from_name (MonoImage *image, const char *name_space, const ch
 		}
 	}
 
+	g_warning("getalive1");
+
 	table_size = amodule->class_name_table [0];
 	table = amodule->class_name_table + 1;
+
+	g_warning("First two shorts %hx, %hx", table_size, table);
 
 	if (name_space [0] == '\0')
 		full_name = g_strdup_printf ("%s", name);
@@ -2518,6 +2523,8 @@ mono_aot_get_class_from_name (MonoImage *image, const char *name_space, const ch
 
 	entry = &table [hash * 2];
 
+	g_warning("Full name %s hash %x entry %hx", full_name, hash, *entry);
+
 	if (entry [0] != 0) {
 		t = &image->tables [MONO_TABLE_TYPEDEF];
 
@@ -2532,7 +2539,7 @@ mono_aot_get_class_from_name (MonoImage *image, const char *name_space, const ch
 
 			name2 = mono_metadata_string_heap (image, cols [MONO_TYPEDEF_NAME]);
 			name_space2 = mono_metadata_string_heap (image, cols [MONO_TYPEDEF_NAMESPACE]);
-
+			g_warning("against %s / %s", name2, name_space2);
 			if (!strcmp (name, name2) && !strcmp (name_space, name_space2)) {
 				MonoError error;
 				amodule_unlock (amodule);
@@ -2551,17 +2558,19 @@ mono_aot_get_class_from_name (MonoImage *image, const char *name_space, const ch
 					g_hash_table_insert (nspace_table, (char*)name2, *klass);
 					amodule_unlock (amodule);
 				}
+				g_warning("getalive1.5");
 				return TRUE;
 			}
 
 			if (next != 0) {
 				entry = &table [next * 2];
 			} else {
+				g_warning("getalive1.6");
 				break;
 			}
 		}
 	}
-
+	g_warning("getalive2");
 	amodule_unlock (amodule);
 	
 	return TRUE;

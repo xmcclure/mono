@@ -3644,6 +3644,7 @@ mini_init (const char *filename, const char *runtime_version)
 	mono_install_free_domain_hook (mini_free_jit_domain_info);
 #endif
 	mono_install_get_cached_class_info (mono_aot_get_cached_class_info);
+	g_warning("INSTALLING GET_CLASS_FROM_NAME");
 	mono_install_get_class_from_name (mono_aot_get_class_from_name);
 	mono_install_jit_info_find_in_aot (mono_aot_find_jit_info);
 
