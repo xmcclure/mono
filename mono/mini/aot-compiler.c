@@ -8270,7 +8270,8 @@ emit_llvm_file (MonoAotCompile *acfg)
 	g_string_append_printf (acfg->llc_args, " -disable-tail-calls");
 #endif
 
-#if defined(TARGET_MACH) && defined(TARGET_ARM)
+// FIXME: DON'T
+#if 1
 	/* ios requires PIC code now */
 	g_string_append_printf (acfg->llc_args, " -relocation-model=pic");
 #else
